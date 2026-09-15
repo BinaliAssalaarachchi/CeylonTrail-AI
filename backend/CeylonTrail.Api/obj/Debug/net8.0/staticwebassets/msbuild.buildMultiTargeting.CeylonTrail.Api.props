@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\CeylonTrail.Api.props" />
-</Project>
