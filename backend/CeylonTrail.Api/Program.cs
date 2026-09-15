@@ -1,5 +1,14 @@
+using System.Text;
+using CeylonTrail.Api.Configuration;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using CeylonTrail.Api.Data;
+using CeylonTrail.Api.Interfaces;
+using CeylonTrail.Api.Models;
+using CeylonTrail.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,9 +24,67 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
+jwtOptions.SigningKey = builder.Configuration[$"{JwtOptions.SectionName}:SigningKey"] ?? string.Empty;
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Issuer) ||
+    string.IsNullOrWhiteSpace(jwtOptions.Audience) ||
+    string.IsNullOrWhiteSpace(jwtOptions.SigningKey) ||
+    jwtOptions.ExpiryMinutes <= 0)
+{
+    throw new InvalidOperationException(
+        "JWT configuration is incomplete. Configure Jwt:Issuer, Jwt:Audience, Jwt:ExpiryMinutes, and Jwt:SigningKey.");
+}
+
+builder.Services.AddSingleton(jwtOptions);
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+builder.Services.AddAuthorization();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter a valid JWT bearer token."
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 var app = builder.Build();
 
@@ -29,6 +96,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
 var summaries = new[]
 {
