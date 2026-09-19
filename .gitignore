@@ -1,6 +1,12 @@
 # .NET build output
 **/bin/
 **/obj/
+**/build/
+**/.dart_tool/
+**/node_modules/
+**/dist/
+**/local.properties
+coverage/
 
 # Visual Studio
 .vs/
@@ -12,18 +18,11 @@
 .env.*
 !.env.example
 
-# Node / React
-node_modules/
-dist/
-build/
-
 # Flutter
-.dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
 .pub-cache/
-build/
 
 # IDE
 .vscode/

@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using CeylonTrail.Api.Data;
 using CeylonTrail.Api.Interfaces;
+using CeylonTrail.Api.Middleware;
 using CeylonTrail.Api.Models;
 using CeylonTrail.Api.Services;
 
@@ -57,15 +58,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
-builder.Services.AddCors(options =>
+builder.Services.AddHealthChecks();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Logging.AddJsonConsole();
+
+if (builder.Environment.IsDevelopment())
 {
-    options.AddPolicy("ReactDevelopment", policy =>
+    builder.Services.AddCors(options =>
     {
-        policy.WithOrigins("http://localhost:5173")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        options.AddPolicy("ReactDevelopment", policy =>
+        {
+            policy.WithOrigins("http://localhost:5173")
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
     });
-});
+}
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -98,6 +107,8 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -106,10 +117,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors("ReactDevelopment");
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("ReactDevelopment");
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 var summaries = new[]
 {

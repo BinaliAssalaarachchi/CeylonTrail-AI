@@ -1,0 +1,33 @@
+name: Shared foundation CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend restore, build, and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore API
+        run: dotnet restore backend/CeylonTrail.Api/CeylonTrail.Api.csproj
+
+      - name: Restore tests
+        run: dotnet restore tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj
+
+      - name: Build backend and tests
+        run: dotnet build tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj --configuration Release --no-restore
+
+      - name: Run backend tests
+        run: dotnet test tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj --configuration Release --no-build --no-restore
