@@ -3,6 +3,7 @@ using System;
 using CeylonTrail.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CeylonTrail.Api.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920134528_AddAttractionsFeature")]
+    partial class AddAttractionsFeature
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,11 +31,6 @@ namespace CeylonTrail.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid");
 
@@ -44,16 +42,23 @@ namespace CeylonTrail.Api.Data.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
-                    b.Property<string>("District")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("Latitude")
                         .HasColumnType("numeric");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<decimal>("Longitude")
                         .HasColumnType("numeric");
@@ -70,11 +75,6 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Property<Guid>("ProviderId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -82,9 +82,9 @@ namespace CeylonTrail.Api.Data.Migrations
 
                     b.HasIndex("Name");
 
-                    b.HasIndex("ProviderId", "Status");
+                    b.HasIndex("ProviderId", "IsApproved");
 
-                    b.HasIndex("CategoryId", "Status", "IsActive");
+                    b.HasIndex("CategoryId", "IsApproved", "IsActive");
 
                     b.ToTable("Attractions", t =>
                         {
@@ -96,37 +96,6 @@ namespace CeylonTrail.Api.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.AttractionImage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AltText")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<Guid>("AttractionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ImageUrl")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AttractionId", "SortOrder");
-
-                    b.ToTable("AttractionImages");
-                });
-
             modelBuilder.Entity("CeylonTrail.Api.Models.AttractionSchedule", b =>
                 {
                     b.Property<Guid>("Id")
@@ -136,7 +105,7 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Property<Guid>("AttractionId")
                         .HasColumnType("uuid");
 
-                    b.Property<TimeOnly?>("ClosingTime")
+                    b.Property<TimeOnly?>("CloseTime")
                         .HasColumnType("time without time zone");
 
                     b.Property<string>("DayOfWeek")
@@ -147,7 +116,7 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Property<bool>("IsClosed")
                         .HasColumnType("boolean");
 
-                    b.Property<TimeOnly?>("OpeningTime")
+                    b.Property<TimeOnly?>("OpenTime")
                         .HasColumnType("time without time zone");
 
                     b.HasKey("Id");
@@ -157,7 +126,7 @@ namespace CeylonTrail.Api.Data.Migrations
 
                     b.ToTable("AttractionSchedules", t =>
                         {
-                            t.HasCheckConstraint("CK_AttractionSchedules_TimeRange", "\"IsClosed\" OR (\"OpeningTime\" IS NOT NULL AND \"ClosingTime\" IS NOT NULL AND \"OpeningTime\" < \"ClosingTime\")");
+                            t.HasCheckConstraint("CK_AttractionSchedules_TimeRange", "\"IsClosed\" OR \"OpenTime\" < \"CloseTime\"");
                         });
                 });
 
@@ -193,9 +162,6 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Property<Guid>("AttractionId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AvailableCapacity")
-                        .HasColumnType("integer");
-
                     b.Property<int>("Capacity")
                         .HasColumnType("integer");
 
@@ -204,6 +170,13 @@ namespace CeylonTrail.Api.Data.Migrations
 
                     b.Property<TimeOnly>("EndTime")
                         .HasColumnType("time without time zone");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<int>("ReservedCount")
+                        .HasColumnType("integer");
 
                     b.Property<TimeOnly>("StartTime")
                         .HasColumnType("time without time zone");
@@ -215,9 +188,11 @@ namespace CeylonTrail.Api.Data.Migrations
 
                     b.ToTable("ExperienceSlots", t =>
                         {
-                            t.HasCheckConstraint("CK_ExperienceSlots_AvailableCapacity_Valid", "\"AvailableCapacity\" >= 0 AND \"AvailableCapacity\" <= \"Capacity\"");
-
                             t.HasCheckConstraint("CK_ExperienceSlots_Capacity_Positive", "\"Capacity\" > 0");
+
+                            t.HasCheckConstraint("CK_ExperienceSlots_Price_NonNegative", "\"Price\" >= 0");
+
+                            t.HasCheckConstraint("CK_ExperienceSlots_ReservedCount_Valid", "\"ReservedCount\" >= 0 AND \"ReservedCount\" <= \"Capacity\"");
 
                             t.HasCheckConstraint("CK_ExperienceSlots_TimeRange", "\"StartTime\" < \"EndTime\"");
                         });
@@ -235,14 +210,14 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("TouristId")
+                    b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("AttractionId");
 
-                    b.HasIndex("TouristId", "AttractionId")
+                    b.HasIndex("UserId", "AttractionId")
                         .IsUnique();
 
                     b.ToTable("Favorites");
@@ -315,17 +290,6 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Navigation("Provider");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.AttractionImage", b =>
-                {
-                    b.HasOne("CeylonTrail.Api.Models.Attraction", "Attraction")
-                        .WithMany("Images")
-                        .HasForeignKey("AttractionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Attraction");
-                });
-
             modelBuilder.Entity("CeylonTrail.Api.Models.AttractionSchedule", b =>
                 {
                     b.HasOne("CeylonTrail.Api.Models.Attraction", "Attraction")
@@ -356,15 +320,15 @@ namespace CeylonTrail.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("CeylonTrail.Api.Models.User", "Tourist")
+                    b.HasOne("CeylonTrail.Api.Models.User", "User")
                         .WithMany()
-                        .HasForeignKey("TouristId")
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Attraction");
 
-                    b.Navigation("Tourist");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("CeylonTrail.Api.Models.Attraction", b =>
@@ -372,8 +336,6 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Navigation("ExperienceSlots");
 
                     b.Navigation("Favorites");
-
-                    b.Navigation("Images");
 
                     b.Navigation("Schedules");
                 });
