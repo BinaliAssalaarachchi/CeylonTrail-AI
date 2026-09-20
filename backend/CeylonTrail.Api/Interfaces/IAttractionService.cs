@@ -19,6 +19,10 @@ public interface IAttractionService
         Guid? viewerId = null,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<AttractionResponse>> ApproveAsync(
+        Guid attractionId,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<AttractionResponse>> UpdateAsync(
         Guid attractionId,
         UpdateAttractionRequest request,

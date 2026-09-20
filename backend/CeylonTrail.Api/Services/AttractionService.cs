@@ -161,6 +161,40 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         return ServiceResult<AttractionResponse>.Success(ToResponse(attraction, isFavorite));
     }
 
+    public async Task<ServiceResult<AttractionResponse>> ApproveAsync(
+        Guid attractionId,
+        CancellationToken cancellationToken = default)
+    {
+        var attraction = await dbContext.Attractions
+            .SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        if (attraction is null)
+        {
+            return ServiceResult<AttractionResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+        }
+
+        if (!attraction.IsActive)
+        {
+            return ServiceResult<AttractionResponse>.Failure(
+                "Inactive attractions cannot be approved.",
+                ServiceErrorCode.Validation);
+        }
+
+        if (attraction.Status != PendingApprovalStatus)
+        {
+            return ServiceResult<AttractionResponse>.Failure(
+                "Only pending attractions can be approved.",
+                ServiceErrorCode.Conflict);
+        }
+
+        attraction.Status = ApprovedStatus;
+        attraction.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var saved = await GetAttractionQuery()
+            .SingleAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        return ServiceResult<AttractionResponse>.Success(ToResponse(saved, false));
+    }
+
     public async Task<ServiceResult<AttractionResponse>> UpdateAsync(
         Guid attractionId,
         UpdateAttractionRequest request,

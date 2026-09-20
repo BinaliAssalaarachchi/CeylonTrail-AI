@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Keep the legacy nested template project from being compiled into this API. -->
+    <Compile Remove="CeylonTrail.Api\**" />
+    <EmbeddedResource Remove="CeylonTrail.Api\**" />
+    <None Remove="CeylonTrail.Api\**" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.29" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.*">
