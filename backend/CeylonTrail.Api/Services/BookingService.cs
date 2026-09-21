@@ -243,7 +243,6 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             CancelledAt = DateTime.UtcNow
         };
         booking.Cancellation = cancellation;
-        dbContext.Cancellations.Add(cancellation);
 
         // Record status history
         booking.StatusHistory.Add(new BookingStatusHistory

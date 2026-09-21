@@ -62,6 +62,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Booking>(entity =>
         {
             entity.HasKey(b => b.Id);
+            entity.Property(b => b.Id).ValueGeneratedOnAdd();
 
             entity.Property(b => b.Status)
                 .HasConversion<string>()
@@ -109,6 +110,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<BookingItem>(entity =>
         {
             entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedOnAdd();
 
             entity.Property(item => item.Quantity)
                 .IsRequired();
@@ -126,6 +128,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<BookingStatusHistory>(entity =>
         {
             entity.HasKey(h => h.Id);
+            entity.Property(h => h.Id).ValueGeneratedOnAdd();
 
             entity.Property(h => h.PreviousStatus)
                 .HasConversion<string>()
@@ -148,6 +151,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Cancellation>(entity =>
         {
             entity.HasKey(c => c.Id);
+            entity.Property(c => c.Id).ValueGeneratedOnAdd();
 
             entity.Property(c => c.Reason)
                 .IsRequired()

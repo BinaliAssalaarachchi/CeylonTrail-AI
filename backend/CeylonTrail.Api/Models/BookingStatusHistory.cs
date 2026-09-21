@@ -2,7 +2,7 @@ namespace CeylonTrail.Api.Models;
 
 public class BookingStatusHistory
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; }
 
     // Link to the parent booking
     public Guid BookingId { get; set; }

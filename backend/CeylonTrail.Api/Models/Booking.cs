@@ -2,7 +2,7 @@ namespace CeylonTrail.Api.Models;
 
 public class Booking
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; }
 
     // The tourist who created this booking
     public Guid TouristId { get; set; }

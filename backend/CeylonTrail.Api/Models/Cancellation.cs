@@ -4,7 +4,7 @@ namespace CeylonTrail.Api.Models;
 
 public class Cancellation
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; }
 
     // 1-to-1 link to the booking
     public Guid BookingId { get; set; }
