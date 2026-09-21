@@ -32,4 +32,11 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+
 CeylonTrail-AI/
