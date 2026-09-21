@@ -5,6 +5,7 @@ import AppShell from './layouts/AppShell'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RoleDashboardPage from './pages/RoleDashboardPage'
+import TravelAlertsPage from './pages/TravelAlertsPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
@@ -26,6 +27,9 @@ function App() {
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['Administrator']} />}>
                 <Route path="/administrator" element={<RoleDashboardPage title="Administrator Dashboard" description="A shared workspace for administrators." />} />
+              </Route>
+              <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
+                <Route path="/travel-alerts" element={<TravelAlertsPage />} />
               </Route>
             </Route>
           </Route>

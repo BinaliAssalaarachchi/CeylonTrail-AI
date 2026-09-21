@@ -33,7 +33,7 @@ function BrandMark() {
 export default function AppShell() {
   const { user, logout } = useAuth()
   const roleLink = roleLinks[user.role]
-
+  const canManageAlerts = ['TravelCoordinator', 'Administrator'].includes(user.role)
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Application navigation">
@@ -47,7 +47,11 @@ export default function AppShell() {
           {roleLink && <NavLink className="nav-link" to={roleLink.to}><span className="nav-icon">◇</span><span>{roleLink.label}</span></NavLink>}
           <div className="nav-divider" />
           <p className="nav-section-label">Platform modules</p>
-          {futureModules.map((module) => (
+          {futureModules.map((module) => module.label === 'Travel Operations' && canManageAlerts ? (
+            <NavLink className="nav-link" to="/travel-alerts" key={module.label}>
+              <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
+            </NavLink>
+          ) : (
             <span className="nav-link nav-link-disabled" key={module.label} aria-disabled="true" title="Available in a future feature phase">
               <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
             </span>
