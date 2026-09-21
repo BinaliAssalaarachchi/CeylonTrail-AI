@@ -70,6 +70,26 @@ public sealed class AuthenticationServiceTests
         Assert.Null(result.Response);
     }
 
+    [Fact]
+    public async Task Register_WithPrivilegedRole_RejectsPublicSelfRegistration()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(dbContext);
+
+        var result = await service.RegisterAsync(new RegisterRequest
+        {
+            FirstName = "Potential",
+            LastName = "Administrator",
+            Email = "administrator@example.com",
+            Password = "ValidPassword123!",
+            Role = nameof(UserRole.Administrator)
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Only Tourist accounts can self-register.", result.Error);
+        Assert.Empty(dbContext.Users);
+    }
+
     private static ApplicationDbContext CreateDbContext() => new(
         new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

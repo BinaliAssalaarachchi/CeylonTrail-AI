@@ -31,6 +31,11 @@ public sealed class AuthenticationService(
             return (false, "The requested role is not valid.", null);
         }
 
+        if (role != UserRole.Tourist)
+        {
+            return (false, "Only Tourist accounts can self-register.", null);
+        }
+
         if (await dbContext.Users.AnyAsync(user => user.Email == normalizedEmail, cancellationToken))
         {
             return (false, "An account with that email already exists.", null);
