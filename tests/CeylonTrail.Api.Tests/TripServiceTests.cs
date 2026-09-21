@@ -337,6 +337,56 @@ public sealed class TripServiceTests
         Assert.True((await service.GetLatestItineraryAsync(touristId, missingId)).NotFound);
     }
 
+    [Fact]
+    public async Task GetStaffTrips_ReturnsTripsWithItineraryAvailabilityWithoutChangingOwnership()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new TripService(dbContext);
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Coordinator view");
+        dbContext.Itineraries.Add(new Itinerary
+        {
+            Id = Guid.NewGuid(),
+            TripId = trip.Id,
+            Status = ItineraryStatus.Active,
+            TotalEstimatedCost = 75m,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var trips = await service.GetStaffTripsAsync();
+
+        var staffTrip = Assert.Single(trips);
+        Assert.Equal(touristId, staffTrip.TouristId);
+        Assert.True(staffTrip.HasItinerary);
+        Assert.Equal(touristId, (await dbContext.Trips.FindAsync(trip.Id))!.TouristId);
+    }
+
+    [Fact]
+    public async Task GetStaffItinerary_ReturnsItineraryWithoutTouristOwnershipFilter()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new TripService(dbContext);
+        var trip = await SeedTripAsync(dbContext, Guid.NewGuid(), "Coordinator itinerary view");
+        var itinerary = new Itinerary
+        {
+            Id = Guid.NewGuid(),
+            TripId = trip.Id,
+            Status = ItineraryStatus.Generated,
+            TotalEstimatedCost = 125m,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.Itineraries.Add(itinerary);
+        await dbContext.SaveChangesAsync();
+
+        var result = await service.GetStaffItineraryAsync(trip.Id);
+
+        Assert.False(result.NotFound);
+        Assert.Equal(itinerary.Id, result.Value!.Id);
+    }
+
     private static ApplicationDbContext CreateDbContext() => new(
         new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

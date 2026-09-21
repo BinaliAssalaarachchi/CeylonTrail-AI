@@ -217,6 +217,59 @@ public sealed class TripService(ApplicationDbContext dbContext) : ITripService
             : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
     }
 
+    public async Task<IReadOnlyList<StaffTripResponse>> GetStaffTripsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var trips = await dbContext.Trips
+            .AsNoTracking()
+            .Include(trip => trip.Itineraries)
+            .OrderByDescending(trip => trip.UpdatedAt)
+            .ToListAsync(cancellationToken);
+
+        return trips.Select(ToStaffTripResponse).ToList();
+    }
+
+    public async Task<TripServiceResult<StaffTripResponse>> GetStaffTripAsync(
+        Guid tripId,
+        CancellationToken cancellationToken = default)
+    {
+        if (tripId == Guid.Empty)
+        {
+            return new TripServiceResult<StaffTripResponse>(Error: "Trip ID must not be empty.", NotFound: true);
+        }
+
+        var trip = await dbContext.Trips
+            .AsNoTracking()
+            .Include(candidate => candidate.Itineraries)
+            .SingleOrDefaultAsync(candidate => candidate.Id == tripId, cancellationToken);
+
+        return trip is null
+            ? new TripServiceResult<StaffTripResponse>(NotFound: true)
+            : new TripServiceResult<StaffTripResponse>(ToStaffTripResponse(trip));
+    }
+
+    public async Task<TripServiceResult<ItineraryResponse>> GetStaffItineraryAsync(
+        Guid tripId,
+        CancellationToken cancellationToken = default)
+    {
+        if (tripId == Guid.Empty)
+        {
+            return new TripServiceResult<ItineraryResponse>(Error: "Trip ID must not be empty.", NotFound: true);
+        }
+
+        var itinerary = await dbContext.Itineraries
+            .AsNoTracking()
+            .Where(candidate => candidate.TripId == tripId)
+            .Include(candidate => candidate.Days)
+                .ThenInclude(day => day.Items)
+            .OrderByDescending(candidate => candidate.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return itinerary is null
+            ? new TripServiceResult<ItineraryResponse>(NotFound: true)
+            : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+    }
+
     private static string? ValidateTrip(string name, DateOnly startDate, DateOnly endDate, decimal budget)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -262,6 +315,18 @@ public sealed class TripService(ApplicationDbContext dbContext) : ITripService
         preference.Id,
         preference.PreferenceType,
         preference.Value);
+
+    private static StaffTripResponse ToStaffTripResponse(Trip trip) => new(
+        trip.Id,
+        trip.TouristId,
+        trip.Name,
+        trip.StartDate,
+        trip.EndDate,
+        trip.Budget,
+        trip.Status,
+        trip.CreatedAt,
+        trip.UpdatedAt,
+        trip.Itineraries.Count > 0);
 
     private static ItineraryResponse ToItineraryResponse(Itinerary itinerary) => new(
         itinerary.Id,

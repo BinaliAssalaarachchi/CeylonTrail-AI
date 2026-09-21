@@ -33,6 +33,7 @@ function BrandMark() {
 export default function AppShell() {
   const { user, logout } = useAuth()
   const roleLink = roleLinks[user.role]
+  const canMonitorTrips = ['TravelCoordinator', 'Administrator'].includes(user.role)
 
   return (
     <div className="app-shell">
@@ -45,6 +46,7 @@ export default function AppShell() {
         <nav className="primary-nav">
           <NavLink className="nav-link" to="/"><span className="nav-icon">⌂</span><span>Overview / Dashboard</span></NavLink>
           {roleLink && <NavLink className="nav-link" to={roleLink.to}><span className="nav-icon">◇</span><span>{roleLink.label}</span></NavLink>}
+          {canMonitorTrips && <NavLink className="nav-link" to="/trip-planning"><span className="nav-icon">↗</span><span>Trip planning</span></NavLink>}
           <div className="nav-divider" />
           <p className="nav-section-label">Platform modules</p>
           {futureModules.map((module) => (

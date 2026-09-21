@@ -1,0 +1,48 @@
+function formatDate(value) {
+  return new Intl.DateTimeFormat('en-LK', { dateStyle: 'medium' }).format(new Date(value))
+}
+
+function formatTime(value) {
+  return value?.slice(0, 5) ?? '—'
+}
+
+export default function ItineraryReview({ itinerary }) {
+  return (
+    <div className="itinerary-review">
+      <div className="itinerary-summary-grid">
+        <div><span>Status</span><strong className="status-pill status-active">{itinerary.status}</strong></div>
+        <div><span>Estimated cost</span><strong>Rs. {Number(itinerary.totalEstimatedCost).toLocaleString('en-LK')}</strong></div>
+        <div><span>Generated</span><strong>{formatDate(itinerary.createdAt)}</strong></div>
+        <div><span>Last updated</span><strong>{formatDate(itinerary.updatedAt)}</strong></div>
+      </div>
+
+      <div className="itinerary-days">
+        {itinerary.days?.map((day) => (
+          <article className="itinerary-day" key={day.id}>
+            <div className="itinerary-day-heading">
+              <span className="day-number">Day {day.dayNumber}</span>
+              <strong>{formatDate(day.date)}</strong>
+            </div>
+            {day.items?.length ? (
+              <div className="itinerary-items">
+                {day.items.map((item) => (
+                  <div className="itinerary-item" key={item.id}>
+                    <div className="itinerary-item-time">{formatTime(item.startTime)}–{formatTime(item.endTime)}</div>
+                    <div className="itinerary-item-copy">
+                      <strong>Attraction reference</strong>
+                      <span>{item.attractionId}</span>
+                      {item.notes && <p>{item.notes}</p>}
+                    </div>
+                    <span className="itinerary-item-cost">Rs. {Number(item.estimatedCost).toLocaleString('en-LK')}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="muted itinerary-empty-day">No activities are stored for this day.</p>
+            )}
+          </article>
+        ))}
+      </div>
+    </div>
+  )
+}
