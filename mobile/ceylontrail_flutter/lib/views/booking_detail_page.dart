@@ -128,7 +128,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.between,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Chip(
                           avatar: CircleAvatar(

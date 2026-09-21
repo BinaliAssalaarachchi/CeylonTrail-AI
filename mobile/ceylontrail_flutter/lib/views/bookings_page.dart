@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/booking_model.dart';
 import '../services/api_client.dart';
-import '../services/auth_service.dart';
 import '../services/booking_api_service.dart';
 import '../widgets/auth_scope.dart';
 import 'booking_detail_page.dart';
@@ -148,7 +147,7 @@ class _BookingsPageState extends State<BookingsPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.between,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           'ID: ${item.id.substring(0, 8)}...',
