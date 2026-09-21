@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+
+  --color-canvas: #f7f7ff;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f0f2fc;
+  --color-surface-muted: #e9edf8;
+  --color-forest: #0e3b2e;
+  --color-forest-deep: #00241a;
+  --color-tea: #2d6a4f;
+  --color-teal: #028090;
+  --color-ink: #171c25;
+  --color-ink-muted: #59645f;
+  --color-outline: #c0c8c3;
+  --color-outline-soft: rgba(14, 59, 46, 0.1);
+  --color-mint: #d8f3dc;
+  --color-sand: #fdfbf7;
+  --color-amber: #d4a373;
+  --color-error: #ba1a1a;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-pill: 999px;
+
+  --shadow-soft: 0 4px 20px -2px rgba(14, 59, 46, 0.06);
+  --shadow-card: 0 12px 32px -12px rgba(14, 59, 46, 0.12);
+  --transition: 180ms ease;
+}
