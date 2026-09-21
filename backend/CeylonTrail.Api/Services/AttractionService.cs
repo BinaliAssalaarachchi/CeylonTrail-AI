@@ -82,6 +82,16 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, providerId, cancellationToken);
     }
 
+    public async Task<ServiceResult<AttractionSearchResponse>> GetPendingAsync(
+        AttractionSearchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var query = GetAttractionQuery()
+            .Where(attraction => attraction.IsActive && attraction.Status == PendingApprovalStatus);
+
+        return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, null, cancellationToken);
+    }
+
     public async Task<ServiceResult<IReadOnlyList<CategoryResponse>>> GetCategoriesAsync(
         CancellationToken cancellationToken = default)
     {

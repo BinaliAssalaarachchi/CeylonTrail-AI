@@ -82,6 +82,16 @@ public sealed class AttractionsController(IAttractionService attractionService) 
         return ToActionResult(result, Ok);
     }
 
+    [HttpGet("pending")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> Pending(
+        [FromQuery] AttractionSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await attractionService.GetPendingAsync(request, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(
         Guid id,

@@ -142,6 +142,26 @@ public sealed class AttractionServiceTests
         Assert.Contains(result.Value!, item => item.Id == category.Id && item.Name == "Culture");
     }
 
+    [Fact]
+    public async Task PendingAttractionsCanBeListedForAdministratorWorkflow()
+    {
+        await using var dbContext = CreateDbContext();
+        var provider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        await dbContext.SaveChangesAsync();
+        var service = new AttractionService(dbContext);
+
+        var pending = await service.CreateAsync(CreateRequest(category.Id), provider.Id);
+        await service.ApproveAsync(pending.Value!.Id);
+
+        var secondPending = await service.CreateAsync(CreateRequest(category.Id), provider.Id);
+        var result = await service.GetPendingAsync(new AttractionSearchRequest());
+
+        Assert.True(result.Succeeded);
+        Assert.Single(result.Value!.Items);
+        Assert.Equal(secondPending.Value!.Id, result.Value.Items[0].Id);
+    }
+
     private static CreateAttractionRequest CreateRequest(Guid categoryId) => new()
     {
         CategoryId = categoryId,

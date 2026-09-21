@@ -24,6 +24,10 @@ public interface IAttractionService
         Guid providerId,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<AttractionSearchResponse>> GetPendingAsync(
+        AttractionSearchRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<IReadOnlyList<CategoryResponse>>> GetCategoriesAsync(
         CancellationToken cancellationToken = default);
 

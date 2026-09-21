@@ -24,6 +24,8 @@ export default function AppShell() {
         <nav className="sidebar" aria-label="Application navigation">
           <NavLink className="nav-link" to="/">Overview</NavLink>
           {roleLink && <NavLink className="nav-link" to={roleLink.to}>{roleLink.label}</NavLink>}
+          {user.role === 'TourismProvider' && <NavLink className="nav-link" to="/provider/attractions">My attractions</NavLink>}
+          {user.role === 'Administrator' && <NavLink className="nav-link" to="/admin/attractions">Pending attractions</NavLink>}
         </nav>
         <main className="main-content"><Outlet /></main>
       </div>
