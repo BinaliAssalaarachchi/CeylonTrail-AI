@@ -41,16 +41,35 @@ export default function HomePage() {
       </div>
 
       <div className="module-grid" aria-label="CeylonTrail platform modules">
-        {modules.map((module) => (
-          <article className="module-card" key={module.label}>
-            <span className="module-icon" aria-hidden="true">{module.icon}</span>
-            <div>
-              <h3>{module.label}</h3>
-              <p>{module.description}</p>
-            </div>
-            <span className="module-status">Foundation ready</span>
-          </article>
-        ))}
+        {modules.map((module) => {
+          if (module.label === 'Bookings') {
+            return (
+              <Link
+                to="/bookings"
+                className="module-card module-card-active"
+                key={module.label}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <span className="module-icon" aria-hidden="true">{module.icon}</span>
+                <div>
+                  <h3>{module.label}</h3>
+                  <p>{module.description}</p>
+                </div>
+                <span className="module-status" style={{ color: 'var(--color-tea)', fontWeight: 600 }}>Active · Open Workspace →</span>
+              </Link>
+            )
+          }
+          return (
+            <article className="module-card" key={module.label}>
+              <span className="module-icon" aria-hidden="true">{module.icon}</span>
+              <div>
+                <h3>{module.label}</h3>
+                <p>{module.description}</p>
+              </div>
+              <span className="module-status">Foundation ready</span>
+            </article>
+          )
+        })}
       </div>
 
       <div className="foundation-callout">

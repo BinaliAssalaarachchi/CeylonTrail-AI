@@ -47,11 +47,17 @@ export default function AppShell() {
           {roleLink && <NavLink className="nav-link" to={roleLink.to}><span className="nav-icon">◇</span><span>{roleLink.label}</span></NavLink>}
           <div className="nav-divider" />
           <p className="nav-section-label">Platform modules</p>
-          {futureModules.map((module) => (
-            <span className="nav-link nav-link-disabled" key={module.label} aria-disabled="true" title="Available in a future feature phase">
-              <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
-            </span>
-          ))}
+          <NavLink className="nav-link" to="/bookings">
+            <span className="nav-icon">□</span>
+            <span>Bookings</span>
+          </NavLink>
+          {futureModules
+            .filter((m) => m.label !== 'Bookings')
+            .map((module) => (
+              <span className="nav-link nav-link-disabled" key={module.label} aria-disabled="true" title="Available in a future feature phase">
+                <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
+              </span>
+            ))}
         </nav>
         <div className="sidebar-footer">
           <div className="protocol-note"><span className="protocol-icon">◌</span><span><strong>Shared foundation</strong><small>Feature workspaces will appear here.</small></span></div>
