@@ -59,82 +59,59 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         Guid? viewerId = null,
         CancellationToken cancellationToken = default)
     {
-        if (request.MinPrice.HasValue && request.MaxPrice.HasValue && request.MinPrice > request.MaxPrice)
-        {
-            return ServiceResult<AttractionSearchResponse>.Failure(
-                "MinPrice must be less than or equal to MaxPrice.",
-                ServiceErrorCode.Validation);
-        }
-
         var query = GetAttractionQuery()
             .Where(attraction => attraction.IsActive && attraction.Status == ApprovedStatus);
 
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, viewerId, cancellationToken);
+    }
+
+    public async Task<ServiceResult<AttractionSearchResponse>> GetMineAsync(
+        AttractionSearchRequest request,
+        Guid providerId,
+        CancellationToken cancellationToken = default)
+    {
+        var providerResult = await RequireProviderAsync(providerId, cancellationToken);
+        if (!providerResult.Succeeded)
         {
-            var keyword = request.Keyword.Trim();
-            query = query.Where(attraction =>
-                EF.Functions.ILike(attraction.Name, $"%{keyword}%") ||
-                EF.Functions.ILike(attraction.Description, $"%{keyword}%"));
+            return ServiceResult<AttractionSearchResponse>.Failure(providerResult.Error!, providerResult.ErrorCode);
         }
 
-        if (!string.IsNullOrWhiteSpace(request.District))
-        {
-            var district = request.District.Trim();
-            query = query.Where(attraction => EF.Functions.ILike(attraction.District, district));
-        }
+        var query = GetAttractionQuery()
+            .Where(attraction => attraction.ProviderId == providerId && attraction.IsActive);
 
-        if (request.CategoryId.HasValue)
-        {
-            query = query.Where(attraction => attraction.CategoryId == request.CategoryId.Value);
-        }
+        return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, providerId, cancellationToken);
+    }
 
-        if (request.MinPrice.HasValue)
-        {
-            query = query.Where(attraction => attraction.Price >= request.MinPrice.Value);
-        }
-
-        if (request.MaxPrice.HasValue)
-        {
-            query = query.Where(attraction => attraction.Price <= request.MaxPrice.Value);
-        }
-
-        if (request.Date.HasValue)
-        {
-            query = query.Where(attraction => attraction.ExperienceSlots.Any(slot =>
-                slot.Date == request.Date.Value && slot.AvailableCapacity > 0));
-        }
-
-        query = request.Sort.Trim().ToLowerInvariant() switch
-        {
-            "name_desc" => query.OrderByDescending(attraction => attraction.Name),
-            "price_asc" => query.OrderBy(attraction => attraction.Price),
-            "price_desc" => query.OrderByDescending(attraction => attraction.Price),
-            "newest" => query.OrderByDescending(attraction => attraction.CreatedAt),
-            "name_asc" or "" => query.OrderBy(attraction => attraction.Name),
-            _ => query.OrderBy(attraction => attraction.Name)
-        };
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
+    public async Task<ServiceResult<IReadOnlyList<CategoryResponse>>> GetCategoriesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var categories = await dbContext.Categories
+            .AsNoTracking()
+            .OrderBy(category => category.Name)
+            .Select(category => new CategoryResponse(category.Id, category.Name, category.Description))
             .ToListAsync(cancellationToken);
 
-        var favoriteIds = viewerId.HasValue
-            ? (await dbContext.Favorites
-                .Where(favorite => favorite.TouristId == viewerId.Value && items.Select(item => item.Id).Contains(favorite.AttractionId))
-                .Select(favorite => favorite.AttractionId)
-                .ToListAsync(cancellationToken)).ToHashSet()
-            : new HashSet<Guid>();
+        return ServiceResult<IReadOnlyList<CategoryResponse>>.Success(categories);
+    }
 
-        var response = new AttractionSearchResponse(
-            items.Select(item => ToResponse(item, favoriteIds.Contains(item.Id))).ToList(),
-            totalCount,
-            request.Page,
-            request.PageSize,
-            (int)Math.Ceiling(totalCount / (double)request.PageSize));
+    public async Task<ServiceResult<AttractionSearchResponse>> GetFavoritesAsync(
+        AttractionSearchRequest request,
+        Guid touristId,
+        CancellationToken cancellationToken = default)
+    {
+        var touristResult = await RequireTouristAsync(touristId, cancellationToken);
+        if (!touristResult.Succeeded)
+        {
+            return ServiceResult<AttractionSearchResponse>.Failure(touristResult.Error!, touristResult.ErrorCode);
+        }
 
-        return ServiceResult<AttractionSearchResponse>.Success(response);
+        var query = GetAttractionQuery()
+            .Where(attraction =>
+                attraction.IsActive &&
+                attraction.Status == ApprovedStatus &&
+                attraction.Favorites.Any(favorite => favorite.TouristId == touristId));
+
+        return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, touristId, cancellationToken);
     }
 
     public async Task<ServiceResult<AttractionResponse>> GetByIdAsync(
@@ -148,6 +125,22 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
                 candidate.IsActive &&
                 candidate.Status == ApprovedStatus,
                 cancellationToken);
+
+        if (attraction is null && viewerId.HasValue)
+        {
+            var viewer = await dbContext.Users
+                .AsNoTracking()
+                .SingleOrDefaultAsync(user => user.Id == viewerId.Value && user.IsActive, cancellationToken);
+
+            if (viewer is { Role: UserRole.TourismProvider or UserRole.Administrator })
+            {
+                attraction = await GetAttractionQuery()
+                    .SingleOrDefaultAsync(candidate =>
+                        candidate.Id == attractionId &&
+                        (viewer.Role == UserRole.Administrator || candidate.ProviderId == viewerId.Value),
+                        cancellationToken);
+            }
+        }
 
         if (attraction is null)
         {
@@ -201,18 +194,13 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        var attraction = await dbContext.Attractions
-            .SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
-        if (attraction is null)
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
         {
-            return ServiceResult<AttractionResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+            return ServiceResult<AttractionResponse>.Failure(manageable.Error!, manageable.ErrorCode);
         }
 
-        var authorization = await RequireOwnerOrAdministratorAsync(attraction, actorId, cancellationToken);
-        if (!authorization.Succeeded)
-        {
-            return ServiceResult<AttractionResponse>.Failure(authorization.Error!, authorization.ErrorCode);
-        }
+        var attraction = manageable.Value!;
 
         if (!await dbContext.Categories.AnyAsync(category => category.Id == request.CategoryId, cancellationToken))
         {
@@ -239,18 +227,13 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        var attraction = await dbContext.Attractions
-            .SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
-        if (attraction is null)
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
         {
-            return ServiceResult<bool>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+            return ServiceResult<bool>.Failure(manageable.Error!, manageable.ErrorCode);
         }
 
-        var authorization = await RequireOwnerOrAdministratorAsync(attraction, actorId, cancellationToken);
-        if (!authorization.Succeeded)
-        {
-            return ServiceResult<bool>.Failure(authorization.Error!, authorization.ErrorCode);
-        }
+        var attraction = manageable.Value!;
 
         attraction.IsActive = false;
         attraction.UpdatedAt = DateTime.UtcNow;
@@ -264,17 +247,13 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        var attraction = await dbContext.Attractions.SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
-        if (attraction is null)
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
         {
-            return ServiceResult<AttractionScheduleResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+            return ServiceResult<AttractionScheduleResponse>.Failure(manageable.Error!, manageable.ErrorCode);
         }
 
-        var authorization = await RequireOwnerOrAdministratorAsync(attraction, actorId, cancellationToken);
-        if (!authorization.Succeeded)
-        {
-            return ServiceResult<AttractionScheduleResponse>.Failure(authorization.Error!, authorization.ErrorCode);
-        }
+        var attraction = manageable.Value!;
 
         if (!request.IsClosed &&
             (!request.OpeningTime.HasValue ||
@@ -308,23 +287,90 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         return ServiceResult<AttractionScheduleResponse>.Success(ToResponse(schedule));
     }
 
+    public async Task<ServiceResult<AttractionScheduleResponse>> UpdateScheduleAsync(
+        Guid attractionId,
+        Guid scheduleId,
+        CreateScheduleRequest request,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
+        {
+            return ServiceResult<AttractionScheduleResponse>.Failure(manageable.Error!, manageable.ErrorCode);
+        }
+
+        if (!request.IsClosed &&
+            (!request.OpeningTime.HasValue || !request.ClosingTime.HasValue || request.OpeningTime >= request.ClosingTime))
+        {
+            return ServiceResult<AttractionScheduleResponse>.Failure(
+                "An open schedule requires opening and closing times, with opening time before closing time.",
+                ServiceErrorCode.Validation);
+        }
+
+        var schedule = await dbContext.AttractionSchedules.SingleOrDefaultAsync(candidate =>
+            candidate.Id == scheduleId && candidate.AttractionId == attractionId,
+            cancellationToken);
+        if (schedule is null)
+        {
+            return ServiceResult<AttractionScheduleResponse>.Failure("Schedule not found.", ServiceErrorCode.NotFound);
+        }
+
+        if (await dbContext.AttractionSchedules.AnyAsync(candidate =>
+                candidate.Id != scheduleId &&
+                candidate.AttractionId == attractionId &&
+                candidate.DayOfWeek == request.DayOfWeek,
+                cancellationToken))
+        {
+            return ServiceResult<AttractionScheduleResponse>.Failure("A schedule already exists for that day.", ServiceErrorCode.Conflict);
+        }
+
+        schedule.DayOfWeek = request.DayOfWeek;
+        schedule.OpeningTime = request.OpeningTime;
+        schedule.ClosingTime = request.ClosingTime;
+        schedule.IsClosed = request.IsClosed;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ServiceResult<AttractionScheduleResponse>.Success(ToResponse(schedule));
+    }
+
+    public async Task<ServiceResult<bool>> DeleteScheduleAsync(
+        Guid attractionId,
+        Guid scheduleId,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
+        {
+            return ServiceResult<bool>.Failure(manageable.Error!, manageable.ErrorCode);
+        }
+
+        var schedule = await dbContext.AttractionSchedules.SingleOrDefaultAsync(candidate =>
+            candidate.Id == scheduleId && candidate.AttractionId == attractionId,
+            cancellationToken);
+        if (schedule is null)
+        {
+            return ServiceResult<bool>.Failure("Schedule not found.", ServiceErrorCode.NotFound);
+        }
+
+        dbContext.AttractionSchedules.Remove(schedule);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ServiceResult<bool>.Success(true);
+    }
+
     public async Task<ServiceResult<ExperienceSlotResponse>> AddSlotAsync(
         Guid attractionId,
         CreateExperienceSlotRequest request,
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        var attraction = await dbContext.Attractions.SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
-        if (attraction is null)
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
         {
-            return ServiceResult<ExperienceSlotResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+            return ServiceResult<ExperienceSlotResponse>.Failure(manageable.Error!, manageable.ErrorCode);
         }
 
-        var authorization = await RequireOwnerOrAdministratorAsync(attraction, actorId, cancellationToken);
-        if (!authorization.Succeeded)
-        {
-            return ServiceResult<ExperienceSlotResponse>.Failure(authorization.Error!, authorization.ErrorCode);
-        }
+        var attraction = manageable.Value!;
 
         if (request.StartTime >= request.EndTime)
         {
@@ -361,6 +407,81 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         dbContext.ExperienceSlots.Add(slot);
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<ExperienceSlotResponse>.Success(ToResponse(slot));
+    }
+
+    public async Task<ServiceResult<ExperienceSlotResponse>> UpdateSlotAsync(
+        Guid attractionId,
+        Guid slotId,
+        CreateExperienceSlotRequest request,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
+        {
+            return ServiceResult<ExperienceSlotResponse>.Failure(manageable.Error!, manageable.ErrorCode);
+        }
+
+        if (request.StartTime >= request.EndTime ||
+            request.Capacity <= 0 ||
+            request.AvailableCapacity < 0 ||
+            request.AvailableCapacity > request.Capacity)
+        {
+            return ServiceResult<ExperienceSlotResponse>.Failure(
+                "The slot time and capacity values are invalid.",
+                ServiceErrorCode.Validation);
+        }
+
+        var slot = await dbContext.ExperienceSlots.SingleOrDefaultAsync(candidate =>
+            candidate.Id == slotId && candidate.AttractionId == attractionId,
+            cancellationToken);
+        if (slot is null)
+        {
+            return ServiceResult<ExperienceSlotResponse>.Failure("Experience slot not found.", ServiceErrorCode.NotFound);
+        }
+
+        if (await dbContext.ExperienceSlots.AnyAsync(candidate =>
+                candidate.Id != slotId &&
+                candidate.AttractionId == attractionId &&
+                candidate.Date == request.Date &&
+                candidate.StartTime == request.StartTime,
+                cancellationToken))
+        {
+            return ServiceResult<ExperienceSlotResponse>.Failure("A slot already exists for that date and start time.", ServiceErrorCode.Conflict);
+        }
+
+        slot.Date = request.Date;
+        slot.StartTime = request.StartTime;
+        slot.EndTime = request.EndTime;
+        slot.Capacity = request.Capacity;
+        slot.AvailableCapacity = request.AvailableCapacity;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ServiceResult<ExperienceSlotResponse>.Success(ToResponse(slot));
+    }
+
+    public async Task<ServiceResult<bool>> DeleteSlotAsync(
+        Guid attractionId,
+        Guid slotId,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
+        {
+            return ServiceResult<bool>.Failure(manageable.Error!, manageable.ErrorCode);
+        }
+
+        var slot = await dbContext.ExperienceSlots.SingleOrDefaultAsync(candidate =>
+            candidate.Id == slotId && candidate.AttractionId == attractionId,
+            cancellationToken);
+        if (slot is null)
+        {
+            return ServiceResult<bool>.Failure("Experience slot not found.", ServiceErrorCode.NotFound);
+        }
+
+        dbContext.ExperienceSlots.Remove(slot);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ServiceResult<bool>.Success(true);
     }
 
     public async Task<ServiceResult<AvailabilityResponse>> GetAvailabilityAsync(
@@ -458,16 +579,10 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        var attraction = await dbContext.Attractions.SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
-        if (attraction is null)
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
         {
-            return ServiceResult<AttractionImageResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
-        }
-
-        var authorization = await RequireOwnerOrAdministratorAsync(attraction, actorId, cancellationToken);
-        if (!authorization.Succeeded)
-        {
-            return ServiceResult<AttractionImageResponse>.Failure(authorization.Error!, authorization.ErrorCode);
+            return ServiceResult<AttractionImageResponse>.Failure(manageable.Error!, manageable.ErrorCode);
         }
 
         var image = new AttractionImage
@@ -491,16 +606,10 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        var attraction = await dbContext.Attractions.SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
-        if (attraction is null)
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
         {
-            return ServiceResult<bool>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
-        }
-
-        var authorization = await RequireOwnerOrAdministratorAsync(attraction, actorId, cancellationToken);
-        if (!authorization.Succeeded)
-        {
-            return ServiceResult<bool>.Failure(authorization.Error!, authorization.ErrorCode);
+            return ServiceResult<bool>.Failure(manageable.Error!, manageable.ErrorCode);
         }
 
         var image = await dbContext.AttractionImages.SingleOrDefaultAsync(candidate =>
@@ -514,6 +623,100 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         dbContext.AttractionImages.Remove(image);
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<bool>.Success(true);
+    }
+
+    private IQueryable<Attraction> ApplySearchFilters(
+        IQueryable<Attraction> query,
+        AttractionSearchRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        {
+            var keyword = request.Keyword.Trim();
+            query = query.Where(attraction =>
+                EF.Functions.ILike(attraction.Name, $"%{keyword}%") ||
+                EF.Functions.ILike(attraction.Description, $"%{keyword}%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.District))
+        {
+            var district = request.District.Trim();
+            query = query.Where(attraction => EF.Functions.ILike(attraction.District, district));
+        }
+
+        if (request.CategoryId.HasValue)
+        {
+            query = query.Where(attraction => attraction.CategoryId == request.CategoryId.Value);
+        }
+
+        if (request.MinPrice.HasValue)
+        {
+            query = query.Where(attraction => attraction.Price >= request.MinPrice.Value);
+        }
+
+        if (request.MaxPrice.HasValue)
+        {
+            query = query.Where(attraction => attraction.Price <= request.MaxPrice.Value);
+        }
+
+        if (request.Date.HasValue)
+        {
+            query = query.Where(attraction => attraction.ExperienceSlots.Any(slot =>
+                slot.Date == request.Date.Value && slot.AvailableCapacity > 0));
+        }
+
+        return query;
+    }
+
+    private async Task<ServiceResult<AttractionSearchResponse>> ExecuteSearchAsync(
+        IQueryable<Attraction> query,
+        AttractionSearchRequest request,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        if (request.Page < 1 || request.PageSize is < 1 or > 100)
+        {
+            return ServiceResult<AttractionSearchResponse>.Failure(
+                "Page must be at least 1 and PageSize must be between 1 and 100.",
+                ServiceErrorCode.Validation);
+        }
+
+        if (request.MinPrice.HasValue && request.MaxPrice.HasValue && request.MinPrice > request.MaxPrice)
+        {
+            return ServiceResult<AttractionSearchResponse>.Failure(
+                "MinPrice must be less than or equal to MaxPrice.",
+                ServiceErrorCode.Validation);
+        }
+
+        var sort = request.Sort?.Trim().ToLowerInvariant() ?? "name_asc";
+        query = sort switch
+        {
+            "name_desc" => query.OrderByDescending(attraction => attraction.Name),
+            "price_asc" => query.OrderBy(attraction => attraction.Price),
+            "price_desc" => query.OrderByDescending(attraction => attraction.Price),
+            "newest" => query.OrderByDescending(attraction => attraction.CreatedAt),
+            "name_asc" or "" => query.OrderBy(attraction => attraction.Name),
+            _ => query.OrderBy(attraction => attraction.Name)
+        };
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+
+        var favoriteIds = viewerId.HasValue
+            ? (await dbContext.Favorites
+                .Where(favorite => favorite.TouristId == viewerId.Value && items.Select(item => item.Id).Contains(favorite.AttractionId))
+                .Select(favorite => favorite.AttractionId)
+                .ToListAsync(cancellationToken)).ToHashSet()
+            : new HashSet<Guid>();
+
+        return ServiceResult<AttractionSearchResponse>.Success(new AttractionSearchResponse(
+            items.Select(item => ToResponse(item, favoriteIds.Contains(item.Id))).ToList(),
+            totalCount,
+            request.Page,
+            request.PageSize,
+            (int)Math.Ceiling(totalCount / (double)request.PageSize)));
     }
 
     private IQueryable<Attraction> GetAttractionQuery() => dbContext.Attractions
@@ -545,24 +748,38 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
             : ServiceResult<User>.Failure("Only active tourists can manage favorites.", ServiceErrorCode.Forbidden);
     }
 
-    private async Task<ServiceResult<bool>> RequireOwnerOrAdministratorAsync(
-        Attraction attraction,
+    private async Task<ServiceResult<Attraction>> LoadManageableAttractionAsync(
+        Guid attractionId,
         Guid actorId,
         CancellationToken cancellationToken)
     {
+        var attraction = await dbContext.Attractions
+            .SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        if (attraction is null)
+        {
+            return ServiceResult<Attraction>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+        }
+
+        if (!attraction.IsActive)
+        {
+            return ServiceResult<Attraction>.Failure(
+                "Inactive attractions cannot be modified.",
+                ServiceErrorCode.Validation);
+        }
+
         var actor = await dbContext.Users.SingleOrDefaultAsync(candidate => candidate.Id == actorId, cancellationToken);
         if (actor is null || !actor.IsActive)
         {
-            return ServiceResult<bool>.Failure("User account not found or inactive.", ServiceErrorCode.Forbidden);
+            return ServiceResult<Attraction>.Failure("User account not found or inactive.", ServiceErrorCode.Forbidden);
         }
 
         if (actor.Role == UserRole.Administrator ||
             (actor.Role == UserRole.TourismProvider && attraction.ProviderId == actorId))
         {
-            return ServiceResult<bool>.Success(true);
+            return ServiceResult<Attraction>.Success(attraction);
         }
 
-        return ServiceResult<bool>.Failure("You are not allowed to manage this attraction.", ServiceErrorCode.Forbidden);
+        return ServiceResult<Attraction>.Failure("You are not allowed to manage this attraction.", ServiceErrorCode.Forbidden);
     }
 
     private static AttractionResponse ToResponse(Attraction attraction, bool isFavorite) => new(

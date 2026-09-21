@@ -122,7 +122,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// In development the API may be intentionally run on HTTP only (for example
+// during local integration tests). HTTPS redirection cannot determine a target
+// in that configuration, so enable it only when an HTTPS listener is present.
+if (!app.Environment.IsDevelopment() || app.Urls.Any(url => url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+{
+    app.UseHttpsRedirection();
+}
 if (app.Environment.IsDevelopment())
 {
     app.UseCors("ReactDevelopment");

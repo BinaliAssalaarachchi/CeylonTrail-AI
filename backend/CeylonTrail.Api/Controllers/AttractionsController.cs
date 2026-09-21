@@ -45,6 +45,43 @@ public sealed class AttractionsController(IAttractionService attractionService) 
         [FromQuery] AttractionSearchRequest request,
         CancellationToken cancellationToken) => SearchCore(request, cancellationToken);
 
+    [HttpGet("mine")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> Mine(
+        [FromQuery] AttractionSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var providerId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await attractionService.GetMineAsync(request, providerId, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
+    [HttpGet("favorites")]
+    [Authorize(Roles = "Tourist")]
+    public async Task<IActionResult> Favorites(
+        [FromQuery] AttractionSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var touristId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await attractionService.GetFavoritesAsync(request, touristId, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
+    [HttpGet("categories")]
+    public async Task<IActionResult> Categories(CancellationToken cancellationToken)
+    {
+        var result = await attractionService.GetCategoriesAsync(cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(
         Guid id,
@@ -113,6 +150,39 @@ public sealed class AttractionsController(IAttractionService attractionService) 
         return ToActionResult(result, value => CreatedAtAction(nameof(GetById), new { id }, value));
     }
 
+    [HttpPut("{id:guid}/schedules/{scheduleId:guid}")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> UpdateSchedule(
+        Guid id,
+        Guid scheduleId,
+        CreateScheduleRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var actorId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await attractionService.UpdateScheduleAsync(id, scheduleId, request, actorId, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
+    [HttpDelete("{id:guid}/schedules/{scheduleId:guid}")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> DeleteSchedule(
+        Guid id,
+        Guid scheduleId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var actorId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await attractionService.DeleteScheduleAsync(id, scheduleId, actorId, cancellationToken);
+        return ToActionResult(result, _ => NoContent());
+    }
+
     [HttpPost("{id:guid}/slots")]
     [Authorize(Roles = ProviderOrAdministrator)]
     public async Task<IActionResult> AddSlot(
@@ -127,6 +197,39 @@ public sealed class AttractionsController(IAttractionService attractionService) 
 
         var result = await attractionService.AddSlotAsync(id, request, actorId, cancellationToken);
         return ToActionResult(result, value => CreatedAtAction(nameof(GetAvailability), new { id, date = value.Date }, value));
+    }
+
+    [HttpPut("{id:guid}/slots/{slotId:guid}")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> UpdateSlot(
+        Guid id,
+        Guid slotId,
+        CreateExperienceSlotRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var actorId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await attractionService.UpdateSlotAsync(id, slotId, request, actorId, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
+    [HttpDelete("{id:guid}/slots/{slotId:guid}")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> DeleteSlot(
+        Guid id,
+        Guid slotId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var actorId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await attractionService.DeleteSlotAsync(id, slotId, actorId, cancellationToken);
+        return ToActionResult(result, _ => NoContent());
     }
 
     [HttpPost("{id:guid}/favorite")]

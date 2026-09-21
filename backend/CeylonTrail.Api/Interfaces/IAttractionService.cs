@@ -19,6 +19,19 @@ public interface IAttractionService
         Guid? viewerId = null,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<AttractionSearchResponse>> GetMineAsync(
+        AttractionSearchRequest request,
+        Guid providerId,
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<IReadOnlyList<CategoryResponse>>> GetCategoriesAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<AttractionSearchResponse>> GetFavoritesAsync(
+        AttractionSearchRequest request,
+        Guid touristId,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<AttractionResponse>> ApproveAsync(
         Guid attractionId,
         CancellationToken cancellationToken = default);
@@ -40,9 +53,35 @@ public interface IAttractionService
         Guid actorId,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<AttractionScheduleResponse>> UpdateScheduleAsync(
+        Guid attractionId,
+        Guid scheduleId,
+        CreateScheduleRequest request,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<bool>> DeleteScheduleAsync(
+        Guid attractionId,
+        Guid scheduleId,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<ExperienceSlotResponse>> AddSlotAsync(
         Guid attractionId,
         CreateExperienceSlotRequest request,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<ExperienceSlotResponse>> UpdateSlotAsync(
+        Guid attractionId,
+        Guid slotId,
+        CreateExperienceSlotRequest request,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<bool>> DeleteSlotAsync(
+        Guid attractionId,
+        Guid slotId,
         Guid actorId,
         CancellationToken cancellationToken = default);
 
