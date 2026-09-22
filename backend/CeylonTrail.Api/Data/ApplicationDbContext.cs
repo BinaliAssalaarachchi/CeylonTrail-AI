@@ -12,6 +12,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BookingStatusHistory> BookingStatusHistories => Set<BookingStatusHistory>();
     public DbSet<Cancellation> Cancellations => Set<Cancellation>();
     public DbSet<TravelAlert> TravelAlerts => Set<TravelAlert>();
+    public DbSet<ValidationResult> ValidationResults => Set<ValidationResult>();
+    public DbSet<ValidationIssue> ValidationIssues => Set<ValidationIssue>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,6 +97,46 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasOne(alert => alert.CreatedByUser).WithMany().HasForeignKey(alert => alert.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(alert => new { alert.Status, alert.StartDateTime });
             entity.HasIndex(alert => new { alert.District, alert.Status, alert.StartDateTime });
+        });
+
+        modelBuilder.Entity<ValidationResult>(entity =>
+        {
+            entity.HasKey(result => result.Id);
+            entity.Property(result => result.Id).ValueGeneratedOnAdd();
+            entity.Property(result => result.TripReference).HasMaxLength(200);
+            entity.Property(result => result.OverallStatus).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(result => result.RiskLevel).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(result => result.IsFeasible).IsRequired();
+            entity.Property(result => result.TotalIssueCount).IsRequired();
+            entity.Property(result => result.BlockingIssueCount).IsRequired();
+            entity.Property(result => result.CreatedByUserId).IsRequired();
+            entity.Property(result => result.CreatedAt).IsRequired();
+            entity.HasIndex(result => result.CreatedByUserId);
+            entity.HasIndex(result => result.CreatedAt);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(result => result.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(result => result.Issues)
+                .WithOne(issue => issue.ValidationResult)
+                .HasForeignKey(issue => issue.ValidationResultId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ValidationIssue>(entity =>
+        {
+            entity.HasKey(issue => issue.Id);
+            entity.Property(issue => issue.Id).ValueGeneratedOnAdd();
+            entity.Property(issue => issue.IssueType).HasConversion<string>().IsRequired().HasMaxLength(30);
+            entity.Property(issue => issue.Severity).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(issue => issue.Message).IsRequired().HasMaxLength(1000);
+            entity.Property(issue => issue.RuleCode).IsRequired().HasMaxLength(100);
+            entity.Property(issue => issue.IsBlocking).IsRequired();
+            entity.Property(issue => issue.RelatedDistrict).HasMaxLength(100);
+            entity.Property(issue => issue.RelatedItemReference).HasMaxLength(200);
+            entity.Property(issue => issue.CreatedAt).IsRequired();
+            entity.HasIndex(issue => issue.ValidationResultId);
+            entity.HasIndex(issue => new { issue.IssueType, issue.Severity });
         });
     }
 }
