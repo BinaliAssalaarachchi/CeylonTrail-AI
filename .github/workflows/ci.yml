@@ -20,6 +20,10 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Clean generated .NET output
+        run: |
+          find backend tests -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
+
       - name: Restore API
         run: dotnet restore backend/CeylonTrail.Api/CeylonTrail.Api.csproj
 
