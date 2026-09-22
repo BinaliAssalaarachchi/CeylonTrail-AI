@@ -10,7 +10,7 @@ public class BookingItem
 
     // Target attraction or experience slot
     public Guid AttractionId { get; set; }
-
+ 
     // Number of persons / tickets
     public int Quantity { get; set; }
 

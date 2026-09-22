@@ -5,6 +5,8 @@ import AppShell from './layouts/AppShell'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RoleDashboardPage from './pages/RoleDashboardPage'
+import TravelAlertsPage from './pages/TravelAlertsPage'
+import AIOperationsPage from './pages/AIOperationsPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import MyAttractionsPage from './pages/attractions/MyAttractionsPage'
@@ -44,6 +46,10 @@ function App() {
                 <Route path="/administrator" element={<AdminDashboardPage />} />
                 <Route path="/admin/attractions" element={<PendingAttractionsPage />} />
                 <Route path="/admin/attractions/:id" element={<AdminAttractionDetailsPage />} />
+              </Route>
+              <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
+                <Route path="/travel-alerts" element={<TravelAlertsPage />} />
+                <Route path="/ai-operations" element={<AIOperationsPage />} />
               </Route>
             </Route>
           </Route>

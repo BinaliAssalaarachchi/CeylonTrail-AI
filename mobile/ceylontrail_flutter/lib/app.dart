@@ -7,6 +7,7 @@ import 'views/home_page.dart';
 import 'views/bookings_page.dart';
 import 'views/login_page.dart';
 import 'views/module_placeholder_page.dart';
+import 'views/travel_alerts_page.dart';
 import 'widgets/auth_scope.dart';
 import 'widgets/brand_mark.dart';
 import 'widgets/mobile_shell.dart';
@@ -97,6 +98,18 @@ class CeylonTrailApp extends StatelessWidget {
           StatefulShellBranch(
             routes: [
               GoRoute(path: '/', builder: (context, state) => const HomePage()),
+              GoRoute(
+                path: '/travel-alerts',
+                builder: (context, state) => const TravelAlertsPage(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) => TravelAlertDetailPage(
+                      id: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           StatefulShellBranch(

@@ -6,8 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseAppHost>false</UseAppHost>
     <UserSecretsId>f5f9b254-3355-4d7e-aa57-83886ff2e1e4</UserSecretsId>
-    <RuntimeFrameworkVersion>8.0.31</RuntimeFrameworkVersion>
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
   </PropertyGroup>
 
   <ItemGroup>

@@ -12,10 +12,10 @@ namespace CeylonTrail.Api.Controllers;
 [Authorize]
 public sealed class BookingsController(IBookingService bookingService) : ControllerBase
 {
-    // 1. POST /api/bookings (Create a booking request - Tourist only)
+    // 1. POST /api/bookings (Create a booking request - Tourist only) 
     [HttpPost]
     [Authorize(Roles = nameof(UserRole.Tourist))]
-    [ProducesResponseType(typeof(BookingResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(BookingResponse), StatusCodes.Status201Created)] 
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<BookingResponse>> Create(
         [FromBody] CreateBookingRequest request,

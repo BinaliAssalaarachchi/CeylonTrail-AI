@@ -49,6 +49,8 @@ class HomePage extends StatelessWidget {
             _PlannerCard(),
             const SizedBox(height: CeylonSpacing.md),
             const _BookingsEntry(),
+            const SizedBox(height: CeylonSpacing.md),
+            const _AlertsEntry(),
             const SizedBox(height: CeylonSpacing.xl),
             _SectionHeading(
               title: 'A little closer to Ceylon',
@@ -259,6 +261,45 @@ class _BookingsEntry extends StatelessWidget {
               const Icon(Icons.chevron_right, color: CeylonColors.inkMuted),
             ],
           ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _AlertsEntry extends StatelessWidget {
+  const _AlertsEntry();
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: InkWell(
+      borderRadius: BorderRadius.circular(CeylonRadii.card),
+      onTap: () => context.push('/travel-alerts'),
+      child: Padding(
+        padding: const EdgeInsets.all(CeylonSpacing.md),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(CeylonSpacing.sm),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE8C2),
+                borderRadius: BorderRadius.circular(CeylonRadii.field),
+              ),
+              child: const Icon(Icons.campaign_outlined, color: CeylonColors.tea),
+            ),
+            const SizedBox(width: CeylonSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Travel advisories', style: TextStyle(fontWeight: FontWeight.w700, color: CeylonColors.forest)),
+                  const SizedBox(height: 3),
+                  Text('Check current alerts before you set out.', style: TextStyle(color: CeylonColors.inkMuted)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: CeylonColors.inkMuted),
+          ],
         ),
       ),
     ),
