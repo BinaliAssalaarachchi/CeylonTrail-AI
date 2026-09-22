@@ -39,6 +39,14 @@ class ApiClient {
       throw ApiException(_messageFor(error));
     }
   }
+    Future<Response<dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
+    try {
+      return await _dio.get(path, queryParameters: queryParameters);
+    } on DioException catch (error) {
+      throw ApiException(_messageFor(error));
+    }
+  }
+
 
   static String _messageFor(DioException error) {
     final responseMessage = (error.response?.data as Map?)?['message'];
