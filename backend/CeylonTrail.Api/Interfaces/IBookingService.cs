@@ -11,7 +11,7 @@ public interface IBookingService
 
     Task<List<BookingResponse>> GetTouristBookingsAsync(
         Guid touristId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default); 
 
     Task<List<BookingResponse>> GetProviderBookingsAsync(
         CancellationToken cancellationToken = default);
