@@ -1,253 +1,52 @@
 import { useEffect, useState } from 'react'
-import { getTravelAlerts } from '../api/travelAlerts'
+import { createTravelAlert, deleteTravelAlert, getTravelAlert, getTravelAlerts, updateTravelAlert } from '../api/travelAlerts'
 
 const PAGE_SIZE = 10
-
-const initialFilters = {
-  search: '',
-  district: '',
-  status: '',
-  severity: '',
-  alertType: '',
-  sortBy: 'createdAt',
-  sortDirection: 'desc',
-}
-
 const statuses = ['Draft', 'Active', 'Expired', 'Cancelled']
 const severities = ['Low', 'Medium', 'High', 'Critical']
 const alertTypes = ['Weather', 'RoadClosure', 'Transport', 'Safety', 'SiteClosure', 'Event', 'General']
+const initialFilters = { search: '', district: '', status: '', severity: '', alertType: '', sortBy: 'createdAt', sortDirection: 'desc' }
+const emptyForm = { title: '', description: '', alertType: 'Weather', severity: 'Medium', district: '', startDateTime: '', endDateTime: '', status: 'Draft', source: '' }
+const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+function formatLabel(value = '') { return value.replace(/([a-z])([A-Z])/g, '$1 $2') }
+function formatDate(value) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : dateFormatter.format(date) }
+function toInputDate(value) { if (!value) return ''; const date = new Date(value); if (Number.isNaN(date.getTime())) return ''; const pad = (part) => String(part).padStart(2, '0'); return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) }
+function getErrorMessage(error, fallback = 'The request could not be completed.') { return error.response?.data?.message || fallback }
+function SummaryCard({ label, value, detail }) { return <article className="summary-card"><p>{label}</p><strong>{value}</strong><span>{detail}</span></article> }
 
-function formatLabel(value) {
-  return value.replace(/([a-z])([A-Z])/g, '$1 $2')
+function AlertForm({ initialValue, mode, isSubmitting, error, onCancel, onSubmit }) {
+  const [form, setForm] = useState(initialValue || emptyForm)
+  const [validationError, setValidationError] = useState('')
+  function update(event) { const { name, value } = event.target; setForm((current) => ({ ...current, [name]: value })); setValidationError('') }
+  function submit(event) {
+    event.preventDefault()
+    if (!form.title.trim() || !form.description.trim() || !form.district.trim() || !form.startDateTime || !form.endDateTime) { setValidationError('Complete all required fields before saving.'); return }
+    if (new Date(form.endDateTime) <= new Date(form.startDateTime)) { setValidationError('End date and time must be later than the start date and time.'); return }
+    onSubmit({ ...form, title: form.title.trim(), description: form.description.trim(), district: form.district.trim(), source: form.source.trim() || null, startDateTime: new Date(form.startDateTime).toISOString(), endDateTime: new Date(form.endDateTime).toISOString() })
+  }
+  return <div className="alert-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}><section className="alert-modal" role="dialog" aria-modal="true" aria-labelledby="alert-form-title"><div className="alert-modal-heading"><div><p className="eyebrow">Travel operations</p><h2 id="alert-form-title">{mode === 'edit' ? 'Edit travel alert' : 'Create travel alert'}</h2></div><button className="modal-close" type="button" onClick={onCancel} aria-label="Close form">×</button></div><form className="alert-form" onSubmit={submit}><label className="form-field form-field-wide">Title<input name="title" value={form.title} onChange={update} maxLength="200" required /></label><label className="form-field form-field-wide">Description<textarea name="description" value={form.description} onChange={update} rows="4" maxLength="2000" required /></label><label className="form-field">Alert type<select name="alertType" value={form.alertType} onChange={update}>{alertTypes.map((value) => <option key={value} value={value}>{formatLabel(value)}</option>)}</select></label><label className="form-field">Severity<select name="severity" value={form.severity} onChange={update}>{severities.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="form-field">District<input name="district" value={form.district} onChange={update} maxLength="100" required /></label><label className="form-field">Status<select name="status" value={form.status} onChange={update}>{statuses.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="form-field">Start date/time<input name="startDateTime" type="datetime-local" value={form.startDateTime} onChange={update} required /></label><label className="form-field">End date/time<input name="endDateTime" type="datetime-local" value={form.endDateTime} onChange={update} required /></label><label className="form-field form-field-wide">Source <span className="field-optional">(optional)</span><input name="source" value={form.source} onChange={update} maxLength="500" /></label>{(validationError || error) && <p className="form-feedback" role="alert">{validationError || error}</p>}<div className="modal-actions"><button className="button button-secondary-light" type="button" onClick={onCancel} disabled={isSubmitting}>Cancel</button><button className="button button-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create alert'}</button></div></form></section></div>
 }
 
-function formatDate(value) {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : dateFormatter.format(date)
+function AlertDetail({ alert, onClose, onEdit, onDelete }) {
+  return <div className="alert-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="alert-modal alert-detail" role="dialog" aria-modal="true" aria-labelledby="alert-detail-title"><div className="alert-modal-heading"><div><p className="eyebrow">Alert detail</p><h2 id="alert-detail-title">{alert.title}</h2></div><button className="modal-close" type="button" onClick={onClose} aria-label="Close detail">×</button></div><p className="alert-detail-description">{alert.description}</p><div className="detail-grid"><DetailItem label="Alert type" value={formatLabel(alert.alertType)} /><DetailItem label="Severity" value={alert.severity} /><DetailItem label="District" value={alert.district} /><DetailItem label="Status" value={alert.status} /><DetailItem label="Starts" value={formatDate(alert.startDateTime)} /><DetailItem label="Ends" value={formatDate(alert.endDateTime)} /><DetailItem label="Source" value={alert.source || '—'} /><DetailItem label="Created by" value={alert.createdByUserName || '—'} /><DetailItem label="Created" value={formatDate(alert.createdAt)} /><DetailItem label="Updated" value={formatDate(alert.updatedAt)} /></div><div className="modal-actions"><button className="button button-secondary-light" type="button" onClick={onClose}>Close</button><button className="button button-secondary-light" type="button" onClick={() => onEdit(alert)}>Edit</button><button className="button button-danger" type="button" onClick={() => onDelete(alert)}>Delete</button></div></section></div>
 }
-
-function getErrorMessage(error) {
-  return error.response?.data?.message || 'Unable to load travel alerts. Please try again.'
-}
-
-function SummaryCard({ label, value, detail }) {
-  return (
-    <article className="summary-card">
-      <p>{label}</p>
-      <strong>{value}</strong>
-      <span>{detail}</span>
-    </article>
-  )
-}
+function DetailItem({ label, value }) { return <div className="detail-item"><span>{label}</span><strong>{value}</strong></div> }
+function ConfirmDelete({ alert, isDeleting, error, onCancel, onConfirm }) { return <div className="alert-modal-backdrop" role="presentation"><section className="alert-modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-title"><p className="eyebrow">Permanent action</p><h2 id="delete-title">Delete this alert?</h2><p>This will permanently remove <strong>{alert.title}</strong> from Travel Operations. This cannot be undone.</p>{error && <p className="form-feedback" role="alert">{error}</p>}<div className="modal-actions"><button className="button button-secondary-light" type="button" onClick={onCancel} disabled={isDeleting}>Keep alert</button><button className="button button-danger" type="button" onClick={onConfirm} disabled={isDeleting}>{isDeleting ? 'Deleting…' : 'Delete alert'}</button></div></section></div> }
 
 export default function TravelAlertsPage() {
-  const [filters, setFilters] = useState(initialFilters)
-  const [page, setPage] = useState(1)
-  const [result, setResult] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let isCurrentRequest = true
-
-    async function loadAlerts() {
-      setIsLoading(true)
-      setError('')
-      try {
-        const nextResult = await getTravelAlerts({ ...filters, page, pageSize: PAGE_SIZE })
-        if (isCurrentRequest) setResult(nextResult)
-      } catch (requestError) {
-        if (isCurrentRequest) {
-          setResult(null)
-          setError(getErrorMessage(requestError))
-        }
-      } finally {
-        if (isCurrentRequest) setIsLoading(false)
-      }
-    }
-
-    loadAlerts()
-    return () => {
-      isCurrentRequest = false
-    }
-  }, [filters, page])
-
-  function updateFilter(event) {
-    const { name, value } = event.target
-    setFilters((current) => ({ ...current, [name]: value }))
-    setPage(1)
-  }
-
-  function clearFilters() {
-    setFilters(initialFilters)
-    setPage(1)
-  }
-
-  const alerts = result?.items || []
-  const activeCount = alerts.filter((alert) => alert.status === 'Active').length
-  const highCriticalCount = alerts.filter((alert) => ['High', 'Critical'].includes(alert.severity)).length
-  const draftCount = alerts.filter((alert) => alert.status === 'Draft').length
-  const totalPages = result?.totalPages || 0
-
-  return (
-    <section className="alerts-page" aria-labelledby="travel-alerts-title">
-      <div className="page-header alerts-header">
-        <div>
-          <p className="eyebrow">Island-wide tactical routing &amp; safety matrix</p>
-          <h1 id="travel-alerts-title">Travel Operations</h1>
-          <p className="lead">Monitor and manage travel advisories affecting journeys across Sri Lanka.</p>
-        </div>
-        <button
-          className="button button-primary alerts-create-button"
-          type="button"
-          disabled
-          title="Alert creation will be available in a later phase"
-        >
-          <span aria-hidden="true">+</span> Create Travel Alert
-        </button>
-      </div>
-
-      <div className="summary-grid" aria-label="Current page summary">
-        <SummaryCard label="Matching alerts" value={result?.totalCount ?? '—'} detail="All filtered results" />
-        <SummaryCard label="Active alerts" value={activeCount} detail="On this page" />
-        <SummaryCard label="High / Critical" value={highCriticalCount} detail="On this page" />
-        <SummaryCard label="Draft alerts" value={draftCount} detail="On this page" />
-      </div>
-
-      <div className="filter-panel">
-        <div className="filter-heading">
-          <div>
-            <p className="eyebrow">Find an advisory</p>
-            <h2>Search and filters</h2>
-          </div>
-          <button className="button button-secondary-light" type="button" onClick={clearFilters}>Clear filters</button>
-        </div>
-        <div className="filter-grid">
-          <label className="filter-field filter-field-wide">
-            Search
-            <input name="search" type="search" placeholder="Search title, description or district" value={filters.search} onChange={updateFilter} />
-          </label>
-          <label className="filter-field">
-            District
-            <input name="district" type="text" placeholder="e.g. Kandy" value={filters.district} onChange={updateFilter} />
-          </label>
-          <label className="filter-field">
-            Status
-            <select name="status" value={filters.status} onChange={updateFilter}>
-              <option value="">All statuses</option>
-              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            Severity
-            <select name="severity" value={filters.severity} onChange={updateFilter}>
-              <option value="">All severities</option>
-              {severities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            Alert type
-            <select name="alertType" value={filters.alertType} onChange={updateFilter}>
-              <option value="">All alert types</option>
-              {alertTypes.map((alertType) => <option key={alertType} value={alertType}>{formatLabel(alertType)}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            Sort by
-            <select name="sortBy" value={filters.sortBy} onChange={updateFilter}>
-              <option value="createdAt">Created date</option>
-              <option value="updatedAt">Updated date</option>
-              <option value="startDateTime">Start date</option>
-              <option value="endDateTime">End date</option>
-              <option value="severity">Severity</option>
-              <option value="district">District</option>
-              <option value="title">Title</option>
-            </select>
-          </label>
-          <label className="filter-field">
-            Direction
-            <select name="sortDirection" value={filters.sortDirection} onChange={updateFilter}>
-              <option value="desc">Newest first</option>
-              <option value="asc">Oldest first</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="alerts-list-panel">
-        <div className="list-heading">
-          <div>
-            <p className="eyebrow">Operational dispatches</p>
-            <h2>Advisories</h2>
-            {result && <p className="muted">Showing page {result.page} of {result.totalPages || 1} · {result.totalCount} matching alerts</p>}
-          </div>
-        </div>
-
-        {isLoading && <div className="state-message" role="status">Loading travel alerts…</div>}
-        {!isLoading && error && <div className="state-message state-error" role="alert">{error}</div>}
-        {!isLoading && !error && alerts.length === 0 && (
-          <div className="state-message">
-            <strong>No travel alerts found.</strong>
-            <span>Try changing your search or clearing the filters.</span>
-          </div>
-        )}
-        {!isLoading && !error && alerts.length > 0 && (
-          <div className="table-wrapper">
-            <table className="alerts-table">
-              <thead>
-                <tr>
-                  <th scope="col">Alert</th>
-                  <th scope="col">District</th>
-                  <th scope="col">Severity</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Start</th>
-                  <th scope="col">End</th>
-                  <th scope="col">Source</th>
-                  <th scope="col"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((alert) => (
-                  <tr key={alert.id}>
-                    <td>
-                      <strong>{alert.title}</strong>
-                      <span className="table-subtext">{formatLabel(alert.alertType)}</span>
-                    </td>
-                    <td><span className="table-district">{alert.district}</span></td>
-                    <td><span className={`status-badge severity-${alert.severity.toLowerCase()}`}>{alert.severity}</span></td>
-                    <td><span className={`status-badge status-${alert.status.toLowerCase()}`}>{alert.status}</span></td>
-                    <td><time dateTime={alert.startDateTime}>{formatDate(alert.startDateTime)}</time></td>
-                    <td><time dateTime={alert.endDateTime}>{formatDate(alert.endDateTime)}</time></td>
-                    <td>{alert.source || '—'}</td>
-                    <td>
-                      <div className="table-actions">
-                        <button className="text-action" type="button" disabled title="Available in a later phase">View</button>
-                        <button className="text-action" type="button" disabled title="Available in a later phase">Edit</button>
-                        <button className="text-action text-action-danger" type="button" disabled title="Available in a later phase">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div className="pagination-bar">
-          <span className="muted">{result?.totalCount ?? 0} matching alerts</span>
-          <div className="pagination-controls">
-            <button className="button button-secondary-light" type="button" disabled={isLoading || page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
-            <span>Page {page} of {totalPages || 1}</span>
-            <button className="button button-secondary-light" type="button" disabled={isLoading || page >= totalPages} onClick={() => setPage((current) => current + 1)}>Next</button>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
+  const [filters, setFilters] = useState(initialFilters); const [page, setPage] = useState(1); const [result, setResult] = useState(null); const [isLoading, setIsLoading] = useState(true); const [error, setError] = useState(''); const [feedback, setFeedback] = useState(''); const [modal, setModal] = useState(null); const [selectedAlert, setSelectedAlert] = useState(null); const [isSubmitting, setIsSubmitting] = useState(false); const [isDeleting, setIsDeleting] = useState(false); const [actionError, setActionError] = useState('')
+  async function loadAlerts() { setIsLoading(true); setError(''); try { const nextResult = await getTravelAlerts({ ...filters, page, pageSize: PAGE_SIZE }); setResult(nextResult) } catch (requestError) { setResult(null); setError(getErrorMessage(requestError, 'Unable to load travel alerts. Please try again.')) } finally { setIsLoading(false) } }
+  useEffect(() => { let current = true; (async () => { setIsLoading(true); setError(''); try { const nextResult = await getTravelAlerts({ ...filters, page, pageSize: PAGE_SIZE }); if (current) setResult(nextResult) } catch (requestError) { if (current) { setResult(null); setError(getErrorMessage(requestError, 'Unable to load travel alerts. Please try again.')) } } finally { if (current) setIsLoading(false) } })(); return () => { current = false } }, [filters, page])
+  function updateFilter(event) { const { name, value } = event.target; setFilters((current) => ({ ...current, [name]: value })); setPage(1) }
+  function clearFilters() { setFilters(initialFilters); setPage(1) }
+  async function openDetail(alert) { setActionError(''); setModal({ type: 'loading-detail' }); try { const fullAlert = await getTravelAlert(alert.id); setSelectedAlert(fullAlert); setModal({ type: 'detail' }) } catch (requestError) { setModal(null); setFeedback(getErrorMessage(requestError, 'Unable to load alert details.')) } }
+  function openCreate() { setActionError(''); setModal({ type: 'create' }) }
+  function openEdit(alert) { setActionError(''); setSelectedAlert(alert); setModal({ type: 'edit' }) }
+  async function submitAlert(payload) { setIsSubmitting(true); setActionError(''); try { if (modal.type === 'edit') { await updateTravelAlert(selectedAlert.id, payload); setFeedback('Travel alert updated successfully.') } else { await createTravelAlert(payload); setFeedback('Travel alert created successfully.') } setModal(null); setSelectedAlert(null); await loadAlerts() } catch (requestError) { setActionError(getErrorMessage(requestError, 'Unable to save this travel alert.')) } finally { setIsSubmitting(false) } }
+  function requestDelete(alert) { setActionError(''); setSelectedAlert(alert); setModal({ type: 'confirm-delete' }) }
+  async function confirmDelete() { setIsDeleting(true); setActionError(''); try { await deleteTravelAlert(selectedAlert.id); setModal(null); setSelectedAlert(null); setFeedback('Travel alert deleted successfully.'); await loadAlerts() } catch (requestError) { setActionError(getErrorMessage(requestError, 'Unable to delete this travel alert.')) } finally { setIsDeleting(false) } }
+  const alerts = result?.items || []; const activeCount = alerts.filter((alert) => alert.status === 'Active').length; const highCriticalCount = alerts.filter((alert) => ['High', 'Critical'].includes(alert.severity)).length; const draftCount = alerts.filter((alert) => alert.status === 'Draft').length; const totalPages = result?.totalPages || 0
+  return <section className="alerts-page" aria-labelledby="travel-alerts-title"><div className="page-header alerts-header"><div><p className="eyebrow">Island-wide tactical routing &amp; safety matrix</p><h1 id="travel-alerts-title">Travel Operations</h1><p className="lead">Monitor and manage travel advisories affecting journeys across Sri Lanka.</p></div><button className="button button-primary alerts-create-button" type="button" onClick={openCreate}><span aria-hidden="true">+</span> Create Travel Alert</button></div>{feedback && <p className="inline-notice" role="status">{feedback}<button type="button" onClick={() => setFeedback('')} aria-label="Dismiss message">×</button></p>}<div className="summary-grid" aria-label="Current page summary"><SummaryCard label="Matching alerts" value={result?.totalCount ?? '—'} detail="All filtered results" /><SummaryCard label="Active alerts" value={activeCount} detail="On this page" /><SummaryCard label="High / Critical" value={highCriticalCount} detail="On this page" /><SummaryCard label="Draft alerts" value={draftCount} detail="On this page" /></div><div className="filter-panel"><div className="filter-heading"><div><p className="eyebrow">Find an advisory</p><h2>Search and filters</h2></div><button className="button button-secondary-light" type="button" onClick={clearFilters}>Clear filters</button></div><div className="filter-grid"><label className="filter-field filter-field-wide">Search<input name="search" type="search" placeholder="Search title, description or district" value={filters.search} onChange={updateFilter} /></label><label className="filter-field">District<input name="district" placeholder="e.g. Kandy" value={filters.district} onChange={updateFilter} /></label><label className="filter-field">Status<select name="status" value={filters.status} onChange={updateFilter}><option value="">All statuses</option>{statuses.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="filter-field">Severity<select name="severity" value={filters.severity} onChange={updateFilter}><option value="">All severities</option>{severities.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="filter-field">Alert type<select name="alertType" value={filters.alertType} onChange={updateFilter}><option value="">All alert types</option>{alertTypes.map((value) => <option key={value} value={value}>{formatLabel(value)}</option>)}</select></label><label className="filter-field">Sort by<select name="sortBy" value={filters.sortBy} onChange={updateFilter}><option value="createdAt">Created date</option><option value="updatedAt">Updated date</option><option value="startDateTime">Start date</option><option value="endDateTime">End date</option><option value="severity">Severity</option><option value="district">District</option><option value="title">Title</option></select></label><label className="filter-field">Direction<select name="sortDirection" value={filters.sortDirection} onChange={updateFilter}><option value="desc">Newest first</option><option value="asc">Oldest first</option></select></label></div></div><div className="alerts-list-panel"><div className="list-heading"><div><p className="eyebrow">Operational dispatches</p><h2>Advisories</h2>{result && <p className="muted">Showing page {result.page} of {result.totalPages || 1} · {result.totalCount} matching alerts</p>}</div></div>{isLoading && <div className="state-message" role="status">Loading travel alerts…</div>}{!isLoading && error && <div className="state-message state-error" role="alert">{error}</div>}{!isLoading && !error && alerts.length === 0 && <div className="state-message"><strong>No travel alerts found.</strong><span>Try changing your search or clearing the filters.</span></div>}{!isLoading && !error && alerts.length > 0 && <div className="table-wrapper"><table className="alerts-table"><thead><tr><th scope="col">Alert</th><th scope="col">District</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Start</th><th scope="col">End</th><th scope="col">Source</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead><tbody>{alerts.map((alert) => <tr key={alert.id}><td><strong>{alert.title}</strong><span className="table-subtext">{formatLabel(alert.alertType)}</span></td><td><span className="table-district">{alert.district}</span></td><td><span className={'status-badge severity-' + alert.severity.toLowerCase()}>{alert.severity}</span></td><td><span className={'status-badge status-' + alert.status.toLowerCase()}>{alert.status}</span></td><td><time dateTime={alert.startDateTime}>{formatDate(alert.startDateTime)}</time></td><td><time dateTime={alert.endDateTime}>{formatDate(alert.endDateTime)}</time></td><td>{alert.source || '—'}</td><td><div className="table-actions"><button className="text-action" type="button" onClick={() => openDetail(alert)}>View</button><button className="text-action" type="button" onClick={() => openEdit(alert)}>Edit</button><button className="text-action text-action-danger" type="button" onClick={() => requestDelete(alert)}>Delete</button></div></td></tr>)}</tbody></table></div>}<div className="pagination-bar"><span className="muted">{result?.totalCount ?? 0} matching alerts</span><div className="pagination-controls"><button className="button button-secondary-light" type="button" disabled={isLoading || page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button><span>Page {page} of {totalPages || 1}</span><button className="button button-secondary-light" type="button" disabled={isLoading || page >= totalPages} onClick={() => setPage((current) => current + 1)}>Next</button></div></div></div>{modal?.type === 'create' && <AlertForm mode="create" isSubmitting={isSubmitting} error={actionError} onCancel={() => setModal(null)} onSubmit={submitAlert} />}{modal?.type === 'edit' && <AlertForm mode="edit" initialValue={{ ...emptyForm, ...selectedAlert, startDateTime: toInputDate(selectedAlert.startDateTime), endDateTime: toInputDate(selectedAlert.endDateTime), source: selectedAlert.source || '' }} isSubmitting={isSubmitting} error={actionError} onCancel={() => setModal(null)} onSubmit={submitAlert} />}{modal?.type === 'loading-detail' && <div className="alert-modal-backdrop"><section className="alert-modal" role="dialog" aria-modal="true"><div className="state-message">Loading alert details…</div></section></div>}{modal?.type === 'detail' && selectedAlert && <AlertDetail alert={selectedAlert} onClose={() => setModal(null)} onEdit={openEdit} onDelete={requestDelete} />}{modal?.type === 'confirm-delete' && selectedAlert && <ConfirmDelete alert={selectedAlert} isDeleting={isDeleting} error={actionError} onCancel={() => setModal(null)} onConfirm={confirmDelete} />}</section>
 }
+
