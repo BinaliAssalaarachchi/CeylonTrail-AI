@@ -22,6 +22,93 @@ namespace CeylonTrail.Api.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApprovalRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DecidedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovalRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.ToTable("ApprovalDecisions");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AffectedItemReferences")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RecommendedAction")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ValidationResultId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("ValidationResultId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("ApprovalRequests");
+                });
+
             modelBuilder.Entity("CeylonTrail.Api.Models.Booking", b =>
                 {
                     b.Property<Guid>("Id")
@@ -154,6 +241,72 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.ToTable("Cancellations");
                 });
 
+            modelBuilder.Entity("CeylonTrail.Api.Models.TravelAlert", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AlertType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("EndDateTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("StartDateTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Status", "StartDateTime");
+
+                    b.HasIndex("District", "Status", "StartDateTime");
+
+                    b.ToTable("TravelAlerts");
+                });
+
             modelBuilder.Entity("CeylonTrail.Api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -202,6 +355,140 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("CeylonTrail.Api.Models.ValidationIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsBlocking")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("IssueType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("RelatedDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RelatedItemReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RuleCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ValidationResultId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ValidationResultId");
+
+                    b.HasIndex("IssueType", "Severity");
+
+                    b.ToTable("ValidationIssues");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ValidationResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BlockingIssueCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsFeasible")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("OverallStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("TotalIssueCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TripReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.ToTable("ValidationResults");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalDecision", b =>
+                {
+                    b.HasOne("CeylonTrail.Api.Models.ApprovalRequest", "ApprovalRequest")
+                        .WithOne("Decision")
+                        .HasForeignKey("CeylonTrail.Api.Models.ApprovalDecision", "ApprovalRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CeylonTrail.Api.Models.User", "DecidedByUser")
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ApprovalRequest");
+
+                    b.Navigation("DecidedByUser");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalRequest", b =>
+                {
+                    b.HasOne("CeylonTrail.Api.Models.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CeylonTrail.Api.Models.ValidationResult", "ValidationResult")
+                        .WithMany("ApprovalRequests")
+                        .HasForeignKey("ValidationResultId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RequestedByUser");
+
+                    b.Navigation("ValidationResult");
+                });
+
             modelBuilder.Entity("CeylonTrail.Api.Models.Booking", b =>
                 {
                     b.HasOne("CeylonTrail.Api.Models.User", "Tourist")
@@ -246,6 +533,42 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Navigation("Booking");
                 });
 
+            modelBuilder.Entity("CeylonTrail.Api.Models.TravelAlert", b =>
+                {
+                    b.HasOne("CeylonTrail.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ValidationIssue", b =>
+                {
+                    b.HasOne("CeylonTrail.Api.Models.ValidationResult", "ValidationResult")
+                        .WithMany("Issues")
+                        .HasForeignKey("ValidationResultId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ValidationResult");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ValidationResult", b =>
+                {
+                    b.HasOne("CeylonTrail.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalRequest", b =>
+                {
+                    b.Navigation("Decision");
+                });
+
             modelBuilder.Entity("CeylonTrail.Api.Models.Booking", b =>
                 {
                     b.Navigation("Cancellation");
@@ -253,6 +576,13 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("StatusHistory");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.ValidationResult", b =>
+                {
+                    b.Navigation("ApprovalRequests");
+
+                    b.Navigation("Issues");
                 });
 #pragma warning restore 612, 618
         }

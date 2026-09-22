@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using CeylonTrail.Api.Configuration;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -41,7 +42,20 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Issuer) ||
 builder.Services.AddSingleton(jwtOptions);
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IItineraryValidationService, ItineraryValidationService>();
+builder.Services.AddScoped<IApprovalRequestService, ApprovalRequestService>();
+builder.Services.Configure<TravelIntelligenceOptions>(
+    builder.Configuration.GetSection(TravelIntelligenceOptions.SectionName));
+builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceService>((serviceProvider, client) =>
+{
+    var options = serviceProvider
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<TravelIntelligenceOptions>>()
+        .Value;
+    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 10);
+});
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -58,7 +72,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddHealthChecks();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
