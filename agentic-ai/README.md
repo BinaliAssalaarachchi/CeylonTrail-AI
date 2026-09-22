@@ -15,6 +15,32 @@ The **Booking & Action Agent** is responsible for:
 
 ---
 
+### M4: Travel Intelligence & Validation Agent
+
+The M4 agent consumes the structured ValidationResult produced by the
+ASP.NET Core deterministic itinerary validator and returns advisory,
+schema-validated recommendations. ASP.NET remains authoritative for
+feasibility, risk, issue severity, and blocking state; the agent does not
+re-evaluate or override those values.
+
+The module uses Pydantic schemas and standard-library policy logic. It exposes
+controlled deterministic helpers for issue summaries, blocking issues, risk,
+affected items, and finite recommendation actions. It has no database,
+filesystem, shell, booking, or itinerary-modification tools.
+
+When no provider is configured, or a provider fails, the agent uses its
+deterministic fallback. Provider configuration is intentionally not wired to a
+real external service in this phase; a future provider can implement the
+RecommendationProvider protocol without requiring API keys in tests.
+Recommendations such as rescheduling, budget review, and conflict resolution
+remain advisory and require human approval when consequential.
+
+Run all agent tests from the repository root:
+
+    python -m unittest discover -s agentic-ai -p "test_*.py"
+
+---
+
 ## Architectural Boundaries
 In adherence to the CeylonTrail Architecture Decision Records (ADRs):
 - AI agents **never** communicate directly with the PostgreSQL database.
