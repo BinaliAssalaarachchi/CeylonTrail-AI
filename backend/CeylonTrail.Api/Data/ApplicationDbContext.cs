@@ -14,6 +14,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<TravelAlert> TravelAlerts => Set<TravelAlert>();
     public DbSet<ValidationResult> ValidationResults => Set<ValidationResult>();
     public DbSet<ValidationIssue> ValidationIssues => Set<ValidationIssue>();
+    public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
+    public DbSet<ApprovalDecision> ApprovalDecisions => Set<ApprovalDecision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -137,6 +139,51 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(issue => issue.CreatedAt).IsRequired();
             entity.HasIndex(issue => issue.ValidationResultId);
             entity.HasIndex(issue => new { issue.IssueType, issue.Severity });
+        });
+
+        modelBuilder.Entity<ApprovalRequest>(entity =>
+        {
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.Id).ValueGeneratedOnAdd();
+            entity.Property(request => request.Status).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(request => request.RecommendedAction).HasConversion<string>().IsRequired().HasMaxLength(40);
+            entity.Property(request => request.RiskLevel).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(request => request.Summary).IsRequired().HasMaxLength(2000);
+            entity.Property(request => request.AffectedItemReferences).HasMaxLength(2000);
+            entity.Property(request => request.RequestedByUserId).IsRequired();
+            entity.Property(request => request.ValidationResultId).IsRequired();
+            entity.Property(request => request.CreatedAt).IsRequired();
+            entity.Property(request => request.UpdatedAt).IsRequired();
+            entity.HasIndex(request => new { request.Status, request.CreatedAt });
+            entity.HasIndex(request => request.ValidationResultId);
+            entity.HasOne(request => request.ValidationResult)
+                .WithMany(validation => validation.ApprovalRequests)
+                .HasForeignKey(request => request.ValidationResultId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(request => request.RequestedByUser)
+                .WithMany()
+                .HasForeignKey(request => request.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ApprovalDecision>(entity =>
+        {
+            entity.HasKey(decision => decision.Id);
+            entity.Property(decision => decision.Id).ValueGeneratedOnAdd();
+            entity.Property(decision => decision.Decision).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(decision => decision.Comment).HasMaxLength(1000);
+            entity.Property(decision => decision.DecidedByUserId).IsRequired();
+            entity.Property(decision => decision.DecidedAt).IsRequired();
+            entity.HasIndex(decision => decision.ApprovalRequestId).IsUnique();
+            entity.HasIndex(decision => decision.DecidedByUserId);
+            entity.HasOne(decision => decision.ApprovalRequest)
+                .WithOne(request => request.Decision)
+                .HasForeignKey<ApprovalDecision>(decision => decision.ApprovalRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(decision => decision.DecidedByUser)
+                .WithMany()
+                .HasForeignKey(decision => decision.DecidedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

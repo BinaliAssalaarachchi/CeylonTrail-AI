@@ -1,4 +1,5 @@
 using CeylonTrail.Api.Models;
+using CeylonTrail.Api.DTOs.ApprovalRequests;
 
 namespace CeylonTrail.Api.DTOs.ItineraryValidations;
 
@@ -68,6 +69,8 @@ public sealed class TravelIntelligenceResponse
     public bool IsFeasible { get; set; }
 
     public TravelIntelligenceExecutionMetadata Execution { get; set; } = new();
+
+    public ApprovalRequestResponse? ApprovalRequest { get; set; }
 }
 
 public sealed class TravelIntelligenceRecommendation

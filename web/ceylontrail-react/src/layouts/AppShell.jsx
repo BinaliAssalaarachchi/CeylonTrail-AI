@@ -56,6 +56,10 @@ export default function AppShell() {
                 <NavLink className="nav-link" to="/travel-alerts" key={module.label}>
                   <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
                 </NavLink>
+              ) : module.label === 'AI Operations' && canManageAlerts ? (
+                <NavLink className="nav-link" to="/ai-operations" key={module.label}>
+                  <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
+                </NavLink>
               ) : (
                 <span className="nav-link nav-link-disabled" key={module.label} aria-disabled="true" title="Available in a future feature phase">
                   <span className="nav-icon">{module.icon}</span><span>{module.label}</span>

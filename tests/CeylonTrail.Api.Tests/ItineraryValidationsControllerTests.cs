@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CeylonTrail.Api.Controllers;
+using CeylonTrail.Api.DTOs.ApprovalRequests;
 using CeylonTrail.Api.DTOs.ItineraryValidations;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
@@ -62,7 +63,8 @@ public sealed class ItineraryValidationsControllerTests
     {
         var controller = new ItineraryValidationsController(
             validationService,
-            intelligenceService)
+            intelligenceService,
+            new RecordingApprovalService())
         {
             ControllerContext = new ControllerContext
             {
@@ -116,5 +118,33 @@ public sealed class ItineraryValidationsControllerTests
                 RecommendedAction = TravelIntelligenceAction.ManualReview
             });
         }
+    }
+
+    private sealed class RecordingApprovalService : IApprovalRequestService
+    {
+        public Task<(bool Succeeded, string? Error, ApprovalRequestResponse? Response)> CreateOrReusePendingAsync(
+            Guid validationResultId,
+            Guid requestedByUserId,
+            TravelIntelligenceResponse recommendation,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<(bool, string?, ApprovalRequestResponse?)>((true, null, null));
+
+        public Task<IReadOnlyList<ApprovalRequestResponse>> ListAsync(
+            ApprovalRequestStatus? status,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ApprovalRequestResponse>>(Array.Empty<ApprovalRequestResponse>());
+
+        public Task<ApprovalRequestResponse?> GetByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ApprovalRequestResponse?>(null);
+
+        public Task<(bool Succeeded, string? Error, ApprovalRequestResponse? Response)> DecideAsync(
+            Guid id,
+            Guid decidedByUserId,
+            ApprovalDecisionType decision,
+            string? comment,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<(bool, string?, ApprovalRequestResponse?)>((false, "Not implemented.", null));
     }
 }

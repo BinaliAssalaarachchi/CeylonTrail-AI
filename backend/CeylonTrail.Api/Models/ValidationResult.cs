@@ -21,4 +21,6 @@ public class ValidationResult
     public DateTime CreatedAt { get; set; }
 
     public ICollection<ValidationIssue> Issues { get; set; } = new List<ValidationIssue>();
+
+    public ICollection<ApprovalRequest> ApprovalRequests { get; set; } = new List<ApprovalRequest>();
 }

@@ -53,6 +53,17 @@ TravelIntelligence:TimeoutSeconds configuration. The intended flow is:
 Clients must never call the Python service directly. The Python service uses
 the deterministic fallback without an LLM key or external provider.
 
+### Human approval workflow
+
+When ASP.NET receives a recommendation whose `RequiresHumanApproval` flag is
+true, it persists a pending approval request containing only the validated,
+safe recommendation snapshot. Repeated analysis requests reuse the existing
+pending request for that validation and requester. Travel Coordinators and
+Administrators can approve or reject requests through the ASP.NET approval
+endpoints; each decision records the authenticated user, timestamp, and
+optional comment. Approval decisions do not execute bookings or mutate the
+itinerary, and the deterministic validation result remains authoritative.
+
 Run all agent tests from the repository root:
 
     python -m unittest discover -s agentic-ai -p "test_*.py"

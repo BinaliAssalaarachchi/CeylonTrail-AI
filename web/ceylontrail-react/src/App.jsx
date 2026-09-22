@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RoleDashboardPage from './pages/RoleDashboardPage'
 import TravelAlertsPage from './pages/TravelAlertsPage'
+import AIOperationsPage from './pages/AIOperationsPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
@@ -31,6 +32,7 @@ function App() {
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
                 <Route path="/travel-alerts" element={<TravelAlertsPage />} />
+                <Route path="/ai-operations" element={<AIOperationsPage />} />
               </Route>
             </Route>
           </Route>
