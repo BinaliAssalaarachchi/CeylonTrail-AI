@@ -35,6 +35,24 @@ RecommendationProvider protocol without requiring API keys in tests.
 Recommendations such as rescheduling, budget review, and conflict resolution
 remain advisory and require human approval when consequential.
 
+The internal FastAPI service exposes:
+
+    GET  /health
+    POST /travel-intelligence/analyze
+
+Start it from the repository root with:
+
+    cd agentic-ai
+    uvicorn travel_intelligence.api:app --host 127.0.0.1 --port 8001
+
+ASP.NET finds it through TravelIntelligence:BaseUrl and
+TravelIntelligence:TimeoutSeconds configuration. The intended flow is:
+
+    React / Flutter -> ASP.NET Core -> internal Python service
+
+Clients must never call the Python service directly. The Python service uses
+the deterministic fallback without an LLM key or external provider.
+
 Run all agent tests from the repository root:
 
     python -m unittest discover -s agentic-ai -p "test_*.py"

@@ -9,7 +9,9 @@ namespace CeylonTrail.Api.Controllers;
 [ApiController]
 [Route("api/itinerary-validations")]
 [Authorize]
-public sealed class ItineraryValidationsController(IItineraryValidationService validationService) : ControllerBase
+public sealed class ItineraryValidationsController(
+    IItineraryValidationService validationService,
+    ITravelIntelligenceService travelIntelligenceService) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(ItineraryValidationResponse), StatusCodes.Status201Created)]
@@ -48,6 +50,28 @@ public sealed class ItineraryValidationsController(IItineraryValidationService v
         return result is null
             ? NotFound(new { message = "Itinerary validation was not found." })
             : Ok(result);
+    }
+
+    [HttpPost("{id:guid}/travel-intelligence")]
+    [ProducesResponseType(typeof(TravelIntelligenceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TravelIntelligenceResponse>> AnalyzeWithTravelIntelligence(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetAuthenticatedUserId(out var userId))
+        {
+            return Unauthorized(new { message = "The authenticated user ID is missing or invalid." });
+        }
+
+        var validation = await validationService.GetByIdAsync(id, userId, cancellationToken);
+        if (validation is null)
+        {
+            return NotFound(new { message = "Itinerary validation was not found." });
+        }
+
+        var recommendation = await travelIntelligenceService.AnalyzeAsync(validation, cancellationToken);
+        return Ok(recommendation);
     }
 
     private bool TryGetAuthenticatedUserId(out Guid userId) =>
