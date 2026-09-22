@@ -17,235 +17,141 @@ namespace CeylonTrail.Api.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.31")
+                .HasAnnotation("ProductVersion", "8.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.Attraction", b =>
+            modelBuilder.Entity("CeylonTrail.Api.Models.Booking", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<Guid>("CategoryId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("District")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("Latitude")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("Longitude")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<decimal>("Price")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("numeric(12,2)");
-
-                    b.Property<Guid>("ProviderId")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("TouristId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TripId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name");
+                    b.HasIndex("CreatedAt");
 
-                    b.HasIndex("ProviderId", "Status");
+                    b.HasIndex("Status");
 
-                    b.HasIndex("CategoryId", "Status", "IsActive");
+                    b.HasIndex("TouristId");
 
-                    b.ToTable("Attractions", t =>
-                        {
-                            t.HasCheckConstraint("CK_Attractions_Latitude_Range", "\"Latitude\" >= -90 AND \"Latitude\" <= 90");
-
-                            t.HasCheckConstraint("CK_Attractions_Longitude_Range", "\"Longitude\" >= -180 AND \"Longitude\" <= 180");
-
-                            t.HasCheckConstraint("CK_Attractions_Price_NonNegative", "\"Price\" >= 0");
-                        });
+                    b.ToTable("Bookings");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.AttractionImage", b =>
+            modelBuilder.Entity("CeylonTrail.Api.Models.BookingItem", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AltText")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
                     b.Property<Guid>("AttractionId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
 
-                    b.Property<string>("ImageUrl")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<int>("SortOrder")
+                    b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("AttractionId", "SortOrder");
+                    b.HasIndex("BookingId");
 
-                    b.ToTable("AttractionImages");
+                    b.ToTable("BookingItems");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.AttractionSchedule", b =>
+            modelBuilder.Entity("CeylonTrail.Api.Models.BookingStatusHistory", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AttractionId")
+                    b.Property<Guid>("BookingId")
                         .HasColumnType("uuid");
 
-                    b.Property<TimeOnly?>("ClosingTime")
-                        .HasColumnType("time without time zone");
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("DayOfWeek")
+                    b.Property<Guid>("ChangedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewStatus")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
-                    b.Property<bool>("IsClosed")
-                        .HasColumnType("boolean");
+                    b.Property<string>("PreviousStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
-                    b.Property<TimeOnly?>("OpeningTime")
-                        .HasColumnType("time without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AttractionId", "DayOfWeek")
-                        .IsUnique();
-
-                    b.ToTable("AttractionSchedules", t =>
-                        {
-                            t.HasCheckConstraint("CK_AttractionSchedules_TimeRange", "\"IsClosed\" OR (\"OpeningTime\" IS NOT NULL AND \"ClosingTime\" IS NOT NULL AND \"OpeningTime\" < \"ClosingTime\")");
-                        });
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.Category", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
+                    b.Property<string>("Reason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
+                    b.HasIndex("BookingId");
 
-                    b.ToTable("Categories");
+                    b.ToTable("BookingStatusHistories");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.ExperienceSlot", b =>
+            modelBuilder.Entity("CeylonTrail.Api.Models.Cancellation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AttractionId")
+                    b.Property<Guid>("BookingId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AvailableCapacity")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Capacity")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<TimeOnly>("EndTime")
-                        .HasColumnType("time without time zone");
-
-                    b.Property<TimeOnly>("StartTime")
-                        .HasColumnType("time without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AttractionId", "Date", "StartTime")
-                        .IsUnique();
-
-                    b.ToTable("ExperienceSlots", t =>
-                        {
-                            t.HasCheckConstraint("CK_ExperienceSlots_AvailableCapacity_Valid", "\"AvailableCapacity\" >= 0 AND \"AvailableCapacity\" <= \"Capacity\"");
-
-                            t.HasCheckConstraint("CK_ExperienceSlots_Capacity_Positive", "\"Capacity\" > 0");
-
-                            t.HasCheckConstraint("CK_ExperienceSlots_TimeRange", "\"StartTime\" < \"EndTime\"");
-                        });
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.Favorite", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AttractionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime>("CancelledAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("TouristId")
+                    b.Property<Guid>("CancelledBy")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AttractionId");
-
-                    b.HasIndex("TouristId", "AttractionId")
+                    b.HasIndex("BookingId")
                         .IsUnique();
 
-                    b.ToTable("Favorites");
+                    b.ToTable("Cancellations");
                 });
 
             modelBuilder.Entity("CeylonTrail.Api.Models.User", b =>
@@ -296,91 +202,57 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.Attraction", b =>
+            modelBuilder.Entity("CeylonTrail.Api.Models.Booking", b =>
                 {
-                    b.HasOne("CeylonTrail.Api.Models.Category", "Category")
-                        .WithMany("Attractions")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeylonTrail.Api.Models.User", "Provider")
-                        .WithMany()
-                        .HasForeignKey("ProviderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Category");
-
-                    b.Navigation("Provider");
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.AttractionImage", b =>
-                {
-                    b.HasOne("CeylonTrail.Api.Models.Attraction", "Attraction")
-                        .WithMany("Images")
-                        .HasForeignKey("AttractionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Attraction");
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.AttractionSchedule", b =>
-                {
-                    b.HasOne("CeylonTrail.Api.Models.Attraction", "Attraction")
-                        .WithMany("Schedules")
-                        .HasForeignKey("AttractionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Attraction");
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.ExperienceSlot", b =>
-                {
-                    b.HasOne("CeylonTrail.Api.Models.Attraction", "Attraction")
-                        .WithMany("ExperienceSlots")
-                        .HasForeignKey("AttractionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Attraction");
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.Favorite", b =>
-                {
-                    b.HasOne("CeylonTrail.Api.Models.Attraction", "Attraction")
-                        .WithMany("Favorites")
-                        .HasForeignKey("AttractionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("CeylonTrail.Api.Models.User", "Tourist")
                         .WithMany()
                         .HasForeignKey("TouristId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("Attraction");
 
                     b.Navigation("Tourist");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.Attraction", b =>
+            modelBuilder.Entity("CeylonTrail.Api.Models.BookingItem", b =>
                 {
-                    b.Navigation("ExperienceSlots");
+                    b.HasOne("CeylonTrail.Api.Models.Booking", "Booking")
+                        .WithMany("Items")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("Favorites");
-
-                    b.Navigation("Images");
-
-                    b.Navigation("Schedules");
+                    b.Navigation("Booking");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.Category", b =>
+            modelBuilder.Entity("CeylonTrail.Api.Models.BookingStatusHistory", b =>
                 {
-                    b.Navigation("Attractions");
+                    b.HasOne("CeylonTrail.Api.Models.Booking", "Booking")
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.Cancellation", b =>
+                {
+                    b.HasOne("CeylonTrail.Api.Models.Booking", "Booking")
+                        .WithOne("Cancellation")
+                        .HasForeignKey("CeylonTrail.Api.Models.Cancellation", "BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("CeylonTrail.Api.Models.Booking", b =>
+                {
+                    b.Navigation("Cancellation");
+
+                    b.Navigation("Items");
+
+                    b.Navigation("StatusHistory");
                 });
 #pragma warning restore 612, 618
         }
