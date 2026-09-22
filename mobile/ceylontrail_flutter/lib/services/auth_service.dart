@@ -21,6 +21,7 @@ class AuthService extends ChangeNotifier {
   AuthUser? get user => _user;
   String? get error => _error;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
+  AuthSessionStorage get storage => _storage;
 
   Future<void> restore() async {
     _status = AuthStatus.restoring;

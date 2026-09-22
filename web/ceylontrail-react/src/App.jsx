@@ -18,6 +18,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route path="/" element={<HomePage />} />
+              <Route path="/bookings" element={<RoleDashboardPage title="Reservation & Booking Operations" description="Manage incoming reservations, accept or reject requests, and track status histories." />} />
               <Route element={<ProtectedRoute allowedRoles={['TourismProvider']} />}>
                 <Route path="/provider" element={<RoleDashboardPage title="Tourism Provider Dashboard" description="A shared workspace for tourism providers." />} />
               </Route>
