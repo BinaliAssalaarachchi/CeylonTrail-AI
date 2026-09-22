@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../theme/app_theme.dart';
 import '../widgets/auth_scope.dart';
@@ -46,6 +47,8 @@ class HomePage extends StatelessWidget {
             ),
             const SizedBox(height: CeylonSpacing.md),
             _PlannerCard(),
+            const SizedBox(height: CeylonSpacing.md),
+            const _BookingsEntry(),
             const SizedBox(height: CeylonSpacing.xl),
             _SectionHeading(
               title: 'A little closer to Ceylon',
@@ -206,6 +209,58 @@ class _PlannerCard extends StatelessWidget {
           ),
         ),
       ],
+    ),
+  );
+}
+
+class _BookingsEntry extends StatelessWidget {
+  const _BookingsEntry();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Open My Bookings',
+    child: Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(CeylonRadii.card),
+        onTap: () => context.go('/bookings'),
+        child: Padding(
+          padding: const EdgeInsets.all(CeylonSpacing.md),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(CeylonSpacing.sm),
+                decoration: BoxDecoration(
+                  color: CeylonColors.mint,
+                  borderRadius: BorderRadius.circular(CeylonRadii.field),
+                ),
+                child: const Icon(
+                  Icons.bookmark_border,
+                  color: CeylonColors.forest,
+                ),
+              ),
+              const SizedBox(width: CeylonSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'My Bookings',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'View your reservations and booking history.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: CeylonColors.inkMuted),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 }

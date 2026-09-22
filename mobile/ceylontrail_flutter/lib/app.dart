@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'views/home_page.dart';
+import 'views/bookings_page.dart';
 import 'views/login_page.dart';
 import 'views/module_placeholder_page.dart';
 import 'widgets/auth_scope.dart';
@@ -128,12 +129,7 @@ class CeylonTrailApp extends StatelessWidget {
             routes: [
               GoRoute(
                 path: '/bookings',
-                builder: (context, state) => const ModulePlaceholderPage(
-                  title: 'Bookings',
-                  description:
-                      'A calm place for your confirmed travel plans, coming in a future phase.',
-                  icon: Icons.bookmark_border,
-                ),
+                builder: (context, state) => const BookingsPage(),
               ),
             ],
           ),
