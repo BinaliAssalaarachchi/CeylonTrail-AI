@@ -7,11 +7,11 @@ const roleLinks = {
   Administrator: { label: 'Administrator workspace', to: '/administrator' },
 }
 const futureModules = [
-  { label: 'Trips & Itineraries', icon: 'â†—' },
-  { label: 'Discover', icon: 'â—‰' },
-  { label: 'Bookings', icon: 'â–¡' },
-  { label: 'Travel Operations', icon: 'âœ£' },
-  { label: 'AI Operations', icon: 'âœ¦' },
+  { label: 'Trips & Itineraries', icon: '↗' },
+  { label: 'Discover', icon: '◉' },
+  { label: 'Bookings', icon: '□' },
+  { label: 'Travel Operations', icon: '✣' },
+  { label: 'AI Operations', icon: '✦' },
 ]
 
 function BrandMark() {
@@ -71,8 +71,8 @@ export default function AppShell() {
             ))}
         </nav>
         <div className="sidebar-footer">
-          <div className="protocol-note"><span className="protocol-icon">â—Œ</span><span><strong>Shared foundation</strong><small>Feature workspaces will appear here.</small></span></div>
-          <small>Â© 2025 CeylonTrail</small>
+          <div className="protocol-note"><span className="protocol-icon">◌</span><span><strong>Shared foundation</strong><small>Feature workspaces will appear here.</small></span></div>
+          <small>© 2025 CeylonTrail</small>
         </div>
       </aside>
       <div className="shell-content">
@@ -81,7 +81,7 @@ export default function AppShell() {
           <div className="account-summary">
             <div className="account-copy"><strong>{user.firstName} {user.lastName}</strong><span>{user.role}</span></div>
             <span className="avatar" aria-hidden="true">{user.firstName?.[0]}{user.lastName?.[0]}</span>
-            <button className="icon-button" type="button" onClick={logout} aria-label="Log out" title="Log out">â†ª</button>
+            <button className="icon-button" type="button" onClick={logout} aria-label="Log out" title="Log out">↪</button>
           </div>
         </header>
         <main className="main-content"><Outlet /></main>
