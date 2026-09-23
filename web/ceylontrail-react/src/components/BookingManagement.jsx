@@ -1,16 +1,31 @@
 import { useEffect, useState } from 'react'
-import { acceptBooking, getBookingHistory, getProviderBookings, rejectBooking } from '../api/bookings'
+import {
+    acceptBooking,
+    cancelBooking,
+    getBookingHistory,
+    getProviderBookings,
+    getTouristBookings,
+    rejectBooking
+} from '../api/bookings'
+import { useAuth } from '../context/useAuth'
 
 export default function BookingManagement() {
+    const { user } = useAuth()
+    const isTourist = user?.role === 'Tourist'
+
     const [bookings, setBookings] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [statusFilter, setStatusFilter] = useState('ALL')
     const [actionLoadingId, setActionLoadingId] = useState(null)
 
-    // Rejection modal state
+    // Rejection modal state (Provider)
     const [rejectingBookingId, setRejectingBookingId] = useState(null)
     const [rejectReason, setRejectReason] = useState('')
+
+    // Cancellation modal state (Tourist)
+    const [cancellingBookingId, setCancellingBookingId] = useState(null)
+    const [cancelReason, setCancelReason] = useState('')
 
     // History modal state
     const [historyBookingId, setHistoryBookingId] = useState(null)
@@ -21,7 +36,7 @@ export default function BookingManagement() {
         try {
             setLoading(true)
             setError(null)
-            const data = await getProviderBookings()
+            const data = isTourist ? await getTouristBookings() : await getProviderBookings()
             setBookings(data)
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to load bookings.')
@@ -32,7 +47,9 @@ export default function BookingManagement() {
 
     useEffect(() => {
         let isMounted = true
-        getProviderBookings()
+        const loader = isTourist ? getTouristBookings : getProviderBookings
+
+        loader()
             .then((data) => {
                 if (isMounted) setBookings(data)
             })
@@ -45,7 +62,7 @@ export default function BookingManagement() {
         return () => {
             isMounted = false
         }
-    }, [])
+    }, [isTourist])
 
     const handleAccept = async (id) => {
         try {
@@ -71,6 +88,23 @@ export default function BookingManagement() {
             await fetchBookings()
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to reject booking.')
+        } finally {
+            setActionLoadingId(null)
+        }
+    }
+
+    const handleCancelSubmit = async (e) => {
+        e.preventDefault()
+        if (!cancelReason.trim()) return
+
+        try {
+            setActionLoadingId(cancellingBookingId)
+            await cancelBooking(cancellingBookingId, cancelReason)
+            setCancellingBookingId(null)
+            setCancelReason('')
+            await fetchBookings()
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to cancel booking.')
         } finally {
             setActionLoadingId(null)
         }
@@ -103,11 +137,11 @@ export default function BookingManagement() {
             {/* Header Metrics */}
             <div className="booking-metrics">
                 <div className="metric-card">
-                    <span className="metric-label">Total Requests</span>
+                    <span className="metric-label">{isTourist ? 'My Bookings' : 'Total Requests'}</span>
                     <span className="metric-value">{bookings.length}</span>
                 </div>
                 <div className="metric-card warning">
-                    <span className="metric-label">Pending Action</span>
+                    <span className="metric-label">{isTourist ? 'Pending Confirmation' : 'Pending Action'}</span>
                     <span className="metric-value">{pendingCount}</span>
                 </div>
                 <div className="metric-card success">
@@ -152,7 +186,7 @@ export default function BookingManagement() {
                         </div>
 
                         <div className="booking-meta">
-                            <p><strong>Tourist ID:</strong> {b.touristId.substring(0, 8)}...</p>
+                            {!isTourist && <p><strong>Tourist ID:</strong> {b.touristId.substring(0, 8)}...</p>}
                             <p><strong>Requested on:</strong> {new Date(b.createdAt).toLocaleString()}</p>
                         </div>
 
@@ -162,7 +196,7 @@ export default function BookingManagement() {
                             <ul>
                                 {b.items.map((item) => (
                                     <li key={item.id}>
-                                        <span>Attraction Slot ({item.attractionId.substring(0, 6)}...)</span>
+                                        <span>Attraction ({item.attractionId.substring(0, 8)}...)</span>
                                         <span>Qty: {item.quantity} × ${item.unitPrice.toFixed(2)} = <strong>${item.subtotal.toFixed(2)}</strong></span>
                                     </li>
                                 ))}
@@ -178,7 +212,8 @@ export default function BookingManagement() {
 
                         {/* Card Actions */}
                         <div className="booking-card-actions">
-                            {b.status === 'Pending' && (
+                            {/* Provider / Staff Actions */}
+                            {!isTourist && b.status === 'Pending' && (
                                 <>
                                     <button
                                         className="btn btn-primary"
@@ -199,6 +234,21 @@ export default function BookingManagement() {
                                     </button>
                                 </>
                             )}
+
+                            {/* Tourist Actions */}
+                            {isTourist && (b.status === 'Pending' || b.status === 'Confirmed') && (
+                                <button
+                                    className="btn btn-danger"
+                                    disabled={actionLoadingId === b.id}
+                                    onClick={() => {
+                                        setCancellingBookingId(b.id)
+                                        setCancelReason('')
+                                    }}
+                                >
+                                    Cancel Booking
+                                </button>
+                            )}
+
                             <button
                                 className="btn btn-outline"
                                 onClick={() => handleOpenHistory(b.id)}
@@ -210,7 +260,7 @@ export default function BookingManagement() {
                 ))}
             </div>
 
-            {/* Reject Modal */}
+            {/* Provider Reject Modal */}
             {rejectingBookingId && (
                 <div className="modal-overlay" onClick={() => setRejectingBookingId(null)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -230,6 +280,33 @@ export default function BookingManagement() {
                                 </button>
                                 <button type="submit" className="btn btn-danger" disabled={actionLoadingId === rejectingBookingId}>
                                     Confirm Rejection
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Tourist Cancel Modal */}
+            {cancellingBookingId && (
+                <div className="modal-overlay" onClick={() => setCancellingBookingId(null)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <h3>Cancel Reservation</h3>
+                        <p className="modal-lead">Please provide a reason for cancelling this booking:</p>
+                        <form onSubmit={handleCancelSubmit}>
+                            <textarea
+                                required
+                                rows={4}
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                placeholder="e.g. Change of travel plans, unable to attend..."
+                            />
+                            <div className="modal-actions">
+                                <button type="button" className="btn btn-outline" onClick={() => setCancellingBookingId(null)}>
+                                    Keep Booking
+                                </button>
+                                <button type="submit" className="btn btn-danger" disabled={actionLoadingId === cancellingBookingId}>
+                                    Confirm Cancellation
                                 </button>
                             </div>
                         </form>
