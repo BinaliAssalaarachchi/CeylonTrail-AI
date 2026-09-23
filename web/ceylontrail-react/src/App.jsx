@@ -8,6 +8,7 @@ import RoleDashboardPage from './pages/RoleDashboardPage'
 import TripPlanningOverviewPage from './pages/TripPlanningOverviewPage'
 import ItineraryReviewPage from './pages/ItineraryReviewPage'
 import TravelAlertsPage from './pages/TravelAlertsPage'
+import TravelAdvisoriesPage from './pages/TravelAdvisoriesPage'
 import AIOperationsPage from './pages/AIOperationsPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -52,6 +53,9 @@ function App() {
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
                 <Route path="/travel-alerts" element={<TravelAlertsPage />} />
                 <Route path="/ai-operations" element={<AIOperationsPage />} />
+              </Route>
+              <Route element={<ProtectedRoute allowedRoles={['Tourist']} />}>
+                <Route path="/travel-advisories" element={<TravelAdvisoriesPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
                 <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />

@@ -286,6 +286,32 @@ h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.
 .pagination-controls > span { min-width: 82px; color: var(--color-forest); font-size: 0.72rem; font-weight: 800; text-align: center; }
 .state-message { min-height: 150px; padding: 42px 24px; color: var(--color-ink-muted); }
 
+/* Tourist M4 travel advisories */
+.travel-advisories-page { max-width: 1240px; margin: 0 auto; }
+.advisories-header { margin: -12px 0 28px; padding: 28px 32px 30px; border-radius: var(--radius-lg); background: linear-gradient(120deg, rgba(240, 242, 252, 0.96), rgba(233, 237, 248, 0.62)); }
+.advisories-header h1 { margin: 8px 0 10px; color: var(--color-forest-deep); font-size: clamp(2.2rem, 4vw, 3.5rem); }
+.advisories-header .lead { max-width: 700px; margin-bottom: 0; }
+.advisories-current-note { display: grid; min-width: 180px; gap: 5px; padding: 16px 18px; border: 1px solid var(--color-outline-soft); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.76); color: var(--color-forest); }
+.advisories-current-note strong { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.advisories-current-note span { color: var(--color-ink-muted); font-size: 0.76rem; }
+.advisory-filter-panel, .advisory-list-panel { border: 1px solid var(--color-outline-soft); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-card); }
+.advisory-filter-panel { padding: 22px 24px 24px; }
+.advisory-filter-grid { display: grid; grid-template-columns: 2fr repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.advisory-search-field input { min-width: 0; }
+.advisory-list-panel { margin-top: 24px; }
+.advisory-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 0 24px 24px; }
+.advisory-card { display: grid; gap: 12px; min-height: 218px; padding: 18px; border: 1px solid var(--color-outline-soft); border-radius: var(--radius-md); background: var(--color-surface-soft); color: inherit; cursor: pointer; text-align: left; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.advisory-card:hover, .advisory-card:focus-visible { border-color: var(--color-teal); box-shadow: 0 12px 24px rgba(18, 63, 58, 0.1); outline: none; transform: translateY(-2px); }
+.advisory-card-heading, .advisory-card-footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.advisory-card-heading strong { color: var(--color-forest); font-size: 0.96rem; line-height: 1.35; }
+.advisory-card-meta { color: var(--color-ink-muted); font-size: 0.72rem; }
+.advisory-card-description { display: -webkit-box; overflow: hidden; color: var(--color-ink-muted); font-size: 0.8rem; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+.advisory-card-footer { align-items: center; align-self: end; width: 100%; color: var(--color-ink-muted); font-size: 0.7rem; }
+.advisory-detail-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.advisory-detail-error { margin: 18px 0 0; }
+@media (max-width: 980px) { .advisory-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .advisory-search-field { grid-column: span 2; } .advisory-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .advisories-header { align-items: flex-start; flex-direction: column; margin: -12px -16px 24px; padding: 24px 16px 28px; border-radius: 0; } .advisory-filter-panel { padding: 18px; } .advisory-filter-grid, .advisory-card-grid { grid-template-columns: 1fr; } .advisory-search-field { grid-column: auto; } .advisory-card-grid { padding: 0 18px 18px; } }
+
 @media (max-width: 1100px) {
   .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .filter-field-wide { grid-column: span 2; }
