@@ -1,10 +1,5 @@
 import apiClient from './client'
 
-export async function getTouristBookings() {
-    const response = await apiClient.get('/api/bookings')
-    return response.data
-}
-
 export async function getProviderBookings() {
     const response = await apiClient.get('/api/provider/bookings')
     return response.data
@@ -20,13 +15,7 @@ export async function rejectBooking(bookingId, reason) {
     return response.data
 }
 
-export async function cancelBooking(bookingId, reason) {
-    const response = await apiClient.post(`/api/bookings/${bookingId}/cancel`, { reason })
-    return response.data
-}
-
 export async function getBookingHistory(bookingId) {
     const response = await apiClient.get(`/api/bookings/${bookingId}/history`)
     return response.data
 }
-
