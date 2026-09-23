@@ -42,6 +42,7 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Issuer) ||
 builder.Services.AddSingleton(jwtOptions);
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IAttractionService, AttractionService>();
 builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IItineraryValidationService, ItineraryValidationService>();
@@ -74,7 +75,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 builder.Services.AddHealthChecks();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -133,7 +136,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// In development the API may be intentionally run on HTTP only (for example
+// during local integration tests). HTTPS redirection cannot determine a target
+// in that configuration, so enable it only when an HTTPS listener is present.
+if (!app.Environment.IsDevelopment() || app.Urls.Any(url => url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+{
+    app.UseHttpsRedirection();
+}
 if (app.Environment.IsDevelopment())
 {
     app.UseCors("ReactDevelopment");

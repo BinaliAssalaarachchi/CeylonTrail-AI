@@ -70,6 +70,48 @@ public sealed class AuthenticationServiceTests
         Assert.Null(result.Response);
     }
 
+    [Theory]
+    [InlineData(nameof(UserRole.Administrator))]
+    [InlineData(nameof(UserRole.TravelCoordinator))]
+    [InlineData("NotARealRole")]
+    public async Task PublicRegistration_RejectsPrivilegedOrInvalidRoles(string role)
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(dbContext);
+
+        var result = await service.RegisterAsync(new RegisterRequest
+        {
+            FirstName = "Test",
+            LastName = "User",
+            Email = $"{Guid.NewGuid()}@example.com",
+            Password = "ValidPassword123!",
+            Role = role
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("The requested role is not available for public registration.", result.Error);
+        Assert.Empty(dbContext.Users);
+    }
+
+    [Fact]
+    public async Task PublicRegistration_AllowsTourismProvider()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(dbContext);
+
+        var result = await service.RegisterAsync(new RegisterRequest
+        {
+            FirstName = "Provider",
+            LastName = "User",
+            Email = "provider@example.com",
+            Password = "ValidPassword123!",
+            Role = nameof(UserRole.TourismProvider)
+        });
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(UserRole.TourismProvider, dbContext.Users.Single().Role);
+    }
+
     private static ApplicationDbContext CreateDbContext() => new(
         new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
