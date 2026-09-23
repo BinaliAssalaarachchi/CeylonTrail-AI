@@ -1,0 +1,16 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { createExperienceSlot, deleteExperienceSlot, getAttractionById, updateExperienceSlot } from '../../api/attractions'
+import SlotForm from '../../components/attractions/SlotForm'
+import { apiErrorMessage, timeValue } from './attractionUtils'
+
+export default function ExperienceSlotsPage() {
+  const { id } = useParams(); const [attraction, setAttraction] = useState(null); const [editing, setEditing] = useState(null); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('')
+  const load = useCallback(async () => { try { setAttraction(await getAttractionById(id)) } catch (e) { setError(apiErrorMessage(e)) } finally { setLoading(false) } }, [id])
+  useEffect(() => { load() }, [load])
+  function initial(slot) { return { date: slot.date, startTime: timeValue(slot.startTime), endTime: timeValue(slot.endTime), capacity: slot.capacity, availableCapacity: slot.availableCapacity } }
+  async function save(data) { setSaving(true); setError(''); try { if (editing) await updateExperienceSlot(id, editing.id, data); else await createExperienceSlot(id, data); setEditing(null); setMessage(editing ? 'Slot updated successfully.' : 'Slot created successfully.'); await load() } catch (e) { setError(apiErrorMessage(e, 'Unable to save slot.')) } finally { setSaving(false) } }
+  async function remove(slot) { if (!window.confirm(`Delete the slot on ${slot.date}?`)) return; try { await deleteExperienceSlot(id, slot.id); setMessage('Slot deleted successfully.'); await load() } catch (e) { setError(apiErrorMessage(e)) } }
+  if (loading) return <section className="page-section"><p className="notice">Loading experience slots…</p></section>
+  return <section className="page-section wide-page"><Link className="back-link" to={`/provider/attractions/${id}/edit`}>← {attraction?.name || 'Attraction'}</Link><p className="eyebrow">Experience operations</p><h1>Experience slots</h1><p className="lead">Manage dated sessions and their remaining capacity.</p>{message && <p className="success-message" role="status">{message}</p>}{error && <p className="form-error notice-error" role="alert">{error}</p>}<div className="panel"><h2>{editing ? 'Edit slot' : 'Add slot'}</h2><SlotForm key={editing?.id || 'new'} initialValues={editing ? initial(editing) : undefined} onSubmit={save} onCancel={editing ? () => setEditing(null) : null} isSubmitting={saving} serverError={error} /></div><div className="list-panel"><h2>Current slots</h2>{!attraction?.experienceSlots?.length ? <p className="muted">No experience slots are configured.</p> : attraction.experienceSlots.map((slot) => <div className="list-row" key={slot.id}><div><strong>{slot.date}</strong><span className="muted">{timeValue(slot.startTime)} – {timeValue(slot.endTime)} · {slot.availableCapacity} of {slot.capacity} available</span></div><div className="row-actions"><button className="text-button" type="button" onClick={() => setEditing(slot)}>Edit</button><button className="text-button danger-text" type="button" onClick={() => remove(slot)}>Delete</button></div></div>)}</div></section>
+}

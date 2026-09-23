@@ -1,21 +1,26 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UseAppHost>false</UseAppHost>
     <UserSecretsId>f5f9b254-3355-4d7e-aa57-83886ff2e1e4</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Keep the legacy nested template project from being compiled into this API. -->
+    <Compile Remove="CeylonTrail.Api\**" />
+    <EmbeddedResource Remove="CeylonTrail.Api\**" />
+    <None Remove="CeylonTrail.Api\**" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.29" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.*" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.*" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.0.10" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 

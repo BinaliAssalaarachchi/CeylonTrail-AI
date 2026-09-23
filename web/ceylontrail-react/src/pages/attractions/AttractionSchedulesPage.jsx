@@ -1,0 +1,16 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { createSchedule, deleteSchedule, getAttractionById, updateSchedule } from '../../api/attractions'
+import ScheduleForm from '../../components/attractions/ScheduleForm'
+import { apiErrorMessage, timeValue } from './attractionUtils'
+
+export default function AttractionSchedulesPage() {
+  const { id } = useParams(); const [attraction, setAttraction] = useState(null); const [editing, setEditing] = useState(null); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('')
+  const load = useCallback(async () => { try { setAttraction(await getAttractionById(id)) } catch (e) { setError(apiErrorMessage(e)) } finally { setLoading(false) } }, [id])
+  useEffect(() => { load() }, [load])
+  function initial(schedule) { return { dayOfWeek: schedule.dayOfWeek, openingTime: timeValue(schedule.openingTime), closingTime: timeValue(schedule.closingTime), isClosed: schedule.isClosed } }
+  async function save(data) { setSaving(true); setError(''); try { if (editing) await updateSchedule(id, editing.id, data); else await createSchedule(id, data); setEditing(null); setMessage(editing ? 'Schedule updated successfully.' : 'Schedule created successfully.'); await load() } catch (e) { setError(apiErrorMessage(e, 'Unable to save schedule.')) } finally { setSaving(false) } }
+  async function remove(schedule) { if (!window.confirm(`Delete the ${schedule.dayOfWeek} schedule?`)) return; try { await deleteSchedule(id, schedule.id); setMessage('Schedule deleted successfully.'); await load() } catch (e) { setError(apiErrorMessage(e)) } }
+  if (loading) return <section className="page-section"><p className="notice">Loading schedules…</p></section>
+  return <section className="page-section wide-page"><Link className="back-link" to={`/provider/attractions/${id}/edit`}>← {attraction?.name || 'Attraction'}</Link><p className="eyebrow">Opening hours</p><h1>Schedules</h1><p className="lead">Keep the provider schedule accurate for visitors and operations.</p>{message && <p className="success-message" role="status">{message}</p>}{error && <p className="form-error notice-error" role="alert">{error}</p>}<div className="panel"><h2>{editing ? 'Edit schedule' : 'Add schedule'}</h2><ScheduleForm key={editing?.id || 'new'} initialValues={editing ? initial(editing) : undefined} onSubmit={save} onCancel={editing ? () => setEditing(null) : null} isSubmitting={saving} serverError={error} /></div><div className="list-panel"><h2>Current schedules</h2>{!attraction?.schedules?.length ? <p className="muted">No schedules have been added yet.</p> : attraction.schedules.map((schedule) => <div className="list-row" key={schedule.id}><div><strong>{schedule.dayOfWeek}</strong><span className="muted">{schedule.isClosed ? 'Closed' : `${timeValue(schedule.openingTime)} – ${timeValue(schedule.closingTime)}`}</span></div><div className="row-actions"><button className="text-button" type="button" onClick={() => setEditing(schedule)}>Edit</button><button className="text-button danger-text" type="button" onClick={() => remove(schedule)}>Delete</button></div></div>)}</div></section>
+}

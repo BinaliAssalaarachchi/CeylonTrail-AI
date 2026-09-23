@@ -26,9 +26,10 @@ public sealed class AuthenticationService(
         var normalizedEmail = NormalizeEmail(request.Email);
 
         if (!Enum.TryParse<UserRole>(request.Role, ignoreCase: true, out var role) ||
-            !Enum.IsDefined(role))
+            !Enum.IsDefined(role) ||
+            (role != UserRole.Tourist && role != UserRole.TourismProvider))
         {
-            return (false, "The requested role is not valid.", null);
+            return (false, "The requested role is not available for public registration.", null);
         }
 
         if (role != UserRole.Tourist)

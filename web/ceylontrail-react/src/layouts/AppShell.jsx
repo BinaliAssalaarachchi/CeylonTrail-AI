@@ -6,13 +6,12 @@ const roleLinks = {
   TravelCoordinator: { label: 'Coordinator workspace', to: '/coordinator' },
   Administrator: { label: 'Administrator workspace', to: '/administrator' },
 }
-
 const futureModules = [
-  { label: 'Trips & Itineraries', icon: '↗' },
-  { label: 'Discover', icon: '◉' },
-  { label: 'Bookings', icon: '□' },
-  { label: 'Travel Operations', icon: '✣' },
-  { label: 'AI Operations', icon: '✦' },
+  { label: 'Trips & Itineraries', icon: 'â†—' },
+  { label: 'Discover', icon: 'â—‰' },
+  { label: 'Bookings', icon: 'â–¡' },
+  { label: 'Travel Operations', icon: 'âœ£' },
+  { label: 'AI Operations', icon: 'âœ¦' },
 ]
 
 function BrandMark() {
@@ -29,12 +28,12 @@ function BrandMark() {
     </div>
   )
 }
-
 export default function AppShell() {
   const { user, logout } = useAuth()
   const roleLink = roleLinks[user.role]
   const canMonitorTrips = ['TravelCoordinator', 'Administrator'].includes(user.role)
 
+  const canManageAlerts = ['TravelCoordinator', 'Administrator'].includes(user.role)
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Application navigation">
@@ -49,15 +48,31 @@ export default function AppShell() {
           {canMonitorTrips && <NavLink className="nav-link" to="/trip-planning"><span className="nav-icon">↗</span><span>Trip planning</span></NavLink>}
           <div className="nav-divider" />
           <p className="nav-section-label">Platform modules</p>
-          {futureModules.map((module) => (
-            <span className="nav-link nav-link-disabled" key={module.label} aria-disabled="true" title="Available in a future feature phase">
-              <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
-            </span>
-          ))}
+          <NavLink className="nav-link" to="/bookings">
+            <span className="nav-icon">□</span>
+            <span>Bookings</span>
+          </NavLink>
+          {futureModules
+            .filter((module) => module.label !== 'Bookings')
+            .map((module) => (
+              module.label === 'Travel Operations' && canManageAlerts ? (
+                <NavLink className="nav-link" to="/travel-alerts" key={module.label}>
+                  <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
+                </NavLink>
+              ) : module.label === 'AI Operations' && canManageAlerts ? (
+                <NavLink className="nav-link" to="/ai-operations" key={module.label}>
+                  <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
+                </NavLink>
+              ) : (
+                <span className="nav-link nav-link-disabled" key={module.label} aria-disabled="true" title="Available in a future feature phase">
+                  <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
+                </span>
+              )
+            ))}
         </nav>
         <div className="sidebar-footer">
-          <div className="protocol-note"><span className="protocol-icon">◌</span><span><strong>Shared foundation</strong><small>Feature workspaces will appear here.</small></span></div>
-          <small>© 2025 CeylonTrail</small>
+          <div className="protocol-note"><span className="protocol-icon">â—Œ</span><span><strong>Shared foundation</strong><small>Feature workspaces will appear here.</small></span></div>
+          <small>Â© 2025 CeylonTrail</small>
         </div>
       </aside>
       <div className="shell-content">
@@ -66,7 +81,7 @@ export default function AppShell() {
           <div className="account-summary">
             <div className="account-copy"><strong>{user.firstName} {user.lastName}</strong><span>{user.role}</span></div>
             <span className="avatar" aria-hidden="true">{user.firstName?.[0]}{user.lastName?.[0]}</span>
-            <button className="icon-button" type="button" onClick={logout} aria-label="Log out" title="Log out">↪</button>
+            <button className="icon-button" type="button" onClick={logout} aria-label="Log out" title="Log out">â†ª</button>
           </div>
         </header>
         <main className="main-content"><Outlet /></main>
