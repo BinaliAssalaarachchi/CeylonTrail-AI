@@ -130,6 +130,14 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    await DevelopmentDataSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+        scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
