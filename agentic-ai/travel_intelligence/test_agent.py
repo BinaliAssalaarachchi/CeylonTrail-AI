@@ -1,6 +1,7 @@
 """Tests for the M4 Travel Intelligence & Validation Agent."""
 
 import unittest
+import json
 from uuid import uuid4
 
 from travel_intelligence.agent import TravelIntelligenceAgent
@@ -22,6 +23,8 @@ def make_validation(**overrides):
         "totalIssueCount": 0,
         "blockingIssueCount": 0,
         "issues": [],
+        "itineraryItems": [],
+        "blockingTravelAlertWindows": [],
     }
     data.update(overrides)
     return TravelValidationInput.model_validate(data)
@@ -63,6 +66,156 @@ class TestTravelIntelligenceAgent(unittest.TestCase):
         with self.assertRaises(UnknownToolError):
             execute_tool("delete_booking", validation)
 
+    def test_affected_item_analysis_uses_context_and_marks_unknown_reference(self):
+        validation = make_validation(
+            overallStatus="Invalid",
+            riskLevel="Critical",
+            isFeasible=False,
+            totalIssueCount=2,
+            blockingIssueCount=2,
+            itineraryItems=[
+                {
+                    "itemReference": "item-1",
+                    "title": "Kandy Lake",
+                    "district": "Kandy",
+                    "startDateTime": "2026-09-21T09:00:00Z",
+                    "endDateTime": "2026-09-21T10:00:00Z",
+                    "estimatedCost": 25,
+                }
+            ],
+            issues=[
+                {
+                    "issueType": "ScheduleConflict",
+                    "severity": "Critical",
+                    "ruleCode": "ITINERARY_SCHEDULE_OVERLAP",
+                    "message": "Overlap",
+                    "isBlocking": True,
+                    "relatedItemReference": "item-1, item-unknown",
+                },
+            ],
+        )
+
+        result = execute_tool("identify_affected_items", validation)
+
+        known = next(item for item in result.affected_items if item.item_reference == "item-1")
+        unknown = next(item for item in result.affected_items if item.item_reference == "item-unknown")
+        self.assertEqual(known.title, "Kandy Lake")
+        self.assertTrue(known.details_available)
+        self.assertIsNone(unknown.title)
+        self.assertFalse(unknown.details_available)
+
+    def test_alternatives_are_bounded_and_blocking_state_has_no_proceed(self):
+        validation = make_validation(
+            overallStatus="Invalid",
+            riskLevel="Critical",
+            isFeasible=False,
+            totalIssueCount=3,
+            blockingIssueCount=3,
+            issues=[
+                {
+                    "issueType": "TravelAlert",
+                    "severity": "Critical",
+                    "ruleCode": "ALERT",
+                    "message": "Critical",
+                    "isBlocking": True,
+                    "relatedItemReference": "item-1",
+                },
+                {
+                    "issueType": "ScheduleConflict",
+                    "severity": "Critical",
+                    "ruleCode": "OVERLAP",
+                    "message": "Overlap",
+                    "isBlocking": True,
+                    "relatedItemReference": "item-1,item-2",
+                },
+                {
+                    "issueType": "BudgetExceeded",
+                    "severity": "High",
+                    "ruleCode": "BUDGET",
+                    "message": "Budget",
+                    "isBlocking": True,
+                },
+            ],
+        )
+
+        result = execute_tool("build_recommendation_candidates", validation)
+
+        self.assertLessEqual(len(result.alternatives), 3)
+        self.assertNotIn(RecommendationAction.PROCEED, [item.action for item in result.alternatives])
+
+    def test_safe_window_is_ordered_and_avoids_blocking_alert_window(self):
+        validation = make_validation(
+            overallStatus="Invalid",
+            riskLevel="Critical",
+            isFeasible=False,
+            totalIssueCount=1,
+            blockingIssueCount=1,
+            itineraryItems=[
+                {
+                    "itemReference": "item-1",
+                    "title": "Kandy Lake",
+                    "district": "Kandy",
+                    "startDateTime": "2026-09-21T09:00:00Z",
+                    "endDateTime": "2026-09-21T10:00:00Z",
+                    "estimatedCost": 25,
+                },
+                {
+                    "itemReference": "item-2",
+                    "title": "Temple",
+                    "district": "Kandy",
+                    "startDateTime": "2026-09-21T10:30:00Z",
+                    "endDateTime": "2026-09-21T11:30:00Z",
+                    "estimatedCost": 25,
+                },
+            ],
+            blockingTravelAlertWindows=[
+                {
+                    "district": "Kandy",
+                    "startDateTime": "2026-09-21T11:30:00Z",
+                    "endDateTime": "2026-09-21T13:00:00Z",
+                }
+            ],
+            issues=[
+                {
+                    "issueType": "ScheduleConflict",
+                    "severity": "Critical",
+                    "ruleCode": "OVERLAP",
+                    "message": "Overlap",
+                    "isBlocking": True,
+                    "relatedItemReference": "item-1,item-2",
+                }
+            ],
+        )
+
+        result = execute_tool("find_safe_time_windows", validation)
+
+        window = next(item for item in result.safe_windows if item.item_reference == "item-1")
+        self.assertLess(window.proposed_start, window.proposed_end)
+        self.assertGreaterEqual(window.proposed_start.isoformat(), "2026-09-21T13:30:00+00:00")
+
+    def test_insufficient_context_does_not_fabricate_safe_window(self):
+        validation = make_validation(
+            overallStatus="Invalid",
+            riskLevel="Critical",
+            isFeasible=False,
+            totalIssueCount=1,
+            blockingIssueCount=1,
+            issues=[
+                {
+                    "issueType": "ScheduleConflict",
+                    "severity": "Critical",
+                    "ruleCode": "OVERLAP",
+                    "message": "Overlap",
+                    "isBlocking": True,
+                    "relatedItemReference": "unknown-item",
+                }
+            ],
+        )
+
+        result = execute_tool("find_safe_time_windows", validation)
+
+        self.assertEqual(result.safe_windows, [])
+
     def test_registry_contains_no_mutating_or_system_tool(self):
         forbidden_fragments = ("delete", "approve", "modify", "database", "shell", "booking")
 
@@ -100,6 +253,7 @@ class TestTravelIntelligenceAgent(unittest.TestCase):
             "identify_affected_items",
             "assess_travel_risk",
             "build_recommendation_candidates",
+            "find_safe_time_windows",
         })
 
     def test_critical_alert_never_recommends_proceed(self):
@@ -151,6 +305,34 @@ class TestTravelIntelligenceAgent(unittest.TestCase):
             result.recommended_action, RecommendationAction.PROCEED_WITH_CAUTION
         )
         self.assertEqual(result.risk_level, RiskLevel.HIGH)
+
+    def test_reschedule_alternative_does_not_replace_high_alert_primary_action(self):
+        result = self.agent.analyze(
+            make_validation(
+                overallStatus="Warning",
+                riskLevel="High",
+                totalIssueCount=1,
+                issues=[
+                    {
+                        "issueType": "TravelAlert",
+                        "severity": "High",
+                        "ruleCode": "TRAVEL_ALERT_AFFECTS_ITINERARY",
+                        "message": "High alert",
+                        "isBlocking": False,
+                        "relatedItemReference": "item-1",
+                    }
+                ],
+            )
+        )
+        self.assertEqual(
+            result.recommended_action, RecommendationAction.PROCEED_WITH_CAUTION
+        )
+        self.assertTrue(
+            any(
+                alternative.action == RecommendationAction.RESCHEDULE
+                for alternative in result.alternatives
+            )
+        )
 
     def test_budget_exceeded_recommends_budget_review(self):
         result = self.agent.analyze(
@@ -304,6 +486,7 @@ class TestTravelIntelligenceAgent(unittest.TestCase):
         result = self.agent.analyze(original)
         serialized = result.model_dump(by_alias=True)
         self.assertIn("recommendedAction", serialized)
+        json.dumps(result.model_dump(mode="json", by_alias=True))
         reconstructed = TravelValidationInput.model_validate(original.model_dump())
         self.assertEqual(reconstructed, original)
 

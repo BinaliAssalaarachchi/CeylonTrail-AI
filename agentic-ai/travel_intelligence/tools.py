@@ -1,6 +1,7 @@
 """Controlled, deterministic tools used by the Travel Intelligence Agent."""
 
 from collections import Counter
+from datetime import timedelta
 from typing import Dict, List
 
 from .schemas import (
@@ -9,6 +10,10 @@ from .schemas import (
     TravelValidationInput,
     ValidationIssueInput,
     ValidationIssueType,
+    AffectedItemAnalysis,
+    AlternativeRecommendation,
+    SafetyStatus,
+    SafeWindowSuggestion,
     ToolExecutionResult,
 )
 
@@ -104,38 +109,6 @@ def choose_recommendation_action(
     return RecommendationAction.MANUAL_REVIEW
 
 
-def build_recommendation_candidates(
-    validation: TravelValidationInput,
-) -> ToolExecutionResult:
-    """Return finite advisory actions; this tool never executes an action."""
-
-    candidates = [choose_recommendation_action(validation)]
-    for issue in validation.issues:
-        if issue.issue_type == ValidationIssueType.TRAVEL_ALERT:
-            candidate = (
-                RecommendationAction.RESCHEDULE
-                if issue.severity == RiskLevel.CRITICAL
-                else RecommendationAction.PROCEED_WITH_CAUTION
-            )
-        elif issue.issue_type == ValidationIssueType.BUDGET_EXCEEDED:
-            candidate = RecommendationAction.REVIEW_BUDGET
-        elif issue.issue_type in {
-            ValidationIssueType.SCHEDULE_CONFLICT,
-            ValidationIssueType.INVALID_TIME_RANGE,
-        }:
-            candidate = RecommendationAction.RESOLVE_SCHEDULE_CONFLICT
-        else:
-            candidate = RecommendationAction.MANUAL_REVIEW
-        if candidate not in candidates:
-            candidates.append(candidate)
-
-    return ToolExecutionResult(
-        toolName="build_recommendation_candidates",
-        summary=f"Built {len(candidates)} bounded advisory action candidate(s).",
-        candidateActions=candidates,
-    )
-
-
 def summarize_validation_tool(
     validation: TravelValidationInput,
 ) -> ToolExecutionResult:
@@ -171,11 +144,48 @@ def list_blocking_issues_tool(
 def identify_affected_items_tool(
     validation: TravelValidationInput,
 ) -> ToolExecutionResult:
-    references = build_affected_item_list(validation)
+    context_by_reference = {
+        item.reference: item for item in validation.itinerary_items
+    }
+    grouped: dict[str, list[ValidationIssueInput]] = {}
+    for issue in validation.issues:
+        for reference in (issue.related_item_reference or "").split(","):
+            cleaned = reference.strip()
+            if cleaned:
+                grouped.setdefault(cleaned, []).append(issue)
+
+    affected_items = []
+    for reference, issues in grouped.items():
+        context = context_by_reference.get(reference)
+        severities = [issue.severity for issue in issues]
+        severity_order = {
+            RiskLevel.LOW: 0,
+            RiskLevel.MEDIUM: 1,
+            RiskLevel.HIGH: 2,
+            RiskLevel.CRITICAL: 3,
+        }
+        highest = max(severities, key=lambda value: severity_order[value])
+        affected_items.append(
+            AffectedItemAnalysis(
+                itemReference=reference,
+                title=context.title if context else None,
+                district=context.district if context else None,
+                startDateTime=context.start_date_time if context else None,
+                endDateTime=context.end_date_time if context else None,
+                estimatedCost=context.estimated_cost if context else None,
+                issueTypes=list(dict.fromkeys(issue.issue_type for issue in issues)),
+                highestIssueSeverity=highest,
+                isBlocking=any(issue.is_blocking for issue in issues),
+                detailsAvailable=context is not None,
+            )
+        )
+
+    references = [item.item_reference for item in affected_items]
     return ToolExecutionResult(
         toolName="identify_affected_items",
-        summary=f"Identified {len(references)} affected itinerary reference(s).",
+        summary=f"Analyzed {len(references)} affected itinerary reference(s) without fabricating unknown details.",
         affectedItemReferences=references,
+        affectedItems=affected_items,
     )
 
 
@@ -191,6 +201,203 @@ def assess_travel_risk_tool(
     )
 
 
+def _alternative(
+    alternative_id: str,
+    action: RecommendationAction,
+    references: List[str],
+    rationale: str,
+    blocking: bool,
+    constraints: List[str],
+) -> AlternativeRecommendation:
+    return AlternativeRecommendation(
+        alternativeId=alternative_id,
+        action=action,
+        affectedItemReferences=references,
+        rationale=rationale,
+        safetyStatus=(
+            SafetyStatus.MANUAL_REVIEW_REQUIRED
+            if blocking or action != RecommendationAction.PROCEED_WITH_CAUTION
+            else SafetyStatus.CONDITIONALLY_SAFE
+        ),
+        requiresHumanApproval=blocking or action != RecommendationAction.PROCEED_WITH_CAUTION,
+        constraints=constraints,
+    )
+
+
+def build_bounded_alternatives(
+    validation: TravelValidationInput,
+) -> ToolExecutionResult:
+    """Build at most three advisory alternatives from trusted issue types."""
+
+    references = build_affected_item_list(validation)
+    blocking = bool(identify_blocking_issues(validation))
+    alternatives: List[AlternativeRecommendation] = []
+
+    if any(issue.issue_type == ValidationIssueType.TRAVEL_ALERT for issue in validation.issues):
+        critical = any(
+            issue.issue_type == ValidationIssueType.TRAVEL_ALERT
+            and issue.severity == RiskLevel.CRITICAL
+            and issue.is_blocking
+            for issue in validation.issues
+        )
+        alternatives.append(
+            _alternative(
+                "alternative_reschedule",
+                RecommendationAction.RESCHEDULE,
+                references,
+                "Move affected activities away from the authoritative travel-alert window.",
+                critical,
+                ["Travel timing and alert conditions require human review."],
+            )
+        )
+
+    if any(
+        issue.issue_type in {
+            ValidationIssueType.SCHEDULE_CONFLICT,
+            ValidationIssueType.INVALID_TIME_RANGE,
+        }
+        for issue in validation.issues
+    ):
+        alternatives.append(
+            _alternative(
+                "alternative_schedule_review",
+                RecommendationAction.RESOLVE_SCHEDULE_CONFLICT,
+                references,
+                "Adjust the affected activity timing without changing itinerary data automatically.",
+                True,
+                ["A human must confirm travel time and operating constraints."],
+            )
+        )
+
+    if any(issue.issue_type == ValidationIssueType.BUDGET_EXCEEDED for issue in validation.issues):
+        alternatives.append(
+            _alternative(
+                "alternative_budget_review",
+                RecommendationAction.REVIEW_BUDGET,
+                references,
+                "Review costs or select a lower-cost itinerary option.",
+                True,
+                ["No prices or availability are changed by this recommendation."],
+            )
+        )
+
+    if not alternatives and validation.issues:
+        alternatives.append(
+            _alternative(
+                "alternative_manual_review",
+                RecommendationAction.MANUAL_REVIEW,
+                references,
+                "Review the validation issue before proceeding.",
+                True,
+                ["The available context is insufficient for a more specific alternative."],
+            )
+        )
+
+    # A blocking or infeasible validation can never receive Proceed here.
+    alternatives = [
+        alternative
+        for alternative in alternatives[:3]
+        if not (
+            (blocking or not validation.is_feasible)
+            and alternative.action == RecommendationAction.PROCEED
+        )
+    ]
+    return ToolExecutionResult(
+        toolName="build_recommendation_candidates",
+        summary=f"Built {len(alternatives)} bounded alternative recommendation(s).",
+        candidateActions=[alternative.action for alternative in alternatives],
+        alternatives=alternatives,
+    )
+
+
+def _overlaps(start, end, other_start, other_end) -> bool:
+    return start < other_end and end > other_start
+
+
+def find_safe_time_windows(
+    validation: TravelValidationInput,
+) -> ToolExecutionResult:
+    """Suggest only conditionally safe windows derivable from supplied context."""
+
+    references = build_affected_item_list(validation)
+    context_by_reference = {item.reference: item for item in validation.itinerary_items}
+    valid_items = [
+        item
+        for item in validation.itinerary_items
+        if item.start_date_time and item.end_date_time and item.end_date_time > item.start_date_time
+    ]
+    windows: List[SafeWindowSuggestion] = []
+
+    for reference in references:
+        item = context_by_reference.get(reference)
+        if item is None or item.start_date_time is None or item.end_date_time is None:
+            continue
+        if item.end_date_time <= item.start_date_time:
+            continue
+
+        duration = item.end_date_time - item.start_date_time
+        candidate_start = max(entry.end_date_time for entry in valid_items) + timedelta(minutes=30)
+        candidate_end = candidate_start + duration
+        constraints = [
+            "Operating hours, travel duration, and availability were not supplied.",
+            "Human review is required before changing the itinerary.",
+        ]
+
+        for _ in range(20):
+            conflict = next(
+                (
+                    entry
+                    for entry in valid_items
+                    if entry.reference != reference
+                    and entry.start_date_time
+                    and entry.end_date_time
+                    and _overlaps(candidate_start, candidate_end, entry.start_date_time, entry.end_date_time)
+                ),
+                None,
+            )
+            alert_conflict = next(
+                (
+                    alert
+                    for alert in validation.blocking_travel_alert_windows
+                    if item.district
+                    and alert.district.lower() == item.district.lower()
+                    and _overlaps(candidate_start, candidate_end, alert.start_date_time, alert.end_date_time)
+                ),
+                None,
+            )
+            if conflict:
+                candidate_start = conflict.end_date_time + timedelta(minutes=30)
+                candidate_end = candidate_start + duration
+                continue
+            if alert_conflict:
+                candidate_start = alert_conflict.end_date_time + timedelta(minutes=30)
+                candidate_end = candidate_start + duration
+                continue
+            break
+        else:
+            continue
+
+        windows.append(
+            SafeWindowSuggestion(
+                itemReference=reference,
+                proposedStart=candidate_start,
+                proposedEnd=candidate_end,
+                reason="Suggested after supplied itinerary items and outside known blocking alert windows.",
+                safetyStatus=SafetyStatus.CONDITIONALLY_SAFE,
+                constraints=constraints,
+            )
+        )
+
+    return ToolExecutionResult(
+        toolName="find_safe_time_windows",
+        summary=(
+            f"Produced {len(windows)} conditional time-window suggestion(s); "
+            "missing context produces no fabricated window."
+        ),
+        safeWindows=windows,
+    )
+
+
 # This registry is intentionally explicit. Model/provider strings are looked up
 # here and can only reach these read-only deterministic functions.
 TOOL_REGISTRY = {
@@ -198,7 +405,8 @@ TOOL_REGISTRY = {
     "list_blocking_issues": list_blocking_issues_tool,
     "identify_affected_items": identify_affected_items_tool,
     "assess_travel_risk": assess_travel_risk_tool,
-    "build_recommendation_candidates": build_recommendation_candidates,
+    "build_recommendation_candidates": build_bounded_alternatives,
+    "find_safe_time_windows": find_safe_time_windows,
 }
 
 

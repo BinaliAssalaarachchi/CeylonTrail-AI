@@ -206,6 +206,7 @@ public sealed class ItineraryValidationService(ApplicationDbContext dbContext) :
     {
         Id = result.Id,
         TripReference = result.TripReference,
+        CreatedByUserId = result.CreatedByUserId,
         OverallStatus = result.OverallStatus,
         RiskLevel = result.RiskLevel,
         IsFeasible = result.IsFeasible,

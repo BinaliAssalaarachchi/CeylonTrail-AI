@@ -1,10 +1,12 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CeylonTrail.Api.Data;
 using CeylonTrail.Api.DTOs.ItineraryValidations;
 using CeylonTrail.Api.Models;
 using CeylonTrail.Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace CeylonTrail.Api.Tests;
@@ -32,6 +34,106 @@ public sealed class TravelIntelligenceServiceTests
         Assert.Equal("TRAVEL_ALERT_AFFECTS_ITINERARY", document.RootElement
             .GetProperty("issues")[0].GetProperty("ruleCode").GetString());
         Assert.Equal(validation.Id, result.ValidationResultId);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_MapsOwnerScopedItineraryContextToAgentRequest()
+    {
+        await using var dbContext = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var ownerId = Guid.NewGuid();
+        var tripId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var attractionId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        dbContext.Users.Add(new User
+        {
+            Id = ownerId,
+            FirstName = "Test",
+            LastName = "Tourist",
+            Email = $"{ownerId}@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Tourist,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        dbContext.Categories.Add(new Category { Id = categoryId, Name = $"Category-{categoryId}" });
+        dbContext.Attractions.Add(new Attraction
+        {
+            Id = attractionId,
+            ProviderId = Guid.NewGuid(),
+            CategoryId = categoryId,
+            Name = "Kandy Lake",
+            Description = "Lake",
+            District = "Kandy",
+            Address = "Kandy",
+            Price = 10,
+            Status = "Approved",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        dbContext.Trips.Add(new Trip
+        {
+            Id = tripId,
+            TouristId = ownerId,
+            Name = "Kandy Trip",
+            StartDate = new DateOnly(2026, 9, 21),
+            EndDate = new DateOnly(2026, 9, 22),
+            Budget = 100,
+            Status = TripStatus.Draft,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        dbContext.ItineraryItems.Add(new ItineraryItem
+        {
+            Id = itemId,
+            AttractionId = attractionId,
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(10, 0),
+            EstimatedCost = 25,
+            ItineraryDay = new ItineraryDay
+            {
+                DayNumber = 1,
+                Date = new DateOnly(2026, 9, 21),
+                Itinerary = new Itinerary
+                {
+                    TripId = tripId,
+                    Status = ItineraryStatus.Generated,
+                    TotalEstimatedCost = 25,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            }
+        });
+        await dbContext.SaveChangesAsync();
+
+        var validation = CreateValidation();
+        validation.CreatedByUserId = ownerId;
+        validation.TripReference = tripId.ToString();
+        string? requestJson = null;
+        var handler = new RecordingHandler(async request =>
+        {
+            requestJson = await request.Content!.ReadAsStringAsync();
+            return JsonResponse(CreateAgentResponse(validation));
+        });
+
+        var service = new TravelIntelligenceService(
+            new HttpClient(handler) { BaseAddress = new Uri("http://localhost:8001/") },
+            NullLogger<TravelIntelligenceService>.Instance,
+            dbContext);
+
+        await service.AnalyzeAsync(validation);
+
+        using var document = JsonDocument.Parse(requestJson!);
+        var item = Assert.Single(document.RootElement.GetProperty("itineraryItems").EnumerateArray());
+        Assert.Equal(itemId.ToString(), item.GetProperty("itemReference").GetString());
+        Assert.Equal("Kandy Lake", item.GetProperty("title").GetString());
+        Assert.Equal("Kandy", item.GetProperty("district").GetString());
+        Assert.Equal(25, item.GetProperty("estimatedCost").GetDecimal());
     }
 
     [Fact]
@@ -77,6 +179,32 @@ public sealed class TravelIntelligenceServiceTests
 
         Assert.True(result.RequiresHumanApproval);
         Assert.True(result.Execution.UsedFallback);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_WhenBlockingResponseContainsProceedAlternative_UsesSafeFallback()
+    {
+        var validation = CreateValidation();
+        var unsafeResponse = CreateAgentResponse(validation);
+        unsafeResponse.Alternatives =
+        [
+            new TravelIntelligenceAlternativeRecommendation
+            {
+                AlternativeId = "unsafe",
+                Action = TravelIntelligenceAction.Proceed,
+                AffectedItemReferences = ["item-1"],
+                Rationale = "Unsafe test alternative",
+                SafetyStatus = TravelIntelligenceSafetyStatus.ConditionallySafe,
+                RequiresHumanApproval = false
+            }
+        ];
+        var service = CreateService(new RecordingHandler(_ => Task.FromResult(JsonResponse(unsafeResponse))));
+
+        var result = await service.AnalyzeAsync(validation);
+
+        Assert.True(result.Execution.UsedFallback);
+        Assert.DoesNotContain(result.Alternatives, alternative =>
+            alternative.Action == TravelIntelligenceAction.Proceed);
     }
 
     [Fact]

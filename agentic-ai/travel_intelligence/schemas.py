@@ -1,6 +1,8 @@
 """Strict schemas exchanged with the deterministic ASP.NET validation boundary."""
 
 from enum import Enum
+from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID, uuid4
 
@@ -48,9 +50,20 @@ class ValidationIssueInput(BaseModel):
 class ItineraryContextItem(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    reference: str = Field(min_length=1, max_length=200)
+    reference: str = Field(alias="itemReference", min_length=1, max_length=200)
     title: Optional[str] = Field(default=None, max_length=500)
     district: Optional[str] = Field(default=None, max_length=100)
+    start_date_time: Optional[datetime] = Field(default=None, alias="startDateTime")
+    end_date_time: Optional[datetime] = Field(default=None, alias="endDateTime")
+    estimated_cost: Optional[Decimal] = Field(default=None, alias="estimatedCost", ge=0)
+
+
+class TravelAlertWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    district: str = Field(min_length=1, max_length=100)
+    start_date_time: datetime = Field(alias="startDateTime")
+    end_date_time: datetime = Field(alias="endDateTime")
 
 
 class TravelValidationInput(BaseModel):
@@ -70,6 +83,9 @@ class TravelValidationInput(BaseModel):
     issues: List[ValidationIssueInput] = Field(default_factory=list)
     itinerary_items: List[ItineraryContextItem] = Field(
         default_factory=list, alias="itineraryItems"
+    )
+    blocking_travel_alert_windows: List[TravelAlertWindow] = Field(
+        default_factory=list, alias="blockingTravelAlertWindows", max_length=100
     )
 
 
@@ -128,6 +144,56 @@ class RecommendationAction(str, Enum):
     MANUAL_REVIEW = "ManualReview"
 
 
+class SafetyStatus(str, Enum):
+    CONDITIONALLY_SAFE = "ConditionallySafe"
+    MANUAL_REVIEW_REQUIRED = "ManualReviewRequired"
+    NOT_AVAILABLE = "NotAvailable"
+
+
+class AffectedItemAnalysis(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    item_reference: str = Field(alias="itemReference", min_length=1, max_length=200)
+    title: Optional[str] = Field(default=None, max_length=500)
+    district: Optional[str] = Field(default=None, max_length=100)
+    start_date_time: Optional[datetime] = Field(default=None, alias="startDateTime")
+    end_date_time: Optional[datetime] = Field(default=None, alias="endDateTime")
+    estimated_cost: Optional[Decimal] = Field(default=None, alias="estimatedCost", ge=0)
+    issue_types: List[ValidationIssueType] = Field(
+        default_factory=list, alias="issueTypes", max_length=20
+    )
+    highest_issue_severity: Optional[RiskLevel] = Field(
+        default=None, alias="highestIssueSeverity"
+    )
+    is_blocking: bool = Field(alias="isBlocking")
+    details_available: bool = Field(alias="detailsAvailable")
+
+
+class AlternativeRecommendation(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    alternative_id: str = Field(alias="alternativeId", min_length=1, max_length=80)
+    action: RecommendationAction
+    affected_item_references: List[str] = Field(
+        default_factory=list, alias="affectedItemReferences", max_length=100
+    )
+    rationale: str = Field(min_length=1, max_length=1000)
+    safety_status: SafetyStatus = Field(alias="safetyStatus")
+    requires_human_approval: bool = Field(alias="requiresHumanApproval")
+    constraints: List[str] = Field(default_factory=list, max_length=10)
+
+
+class SafeWindowSuggestion(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    item_reference: str = Field(alias="itemReference", min_length=1, max_length=200)
+    proposed_start: datetime = Field(alias="proposedStart")
+    proposed_end: datetime = Field(alias="proposedEnd")
+    reason: str = Field(min_length=1, max_length=1000)
+    safety_status: SafetyStatus = Field(alias="safetyStatus")
+    constraints: List[str] = Field(default_factory=list, max_length=10)
+
+
 class ToolExecutionResult(BaseModel):
     """Safe, bounded result envelope shared by allow-listed tools."""
 
@@ -144,6 +210,15 @@ class ToolExecutionResult(BaseModel):
     is_feasible: Optional[bool] = Field(default=None, alias="isFeasible")
     candidate_actions: List[RecommendationAction] = Field(
         default_factory=list, alias="candidateActions", max_length=20
+    )
+    affected_items: List[AffectedItemAnalysis] = Field(
+        default_factory=list, alias="affectedItems", max_length=100
+    )
+    alternatives: List[AlternativeRecommendation] = Field(
+        default_factory=list, max_length=3
+    )
+    safe_windows: List[SafeWindowSuggestion] = Field(
+        default_factory=list, alias="safeWindows", max_length=20
     )
 
 
@@ -204,6 +279,15 @@ class TravelRecommendationOutput(BaseModel):
     requires_human_approval: bool = Field(alias="requiresHumanApproval")
     affected_item_references: List[str] = Field(
         default_factory=list, alias="affectedItemReferences"
+    )
+    affected_items: List[AffectedItemAnalysis] = Field(
+        default_factory=list, alias="affectedItems", max_length=100
+    )
+    alternatives: List[AlternativeRecommendation] = Field(
+        default_factory=list, max_length=3
+    )
+    safe_windows: List[SafeWindowSuggestion] = Field(
+        default_factory=list, alias="safeWindows", max_length=20
     )
     validation_result_id: UUID = Field(alias="validationResultId")
     is_feasible: bool = Field(alias="isFeasible")

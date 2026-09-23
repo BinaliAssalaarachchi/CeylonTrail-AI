@@ -128,6 +128,12 @@ class TravelIntelligenceAgent:
                     toolName="build_recommendation_candidates",
                 ),
                 InvestigationStep(
+                    stepId="evaluate_safe_windows",
+                    name="Evaluate safe time windows where possible",
+                    purpose="Suggest only conditionally safe windows from supplied context.",
+                    toolName="find_safe_time_windows",
+                ),
+                InvestigationStep(
                     stepId="finalize_recommendation",
                     name="Finalize recommendation under safety constraints",
                     purpose="Construct an advisory result for later human review.",
@@ -186,17 +192,30 @@ class TravelIntelligenceAgent:
     ) -> TravelRecommendationOutput:
         plan_execution = plan_execution or self._execute_plan(validation)
         candidate_result = plan_execution.tool_results.get("build_recommendation_candidates")
-        action = (
-            candidate_result.candidate_actions[0]
-            if isinstance(candidate_result, ToolExecutionResult)
-            and candidate_result.candidate_actions
-            else choose_recommendation_action(validation)
-        )
+        # Candidate actions are advisory alternatives. The deterministic chooser
+        # remains authoritative for the primary recommendation.
+        action = choose_recommendation_action(validation)
         affected_result = plan_execution.tool_results.get("identify_affected_items")
         affected = (
             affected_result.affected_item_references
             if isinstance(affected_result, ToolExecutionResult)
             else build_affected_item_list(validation)
+        )
+        affected_items = (
+            affected_result.affected_items
+            if isinstance(affected_result, ToolExecutionResult)
+            else []
+        )
+        alternatives = (
+            candidate_result.alternatives
+            if isinstance(candidate_result, ToolExecutionResult)
+            else []
+        )
+        safe_windows_result = plan_execution.tool_results.get("find_safe_time_windows")
+        safe_windows = (
+            safe_windows_result.safe_windows
+            if isinstance(safe_windows_result, ToolExecutionResult)
+            else []
         )
         blocking = identify_blocking_issues(validation)
         summaries = summarize_validation_issues(validation)
@@ -223,6 +242,9 @@ class TravelIntelligenceAgent:
                 RecommendationAction.MANUAL_REVIEW,
             },
             affectedItemReferences=affected,
+            affectedItems=affected_items,
+            alternatives=alternatives,
+            safeWindows=safe_windows,
             validationResultId=validation.validation_result_id,
             isFeasible=validation.is_feasible,
             execution=self._execution_metadata(
@@ -261,6 +283,9 @@ class TravelIntelligenceAgent:
                 "recommended_action": action,
                 "requires_human_approval": fallback.requires_human_approval,
                 "affected_item_references": fallback.affected_item_references,
+                "affected_items": fallback.affected_items,
+                "alternatives": fallback.alternatives,
+                "safe_windows": fallback.safe_windows,
                 "validation_result_id": validation.validation_result_id,
                 "is_feasible": validation.is_feasible,
                 "execution": self._execution_metadata(

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using CeylonTrail.Api.Models;
 
 namespace CeylonTrail.Api.DTOs.ItineraryValidations;
@@ -7,6 +8,9 @@ public sealed class ItineraryValidationResponse
     public Guid Id { get; set; }
 
     public string? TripReference { get; set; }
+
+    [JsonIgnore]
+    public Guid CreatedByUserId { get; set; }
 
     public ValidationOverallStatus OverallStatus { get; set; }
 
