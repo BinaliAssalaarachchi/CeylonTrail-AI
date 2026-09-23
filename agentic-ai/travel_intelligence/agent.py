@@ -1,61 +1,203 @@
-"""Travel Intelligence & Validation Agent with deterministic fallback."""
+"""Travel Intelligence Agent with an explicit, safe investigation workflow."""
 
+from dataclasses import dataclass
+from time import perf_counter
 from typing import Optional
+from uuid import UUID, uuid4
 
 from .prompts import TRAVEL_INTELLIGENCE_SYSTEM_POLICY
 from .providers import RecommendationProvider
 from .schemas import (
     AgentExecutionMetadata,
+    AgentObjective,
+    ExecutedStep,
+    InvestigationPlan,
+    InvestigationStep,
+    InvestigationStepStatus,
     Recommendation,
     RecommendationAction,
     RiskLevel,
     TravelRecommendationOutput,
     TravelValidationInput,
+    ToolExecutionResult,
     ValidationIssueType,
 )
 from .tools import (
+    UnknownToolError,
     build_affected_item_list,
     choose_recommendation_action,
+    execute_tool,
     identify_blocking_issues,
     identify_highest_risk,
     summarize_validation_issues,
 )
 
 
+OBJECTIVE = AgentObjective(
+    name="travel_intelligence_assessment",
+    description=(
+        "Assess the validated travel itinerary, investigate identified travel "
+        "risks, and produce a safe advisory recommendation for human review."
+    ),
+)
+
+
+@dataclass
+class PlanExecution:
+    workflow_id: UUID
+    objective: AgentObjective
+    plan: InvestigationPlan
+    executed_steps: list[ExecutedStep]
+    tool_results: dict[str, object]
+
+
 class TravelIntelligenceAgent:
-    """Produces explainable advisory recommendations from trusted validation data."""
+    """Produces advisory recommendations from trusted validation data.
+
+    The plan and explicit tool registry are deliberately deterministic today so
+    a future provider can request only known, read-only capabilities.
+    """
 
     name = "TravelIntelligenceValidationAgent"
-    version = "1.0"
+    version = "1.1"
 
     def __init__(self, provider: Optional[RecommendationProvider] = None):
         self.provider = provider
 
     def analyze(self, validation: TravelValidationInput) -> TravelRecommendationOutput:
-        """Use an optional provider, enforcing deterministic authority at the boundary."""
+        """Run the plan, then use an optional provider behind safety enforcement."""
 
+        plan_execution = self._execute_plan(validation)
         if self.provider is not None:
             try:
                 provider_output = self.provider.recommend(
                     validation, TRAVEL_INTELLIGENCE_SYSTEM_POLICY
                 )
                 return self._enforce_authority(
-                    validation, provider_output, provider_name="external"
+                    validation,
+                    provider_output,
+                    provider_name="external",
+                    plan_execution=plan_execution,
                 )
             except Exception as error:  # Provider failures must not break recovery.
                 return self._fallback(
                     validation,
                     reason=f"{type(error).__name__}: provider unavailable",
+                    plan_execution=plan_execution,
                 )
-        return self._fallback(validation, reason="No recommendation provider configured")
+        return self._fallback(
+            validation,
+            reason="No recommendation provider configured",
+            plan_execution=plan_execution,
+        )
+
+    @staticmethod
+    def build_investigation_plan() -> InvestigationPlan:
+        """Create the fixed plan used by every analysis."""
+
+        return InvestigationPlan(
+            steps=[
+                InvestigationStep(
+                    stepId="review_validation",
+                    name="Review authoritative validation state",
+                    purpose="Read deterministic feasibility, risk, and issue counts.",
+                    toolName="summarize_validation",
+                ),
+                InvestigationStep(
+                    stepId="identify_blocking_issues",
+                    name="Identify blocking issues",
+                    purpose="Separate blocking issues from advisory warnings.",
+                    toolName="list_blocking_issues",
+                ),
+                InvestigationStep(
+                    stepId="identify_affected_items",
+                    name="Identify affected itinerary references",
+                    purpose="Build a stable list of affected itinerary references.",
+                    toolName="identify_affected_items",
+                ),
+                InvestigationStep(
+                    stepId="assess_travel_risk",
+                    name="Assess overall travel risk",
+                    purpose="Preserve the authoritative risk and feasibility state.",
+                    toolName="assess_travel_risk",
+                ),
+                InvestigationStep(
+                    stepId="build_candidates",
+                    name="Build safe recommendation candidates",
+                    purpose="Create finite advisory actions without executing them.",
+                    toolName="build_recommendation_candidates",
+                ),
+                InvestigationStep(
+                    stepId="finalize_recommendation",
+                    name="Finalize recommendation under safety constraints",
+                    purpose="Construct an advisory result for later human review.",
+                ),
+            ]
+        )
+
+    def _execute_plan(self, validation: TravelValidationInput) -> PlanExecution:
+        workflow_id = uuid4()
+        plan = self.build_investigation_plan()
+        executed_steps: list[ExecutedStep] = []
+        tool_results: dict[str, object] = {}
+
+        for step in plan.steps:
+            step.status = InvestigationStepStatus.RUNNING
+            started = perf_counter()
+            try:
+                if step.tool_name is not None:
+                    result = execute_tool(step.tool_name, validation)
+                    tool_results[step.tool_name] = result
+                    result_summary = result.summary
+                else:
+                    result_summary = "Recommendation construction reserved for the safety boundary."
+                step.status = InvestigationStepStatus.COMPLETED
+            except Exception as error:
+                step.status = InvestigationStepStatus.FAILED
+                result_summary = f"Step failed safely: {type(error).__name__}."
+                executed_steps.append(
+                    ExecutedStep(
+                        stepId=step.step_id,
+                        toolName=step.tool_name,
+                        status=step.status,
+                        durationMs=max(0, int((perf_counter() - started) * 1000)),
+                        resultSummary=result_summary,
+                    )
+                )
+                raise UnknownToolError(result_summary) from error
+
+            executed_steps.append(
+                ExecutedStep(
+                    stepId=step.step_id,
+                    toolName=step.tool_name,
+                    status=step.status,
+                    durationMs=max(0, int((perf_counter() - started) * 1000)),
+                    resultSummary=result_summary,
+                )
+            )
+
+        return PlanExecution(workflow_id, OBJECTIVE, plan, executed_steps, tool_results)
 
     def _fallback(
         self,
         validation: TravelValidationInput,
         reason: str,
+        plan_execution: Optional[PlanExecution] = None,
     ) -> TravelRecommendationOutput:
-        action = choose_recommendation_action(validation)
-        affected = build_affected_item_list(validation)
+        plan_execution = plan_execution or self._execute_plan(validation)
+        candidate_result = plan_execution.tool_results.get("build_recommendation_candidates")
+        action = (
+            candidate_result.candidate_actions[0]
+            if isinstance(candidate_result, ToolExecutionResult)
+            and candidate_result.candidate_actions
+            else choose_recommendation_action(validation)
+        )
+        affected_result = plan_execution.tool_results.get("identify_affected_items")
+        affected = (
+            affected_result.affected_item_references
+            if isinstance(affected_result, ToolExecutionResult)
+            else build_affected_item_list(validation)
+        )
         blocking = identify_blocking_issues(validation)
         summaries = summarize_validation_issues(validation)
         recommendations = [
@@ -83,14 +225,14 @@ class TravelIntelligenceAgent:
             affectedItemReferences=affected,
             validationResultId=validation.validation_result_id,
             isFeasible=validation.is_feasible,
-            execution=AgentExecutionMetadata(
-                agentName=self.name,
-                agentVersion=self.version,
-                validationResultId=validation.validation_result_id,
+            execution=self._execution_metadata(
+                validation,
+                plan_execution,
                 provider="deterministic-fallback",
-                usedFallback=True,
-                executionStatus="Fallback",
-                fallbackReason=reason,
+                used_fallback=True,
+                status="Fallback",
+                reason=reason,
+                result_summary="Deterministic advisory fallback completed safely.",
             ),
         )
 
@@ -99,10 +241,15 @@ class TravelIntelligenceAgent:
         validation: TravelValidationInput,
         provider_output: TravelRecommendationOutput,
         provider_name: str,
+        plan_execution: PlanExecution,
     ) -> TravelRecommendationOutput:
         """Prevent provider output from changing authoritative validation state."""
 
-        fallback = self._fallback(validation, reason="Provider output normalized")
+        fallback = self._fallback(
+            validation,
+            reason="Provider output normalized",
+            plan_execution=plan_execution,
+        )
         action = provider_output.recommended_action
         if not validation.is_feasible and action == RecommendationAction.PROCEED:
             action = fallback.recommended_action
@@ -116,15 +263,46 @@ class TravelIntelligenceAgent:
                 "affected_item_references": fallback.affected_item_references,
                 "validation_result_id": validation.validation_result_id,
                 "is_feasible": validation.is_feasible,
-                "execution": AgentExecutionMetadata(
-                    agent_name=self.name,
-                    agent_version=self.version,
-                    validation_result_id=validation.validation_result_id,
+                "execution": self._execution_metadata(
+                    validation,
+                    plan_execution,
                     provider=provider_name,
                     used_fallback=False,
-                    execution_status="Completed",
+                    status="Completed",
+                    reason=None,
+                    result_summary="Provider advisory normalized against deterministic validation.",
                 ),
             }
+        )
+
+    @staticmethod
+    def _execution_metadata(
+        validation: TravelValidationInput,
+        plan_execution: PlanExecution,
+        provider: str,
+        used_fallback: bool,
+        status: str,
+        reason: Optional[str],
+        result_summary: str,
+    ) -> AgentExecutionMetadata:
+        executed_steps = plan_execution.executed_steps
+        last_step = executed_steps[-1] if executed_steps else None
+        return AgentExecutionMetadata(
+            agentName=TravelIntelligenceAgent.name,
+            agentVersion=TravelIntelligenceAgent.version,
+            validationResultId=validation.validation_result_id,
+            provider=provider,
+            usedFallback=used_fallback,
+            executionStatus=status,
+            fallbackReason=reason,
+            workflowId=plan_execution.workflow_id,
+            objective=plan_execution.objective,
+            investigationPlan=plan_execution.plan,
+            executedSteps=executed_steps,
+            executedStepId=last_step.step_id if last_step else None,
+            executedToolName=last_step.tool_name if last_step else None,
+            durationMs=sum(step.duration_ms for step in executed_steps),
+            resultSummary=result_summary,
         )
 
     @staticmethod
