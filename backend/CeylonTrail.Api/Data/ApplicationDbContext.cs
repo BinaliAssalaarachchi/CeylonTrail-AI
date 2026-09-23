@@ -50,6 +50,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(user => user.IsActive).IsRequired();
             entity.Property(user => user.CreatedAt).IsRequired();
             entity.Property(user => user.UpdatedAt).IsRequired();
+
+            entity.HasMany(user => user.Trips)
+                .WithOne(trip => trip.Tourist)
+                .HasForeignKey(trip => trip.TouristId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Category>(entity =>
@@ -241,15 +246,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(issue => new { issue.IssueType, issue.Severity });
         });
 
-            entity.Property(user => user.UpdatedAt)
-                .IsRequired();
-
-            entity.HasMany(user => user.Trips)
-                .WithOne(trip => trip.Tourist)
-                .HasForeignKey(trip => trip.TouristId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
         modelBuilder.Entity<Trip>(entity =>
         {
             entity.HasKey(trip => trip.Id);
@@ -389,6 +385,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany(day => day.Items)
                 .HasForeignKey(item => item.ItineraryDayId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<ApprovalRequest>(entity =>
         {
             entity.HasKey(request => request.Id);
