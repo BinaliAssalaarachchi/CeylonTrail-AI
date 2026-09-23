@@ -6,12 +6,13 @@ const roleLinks = {
   TravelCoordinator: { label: 'Coordinator workspace', to: '/coordinator' },
   Administrator: { label: 'Administrator workspace', to: '/administrator' },
 }
-const futureModules = [
-  { label: 'Trips & Itineraries', icon: 'â†—' },
-  { label: 'Discover', icon: 'â—‰' },
-  { label: 'Bookings', icon: 'â–¡' },
-  { label: 'Travel Operations', icon: 'âœ£' },
-  { label: 'AI Operations', icon: 'âœ¦' },
+
+const platformModules = [
+  { label: 'Bookings', to: '/bookings', icon: '□' },
+  { label: 'Trips & Itineraries', to: '/trip-planning', icon: '↗' },
+  { label: 'Discover', to: '/discover', icon: '◉' },
+  { label: 'Travel Operations', to: '/travel-alerts', icon: '✣' },
+  { label: 'AI Operations', to: '/ai-operations', icon: '✦' },
 ]
 
 function BrandMark() {
@@ -28,12 +29,11 @@ function BrandMark() {
     </div>
   )
 }
+
 export default function AppShell() {
   const { user, logout } = useAuth()
   const roleLink = roleLinks[user.role]
-  const canMonitorTrips = ['TravelCoordinator', 'Administrator'].includes(user.role)
 
-  const canManageAlerts = ['TravelCoordinator', 'Administrator'].includes(user.role)
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Application navigation">
@@ -45,34 +45,18 @@ export default function AppShell() {
         <nav className="primary-nav">
           <NavLink className="nav-link" to="/"><span className="nav-icon">⌂</span><span>Overview / Dashboard</span></NavLink>
           {roleLink && <NavLink className="nav-link" to={roleLink.to}><span className="nav-icon">◇</span><span>{roleLink.label}</span></NavLink>}
-          {canMonitorTrips && <NavLink className="nav-link" to="/trip-planning"><span className="nav-icon">↗</span><span>Trip planning</span></NavLink>}
           <div className="nav-divider" />
           <p className="nav-section-label">Platform modules</p>
-          <NavLink className="nav-link" to="/bookings">
-            <span className="nav-icon">□</span>
-            <span>Bookings</span>
-          </NavLink>
-          {futureModules
-            .filter((module) => module.label !== 'Bookings')
-            .map((module) => (
-              module.label === 'Travel Operations' && canManageAlerts ? (
-                <NavLink className="nav-link" to="/travel-alerts" key={module.label}>
-                  <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
-                </NavLink>
-              ) : module.label === 'AI Operations' && canManageAlerts ? (
-                <NavLink className="nav-link" to="/ai-operations" key={module.label}>
-                  <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
-                </NavLink>
-              ) : (
-                <span className="nav-link nav-link-disabled" key={module.label} aria-disabled="true" title="Available in a future feature phase">
-                  <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
-                </span>
-              )
-            ))}
+          {platformModules.map((module) => (
+            <NavLink className="nav-link" to={module.to} key={module.label}>
+              <span className="nav-icon">{module.icon}</span>
+              <span>{module.label}</span>
+            </NavLink>
+          ))}
         </nav>
         <div className="sidebar-footer">
-          <div className="protocol-note"><span className="protocol-icon">â—Œ</span><span><strong>Shared foundation</strong><small>Feature workspaces will appear here.</small></span></div>
-          <small>Â© 2025 CeylonTrail</small>
+          <div className="protocol-note"><span className="protocol-icon">◬</span><span><strong>Shared platform</strong><small>All workspace modules unlocked.</small></span></div>
+          <small>© 2026 CeylonTrail</small>
         </div>
       </aside>
       <div className="shell-content">
@@ -81,7 +65,7 @@ export default function AppShell() {
           <div className="account-summary">
             <div className="account-copy"><strong>{user.firstName} {user.lastName}</strong><span>{user.role}</span></div>
             <span className="avatar" aria-hidden="true">{user.firstName?.[0]}{user.lastName?.[0]}</span>
-            <button className="icon-button" type="button" onClick={logout} aria-label="Log out" title="Log out">â†ª</button>
+            <button className="icon-button" type="button" onClick={logout} aria-label="Log out" title="Log out">↪</button>
           </div>
         </header>
         <main className="main-content"><Outlet /></main>
