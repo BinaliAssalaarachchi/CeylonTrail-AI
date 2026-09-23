@@ -3,7 +3,7 @@
 import os
 from typing import Mapping, Protocol
 
-from .schemas import ProviderRecommendation, TravelValidationInput
+from .schemas import ProviderRecommendation, ToolRequest, TravelValidationInput
 
 
 class ProviderUnavailableError(RuntimeError):
@@ -11,6 +11,16 @@ class ProviderUnavailableError(RuntimeError):
 
 
 class RecommendationProvider(Protocol):
+    def select_tool(
+        self,
+        validation: TravelValidationInput,
+        objective: str,
+        current_step: str,
+        allowed_tools: list[str],
+        executed_tools: list[str],
+    ) -> ToolRequest:
+        """Propose one tool; the orchestrator remains the sole executor."""
+
     def recommend(
         self,
         validation: TravelValidationInput,

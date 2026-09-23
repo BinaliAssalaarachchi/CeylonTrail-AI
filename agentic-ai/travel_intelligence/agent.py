@@ -1,6 +1,6 @@
 """Travel Intelligence Agent with an explicit, safe investigation workflow."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from time import perf_counter
 from typing import Optional
 from uuid import UUID, uuid4
@@ -21,6 +21,7 @@ from .schemas import (
     TravelRecommendationOutput,
     TravelValidationInput,
     ToolExecutionResult,
+    ToolRequest,
     ValidationIssueType,
 )
 from .tools import (
@@ -31,6 +32,7 @@ from .tools import (
     identify_blocking_issues,
     identify_highest_risk,
     summarize_validation_issues,
+    TOOL_REGISTRY,
 )
 
 
@@ -43,6 +45,19 @@ OBJECTIVE = AgentObjective(
 )
 
 
+PLAN_STEP_TOOL_PERMISSIONS = {
+    "review_validation": frozenset({"summarize_validation"}),
+    "identify_blocking_issues": frozenset({"list_blocking_issues"}),
+    "identify_affected_items": frozenset({"identify_affected_items"}),
+    "assess_travel_risk": frozenset({"assess_travel_risk"}),
+    "build_candidates": frozenset({"build_recommendation_candidates"}),
+    "evaluate_safe_windows": frozenset({"find_safe_time_windows"}),
+}
+
+MAX_TOOL_SELECTION_ATTEMPTS = 1
+MAX_EXECUTED_TOOLS = 6
+
+
 @dataclass
 class PlanExecution:
     workflow_id: UUID
@@ -50,13 +65,30 @@ class PlanExecution:
     plan: InvestigationPlan
     executed_steps: list[ExecutedStep]
     tool_results: dict[str, object]
+    tool_selection_provider_attempted: bool = False
+    selected_tool_names: list[str] = field(default_factory=list)
+    rejected_tool_names: list[str] = field(default_factory=list)
+    tool_selection_fallback_used: bool = False
+    tool_selection_fallback_reason: Optional[str] = None
+    selection_attempt_count: int = 0
+
+
+@dataclass
+class ToolSelectionState:
+    provider_attempted: bool = False
+    selected_tool_names: list[str] = field(default_factory=list)
+    rejected_tool_names: list[str] = field(default_factory=list)
+    fallback_used: bool = False
+    fallback_reason: Optional[str] = None
+    attempt_count: int = 0
 
 
 class TravelIntelligenceAgent:
     """Produces advisory recommendations from trusted validation data.
 
-    The plan and explicit tool registry are deliberately deterministic today so
-    a future provider can request only known, read-only capabilities.
+    The plan and explicit tool registry remain deterministic. A provider may
+    propose only a known, read-only capability for the current step; this class
+    remains the sole executor.
     """
 
     name = "TravelIntelligenceValidationAgent"
@@ -68,7 +100,7 @@ class TravelIntelligenceAgent:
     def analyze(self, validation: TravelValidationInput) -> TravelRecommendationOutput:
         """Run the plan, then use an optional provider behind safety enforcement."""
 
-        plan_execution = self._execute_plan(validation)
+        plan_execution = self._execute_plan(validation, self.provider)
         if self.provider is not None:
             provider_started = perf_counter()
             try:
@@ -154,19 +186,35 @@ class TravelIntelligenceAgent:
             ]
         )
 
-    def _execute_plan(self, validation: TravelValidationInput) -> PlanExecution:
+    def _execute_plan(
+        self,
+        validation: TravelValidationInput,
+        provider: Optional[RecommendationProvider] = None,
+    ) -> PlanExecution:
         workflow_id = uuid4()
         plan = self.build_investigation_plan()
         executed_steps: list[ExecutedStep] = []
         tool_results: dict[str, object] = {}
+        executed_tool_names: list[str] = []
+        selection = ToolSelectionState()
 
         for step in plan.steps:
             step.status = InvestigationStepStatus.RUNNING
             started = perf_counter()
             try:
                 if step.tool_name is not None:
-                    result = execute_tool(step.tool_name, validation)
-                    tool_results[step.tool_name] = result
+                    if len(executed_tool_names) >= MAX_EXECUTED_TOOLS:
+                        raise UnknownToolError("Maximum deterministic tool count reached.")
+                    selected_tool = self._select_tool_for_step(
+                        validation,
+                        step,
+                        provider,
+                        executed_tool_names,
+                        selection,
+                    )
+                    result = execute_tool(selected_tool, validation)
+                    executed_tool_names.append(selected_tool)
+                    tool_results[selected_tool] = result
                     result_summary = result.summary
                 else:
                     result_summary = "Recommendation construction reserved for the safety boundary."
@@ -195,7 +243,97 @@ class TravelIntelligenceAgent:
                 )
             )
 
-        return PlanExecution(workflow_id, OBJECTIVE, plan, executed_steps, tool_results)
+        return PlanExecution(
+            workflow_id,
+            OBJECTIVE,
+            plan,
+            executed_steps,
+            tool_results,
+            selection.provider_attempted,
+            selection.selected_tool_names,
+            selection.rejected_tool_names,
+            selection.fallback_used,
+            selection.fallback_reason,
+            selection.attempt_count,
+        )
+
+    @staticmethod
+    def _select_tool_for_step(
+        validation: TravelValidationInput,
+        step: InvestigationStep,
+        provider: Optional[RecommendationProvider],
+        executed_tool_names: list[str],
+        selection: ToolSelectionState,
+    ) -> str:
+        """Ask the provider for one tool, then enforce the deterministic boundary."""
+
+        deterministic_tool = step.tool_name
+        if deterministic_tool is None or provider is None:
+            return deterministic_tool or ""
+
+        selector = getattr(provider, "select_tool", None)
+        if not callable(selector):
+            return deterministic_tool
+
+        # A step may only have one provider-controlled selection. If the same
+        # step is evaluated again after its tool was selected or executed,
+        # record the duplicate before the provider-attempt budget is checked.
+        if (
+            deterministic_tool in selection.selected_tool_names
+            or deterministic_tool in executed_tool_names
+        ):
+            selection.fallback_used = True
+            selection.fallback_reason = "provider requested a duplicate tool"
+            if deterministic_tool not in selection.rejected_tool_names:
+                selection.rejected_tool_names.append(deterministic_tool)
+            return deterministic_tool
+
+        if selection.attempt_count >= MAX_TOOL_SELECTION_ATTEMPTS:
+            selection.fallback_used = True
+            selection.fallback_reason = "tool-selection attempt limit reached"
+            return deterministic_tool
+
+        selection.provider_attempted = True
+        selection.attempt_count += 1
+        allowed = PLAN_STEP_TOOL_PERMISSIONS.get(step.step_id, frozenset())
+        try:
+            request = selector(
+                validation,
+                OBJECTIVE.name,
+                step.step_id,
+                sorted(allowed),
+                list(executed_tool_names),
+            )
+        except Exception:
+            selection.fallback_used = True
+            selection.fallback_reason = "tool-selection provider failed"
+            return deterministic_tool
+
+        if not isinstance(request, ToolRequest):
+            selection.fallback_used = True
+            selection.fallback_reason = "tool-selection response was invalid"
+            selection.rejected_tool_names.append("<invalid>")
+            return deterministic_tool
+
+        requested_tool = request.tool_name
+        if requested_tool not in TOOL_REGISTRY:
+            selection.fallback_used = True
+            selection.fallback_reason = "provider requested an unknown tool"
+            selection.rejected_tool_names.append(requested_tool)
+            return deterministic_tool
+        if requested_tool not in allowed:
+            selection.fallback_used = True
+            selection.fallback_reason = "provider requested a wrong-step tool"
+            selection.rejected_tool_names.append(requested_tool)
+            return deterministic_tool
+        if requested_tool in executed_tool_names:
+            selection.fallback_used = True
+            selection.fallback_reason = "provider requested a duplicate tool"
+            selection.rejected_tool_names.append(requested_tool)
+            return deterministic_tool
+
+        selection.selected_tool_names.append(requested_tool)
+        return requested_tool
 
     def _fallback(
         self,
@@ -210,7 +348,7 @@ class TravelIntelligenceAgent:
         provider_name: str = "deterministic-fallback",
         attempted_provider_name: Optional[str] = None,
     ) -> TravelRecommendationOutput:
-        plan_execution = plan_execution or self._execute_plan(validation)
+        plan_execution = plan_execution or self._execute_plan(validation, self.provider)
         candidate_result = plan_execution.tool_results.get("build_recommendation_candidates")
         # Candidate actions are advisory alternatives. The deterministic chooser
         # remains authoritative for the primary recommendation.
@@ -401,6 +539,12 @@ class TravelIntelligenceAgent:
             providerName=attempted_provider_name,
             providerLatencyMs=provider_latency_ms,
             providerAttemptCount=provider_attempt_count,
+            toolSelectionProviderAttempted=plan_execution.tool_selection_provider_attempted,
+            selectedToolNames=plan_execution.selected_tool_names,
+            rejectedToolNames=plan_execution.rejected_tool_names,
+            toolSelectionFallbackUsed=plan_execution.tool_selection_fallback_used,
+            toolSelectionFallbackReason=plan_execution.tool_selection_fallback_reason,
+            selectionAttemptCount=plan_execution.selection_attempt_count,
         )
 
     @staticmethod

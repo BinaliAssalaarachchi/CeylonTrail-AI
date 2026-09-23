@@ -3,9 +3,9 @@
 import json
 from typing import Any
 
-from .prompts import build_provider_prompt
+from .prompts import build_provider_prompt, build_tool_selection_prompt
 from .providers import ProviderUnavailableError
-from .schemas import ProviderRecommendation, TravelValidationInput
+from .schemas import ProviderRecommendation, ToolRequest, TravelValidationInput
 
 
 class GeminiRecommendationProvider:
@@ -80,4 +80,50 @@ class GeminiRecommendationProvider:
         except Exception as error:
             raise ProviderUnavailableError(
                 "Gemini returned an invalid structured response."
+            ) from error
+
+    def select_tool(
+        self,
+        validation: TravelValidationInput,
+        objective: str,
+        current_step: str,
+        allowed_tools: list[str],
+        executed_tools: list[str],
+    ) -> ToolRequest:
+        allowed_descriptions = {tool: tool for tool in allowed_tools}
+        try:
+            response = self._client.models.generate_content(
+                model=self.model,
+                contents=build_tool_selection_prompt(
+                    validation,
+                    objective,
+                    current_step,
+                    allowed_descriptions,
+                    executed_tools,
+                ),
+                config={
+                    "response_format": {
+                        "text": {
+                            "mime_type": "application/json",
+                            "schema": ToolRequest.model_json_schema(),
+                        }
+                    },
+                    "temperature": 0.0,
+                },
+            )
+        except Exception as error:
+            raise ProviderUnavailableError(
+                "Gemini tool-selection request failed."
+            ) from error
+
+        response_text = getattr(response, "text", None)
+        if not isinstance(response_text, str) or not response_text.strip():
+            raise ProviderUnavailableError(
+                "Gemini returned an empty tool-selection response."
+            )
+        try:
+            return ToolRequest.model_validate(json.loads(response_text))
+        except Exception as error:
+            raise ProviderUnavailableError(
+                "Gemini returned an invalid tool-selection response."
             ) from error

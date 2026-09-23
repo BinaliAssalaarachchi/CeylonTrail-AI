@@ -99,6 +99,15 @@ class AgentObjective(BaseModel):
     source: str = Field(default="system", min_length=1, max_length=30)
 
 
+class ToolRequest(BaseModel):
+    """A bounded request for one existing investigation tool."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    tool_name: str = Field(alias="toolName", min_length=1, max_length=80)
+    rationale: str = Field(min_length=1, max_length=300)
+
+
 class InvestigationStepStatus(str, Enum):
     PENDING = "Pending"
     RUNNING = "Running"
@@ -283,6 +292,24 @@ class AgentExecutionMetadata(BaseModel):
         default=None, alias="providerLatencyMs", ge=0
     )
     provider_attempt_count: int = Field(default=0, alias="providerAttemptCount", ge=0)
+    tool_selection_provider_attempted: bool = Field(
+        default=False, alias="toolSelectionProviderAttempted"
+    )
+    selected_tool_names: List[str] = Field(
+        default_factory=list, alias="selectedToolNames", max_length=20
+    )
+    rejected_tool_names: List[str] = Field(
+        default_factory=list, alias="rejectedToolNames", max_length=20
+    )
+    tool_selection_fallback_used: bool = Field(
+        default=False, alias="toolSelectionFallbackUsed"
+    )
+    tool_selection_fallback_reason: Optional[str] = Field(
+        default=None, alias="toolSelectionFallbackReason", max_length=300
+    )
+    selection_attempt_count: int = Field(
+        default=0, alias="selectionAttemptCount", ge=0, le=20
+    )
 
 
 class TravelRecommendationOutput(BaseModel):
