@@ -34,7 +34,7 @@ function formatAction(value) {
 
 function formatRecommendationSummary(summary) {
   const validationMatch = summary?.match(
-    /^Deterministic validation is (\w+) with (\d+) issue\(s\), including (\d+) blocking issue\(s)\.?$/i,
+    /^Deterministic validation is ([A-Za-z]+) with ([0-9]+) issue\(s\), including ([0-9]+) blocking issue\(s\)\.?$/i,
   )
 
   if (!validationMatch) return summary
@@ -46,7 +46,7 @@ function formatRecommendationSummary(summary) {
   const blockingText = `${blockingIssues} serious issue${blockingIssues === 1 ? '' : 's'}`
 
   if (validationStatus.toLowerCase() === 'invalid' || blockingIssues > 0) {
-    return `This trip has a serious issue that should be resolved before travel. ${issueText}, including ${blockingText} that require attention.`
+    return `This trip has a serious issue that should be resolved before travel. ${issueText}, including ${blockingText} that ${blockingIssues === 1 ? 'requires' : 'require'} attention.`
   }
 
   if (validationStatus.toLowerCase() === 'warning') {

@@ -11,7 +11,7 @@ const futureModules = [
   { label: 'Discover', icon: '◉' },
   { label: 'Bookings', icon: '□' },
   { label: 'Travel Operations', icon: '✣' },
-  { label: 'AI Operations', icon: '✦' },
+  { label: 'AI Recommendations', icon: '✦' },
 ]
 
 function BrandMark() {
@@ -59,7 +59,7 @@ export default function AppShell() {
                 <NavLink className="nav-link" to="/travel-alerts" key={module.label}>
                   <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
                 </NavLink>
-              ) : module.label === 'AI Operations' && canManageAlerts ? (
+              ) : module.label === 'AI Recommendations' && canManageAlerts ? (
                 <NavLink className="nav-link" to="/ai-operations" key={module.label}>
                   <span className="nav-icon">{module.icon}</span><span>{module.label}</span>
                 </NavLink>
