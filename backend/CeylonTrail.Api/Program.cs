@@ -42,6 +42,7 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Issuer) ||
 builder.Services.AddSingleton(jwtOptions);
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<ITripService, TripService>();
 builder.Services.AddScoped<IAttractionService, AttractionService>();
 builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddScoped<IBookingService, BookingService>();

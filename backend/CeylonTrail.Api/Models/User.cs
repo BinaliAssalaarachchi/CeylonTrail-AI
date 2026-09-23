@@ -19,4 +19,6 @@ public class User
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+
+    public ICollection<Trip> Trips { get; set; } = new List<Trip>();
 }
