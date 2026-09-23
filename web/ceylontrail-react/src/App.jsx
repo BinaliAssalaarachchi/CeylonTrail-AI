@@ -22,6 +22,8 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import PendingAttractionsPage from './pages/admin/PendingAttractionsPage'
 import AdminAttractionDetailsPage from './pages/admin/AdminAttractionDetailsPage'
 
+import DiscoverPage from './pages/DiscoverPage'
+
 function App() {
   return (
     <BrowserRouter>
@@ -32,7 +34,11 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route path="/" element={<HomePage />} />
+              <Route path="/discover" element={<DiscoverPage />} />
               <Route path="/bookings" element={<RoleDashboardPage title="Reservation & Booking Operations" description="Manage incoming reservations, accept or reject requests, and track status histories." />} />
+              <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />
+              <Route path="/trip-planning/:id" element={<ItineraryReviewPage />} />
+
               <Route element={<ProtectedRoute allowedRoles={['TourismProvider']} />}>
                 <Route path="/provider" element={<RoleDashboardPage title="Tourism Provider Dashboard" description="A shared workspace for tourism providers." />} />
                 <Route path="/provider/attractions" element={<MyAttractionsPage />} />
@@ -56,10 +62,6 @@ function App() {
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['Tourist', 'TourismProvider']} />}>
                 <Route path="/travel-advisories" element={<TravelAdvisoriesPage />} />
-              </Route>
-              <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
-                <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />
-                <Route path="/trip-planning/:id" element={<ItineraryReviewPage />} />
               </Route>
             </Route>
           </Route>

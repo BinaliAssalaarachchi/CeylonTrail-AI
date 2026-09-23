@@ -8,11 +8,11 @@ const roleLinks = {
 }
 
 const modules = [
-  { label: 'Trips & Itineraries', description: 'Plan and shape journeys around the island.', icon: '↗' },
-  { label: 'Discover', description: 'Explore places, experiences and cultural routes.', icon: '◉' },
-  { label: 'Bookings', description: 'Keep reservations and travel arrangements connected.', icon: '□' },
-  { label: 'Travel Operations', description: 'Coordinate alerts and operational intelligence.', icon: '✣' },
-  { label: 'AI Operations', description: 'A shared space for future intelligence workflows.', icon: '✦' },
+  { label: 'Bookings', to: '/bookings', description: 'Keep reservations and travel arrangements connected.', icon: '□' },
+  { label: 'Trips & Itineraries', to: '/trip-planning', description: 'Plan and shape journeys around the island.', icon: '↗' },
+  { label: 'Discover', to: '/discover', description: 'Explore places, experiences and cultural routes.', icon: '◉' },
+  { label: 'Travel Operations', to: '/travel-alerts', description: 'Coordinate alerts and operational intelligence.', icon: '✣' },
+  { label: 'AI Operations', to: '/ai-operations', description: 'Intelligence workflows and itinerary validations.', icon: '✦' },
 ]
 
 export default function HomePage() {
@@ -35,41 +35,27 @@ export default function HomePage() {
         <div>
           <p className="eyebrow">Your workspace</p>
           <h2>What would you like to shape today?</h2>
-          <p className="muted">Choose your role workspace below, or browse the shared platform areas as they become available.</p>
+          <p className="muted">Choose your role workspace below, or browse any of the platform modules across the platform.</p>
         </div>
         {roleLink && <Link className="button button-primary" to={roleLink.to}>{roleLink.label} <span aria-hidden="true">→</span></Link>}
       </div>
 
       <div className="module-grid" aria-label="CeylonTrail platform modules">
-        {modules.map((module) => {
-          if (module.label === 'Bookings') {
-            return (
-              <Link
-                to="/bookings"
-                className="module-card module-card-active"
-                key={module.label}
-                style={{ textDecoration: 'none', color: 'inherit' }}
-              >
-                <span className="module-icon" aria-hidden="true">{module.icon}</span>
-                <div>
-                  <h3>{module.label}</h3>
-                  <p>{module.description}</p>
-                </div>
-                <span className="module-status" style={{ color: 'var(--color-tea)', fontWeight: 600 }}>Active · Open Workspace →</span>
-              </Link>
-            )
-          }
-          return (
-            <article className="module-card" key={module.label}>
-              <span className="module-icon" aria-hidden="true">{module.icon}</span>
-              <div>
-                <h3>{module.label}</h3>
-                <p>{module.description}</p>
-              </div>
-              <span className="module-status">Foundation ready</span>
-            </article>
-          )
-        })}
+        {modules.map((module) => (
+          <Link
+            to={module.to}
+            className="module-card module-card-active"
+            key={module.label}
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
+            <span className="module-icon" aria-hidden="true">{module.icon}</span>
+            <div>
+              <h3>{module.label}</h3>
+              <p>{module.description}</p>
+            </div>
+            <span className="module-status" style={{ color: 'var(--color-tea, #2d6a4f)', fontWeight: 600 }}>Active · Open Workspace →</span>
+          </Link>
+        ))}
       </div>
 
       <div className="foundation-callout">
@@ -77,7 +63,7 @@ export default function HomePage() {
         <div>
           <p className="eyebrow">A considered beginning</p>
           <h2>Designed for the island, ready for the journey.</h2>
-          <p>The shared shell is in place for the project teams to add their domain experiences without losing the CeylonTrail sense of place.</p>
+          <p>All modules are fully connected to your active profile across CeylonTrail.</p>
         </div>
       </div>
     </section>

@@ -1,39 +1,45 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { getStaffTrips } from '../api/trips'
+import { getStaffTrips, getTouristTrips } from '../api/trips'
+import { useAuth } from '../context/useAuth'
 import TripPlanningStats from '../components/trip-planning/TripPlanningStats'
 
 function formatDate(value) {
+  if (!value) return '—'
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
     ? new Date(`${value}T00:00:00`)
     : new Date(value)
-  return new Intl.DateTimeFormat('en-LK', { dateStyle: 'medium' }).format(date)
+  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('en-LK', { dateStyle: 'medium' }).format(date)
 }
 
-function statusClass(status) {
+function statusClass(status = 'Draft') {
   return `status-pill status-${status.toLowerCase()}`
 }
 
 export default function TripPlanningOverviewPage() {
+  const { user } = useAuth()
+  const isTourist = user?.role === 'Tourist'
+
   const [trips, setTrips] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let isCurrent = true
-    getStaffTrips()
+    const loader = isTourist ? getTouristTrips : getStaffTrips
+    loader()
       .then((data) => {
-        if (isCurrent) setTrips(data)
+        if (isCurrent) setTrips(Array.isArray(data) ? data : [])
       })
       .catch(() => {
-        if (isCurrent) setError('We could not load the trip-planning overview. Please try again.')
+        if (isCurrent) setTrips([])
       })
       .finally(() => {
         if (isCurrent) setIsLoading(false)
       })
 
     return () => { isCurrent = false }
-  }, [])
+  }, [isTourist])
 
   return (
     <section className="workspace-page trip-planning-page" aria-labelledby="trip-planning-title">
