@@ -144,6 +144,16 @@ class RecommendationAction(str, Enum):
     MANUAL_REVIEW = "ManualReview"
 
 
+class ProviderRecommendation(BaseModel):
+    """The only recommendation data an external provider may author."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    proposed_action: RecommendationAction = Field(alias="proposedAction")
+    summary: str = Field(min_length=1, max_length=1000)
+    rationale: str = Field(min_length=1, max_length=1500)
+
+
 class SafetyStatus(str, Enum):
     CONDITIONALLY_SAFE = "ConditionallySafe"
     MANUAL_REVIEW_REQUIRED = "ManualReviewRequired"
@@ -265,6 +275,14 @@ class AgentExecutionMetadata(BaseModel):
     executed_tool_name: Optional[str] = Field(default=None, alias="executedToolName")
     duration_ms: int = Field(default=0, alias="durationMs", ge=0)
     result_summary: str = Field(default="", alias="resultSummary", max_length=500)
+    model_name: Optional[str] = Field(default=None, alias="modelName", max_length=120)
+    provider_attempted: bool = Field(default=False, alias="providerAttempted")
+    provider_succeeded: bool = Field(default=False, alias="providerSucceeded")
+    provider_name: Optional[str] = Field(default=None, alias="providerName", max_length=120)
+    provider_latency_ms: Optional[int] = Field(
+        default=None, alias="providerLatencyMs", ge=0
+    )
+    provider_attempt_count: int = Field(default=0, alias="providerAttemptCount", ge=0)
 
 
 class TravelRecommendationOutput(BaseModel):

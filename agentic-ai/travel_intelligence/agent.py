@@ -16,6 +16,7 @@ from .schemas import (
     InvestigationStepStatus,
     Recommendation,
     RecommendationAction,
+    ProviderRecommendation,
     RiskLevel,
     TravelRecommendationOutput,
     TravelValidationInput,
@@ -69,6 +70,7 @@ class TravelIntelligenceAgent:
 
         plan_execution = self._execute_plan(validation)
         if self.provider is not None:
+            provider_started = perf_counter()
             try:
                 provider_output = self.provider.recommend(
                     validation, TRAVEL_INTELLIGENCE_SYSTEM_POLICY
@@ -76,13 +78,24 @@ class TravelIntelligenceAgent:
                 return self._enforce_authority(
                     validation,
                     provider_output,
-                    provider_name="external",
+                    provider_name=getattr(self.provider, "name", "external"),
+                    model_name=getattr(self.provider, "model", None),
+                    provider_latency_ms=max(
+                        0, int((perf_counter() - provider_started) * 1000)
+                    ),
                     plan_execution=plan_execution,
                 )
             except Exception as error:  # Provider failures must not break recovery.
                 return self._fallback(
                     validation,
                     reason=f"{type(error).__name__}: provider unavailable",
+                    provider_attempted=True,
+                    provider_latency_ms=max(
+                        0, int((perf_counter() - provider_started) * 1000)
+                    ),
+                    provider_attempt_count=1,
+                    model_name=getattr(self.provider, "model", None),
+                    attempted_provider_name=getattr(self.provider, "name", "external"),
                     plan_execution=plan_execution,
                 )
         return self._fallback(
@@ -189,6 +202,13 @@ class TravelIntelligenceAgent:
         validation: TravelValidationInput,
         reason: str,
         plan_execution: Optional[PlanExecution] = None,
+        provider_attempted: bool = False,
+        provider_succeeded: bool = False,
+        provider_latency_ms: Optional[int] = None,
+        provider_attempt_count: int = 0,
+        model_name: Optional[str] = None,
+        provider_name: str = "deterministic-fallback",
+        attempted_provider_name: Optional[str] = None,
     ) -> TravelRecommendationOutput:
         plan_execution = plan_execution or self._execute_plan(validation)
         candidate_result = plan_execution.tool_results.get("build_recommendation_candidates")
@@ -250,19 +270,27 @@ class TravelIntelligenceAgent:
             execution=self._execution_metadata(
                 validation,
                 plan_execution,
-                provider="deterministic-fallback",
+                provider=provider_name,
                 used_fallback=True,
                 status="Fallback",
                 reason=reason,
                 result_summary="Deterministic advisory fallback completed safely.",
+                model_name=model_name,
+                provider_attempted=provider_attempted,
+                provider_succeeded=provider_succeeded,
+                attempted_provider_name=attempted_provider_name,
+                provider_latency_ms=provider_latency_ms,
+                provider_attempt_count=provider_attempt_count,
             ),
         )
 
     def _enforce_authority(
         self,
         validation: TravelValidationInput,
-        provider_output: TravelRecommendationOutput,
+        provider_output: ProviderRecommendation | TravelRecommendationOutput,
         provider_name: str,
+        model_name: Optional[str],
+        provider_latency_ms: Optional[int],
         plan_execution: PlanExecution,
     ) -> TravelRecommendationOutput:
         """Prevent provider output from changing authoritative validation state."""
@@ -272,31 +300,64 @@ class TravelIntelligenceAgent:
             reason="Provider output normalized",
             plan_execution=plan_execution,
         )
-        action = provider_output.recommended_action
-        if not validation.is_feasible and action == RecommendationAction.PROCEED:
-            action = fallback.recommended_action
+        if isinstance(provider_output, TravelRecommendationOutput):
+            provider_summary = provider_output.summary
+            provider_rationale = None
+        elif isinstance(provider_output, ProviderRecommendation):
+            provider_summary = provider_output.summary
+            provider_rationale = provider_output.rationale
+        else:
+            raise TypeError("Provider returned an unsupported response type.")
 
-        return provider_output.model_copy(
-            update={
-                "summary": fallback.summary,
-                "risk_level": validation.risk_level,
-                "recommended_action": action,
-                "requires_human_approval": fallback.requires_human_approval,
-                "affected_item_references": fallback.affected_item_references,
-                "affected_items": fallback.affected_items,
-                "alternatives": fallback.alternatives,
-                "safe_windows": fallback.safe_windows,
-                "validation_result_id": validation.validation_result_id,
-                "is_feasible": validation.is_feasible,
-                "execution": self._execution_metadata(
-                    validation,
-                    plan_execution,
-                    provider=provider_name,
-                    used_fallback=False,
-                    status="Completed",
-                    reason=None,
-                    result_summary="Provider advisory normalized against deterministic validation.",
+        provider_recommendations = fallback.recommendations
+        if provider_rationale:
+            provider_recommendations = [
+                *provider_recommendations,
+                Recommendation(
+                    action=fallback.recommended_action,
+                    explanation=provider_rationale,
+                    affectedItemReferences=fallback.affected_item_references,
                 ),
+            ]
+
+        execution = self._execution_metadata(
+            validation,
+            plan_execution,
+            provider=provider_name,
+            used_fallback=False,
+            status="Completed",
+            reason=None,
+            result_summary="Provider advisory normalized against deterministic validation.",
+            model_name=model_name,
+            provider_attempted=True,
+            provider_succeeded=True,
+            attempted_provider_name=provider_name,
+            provider_latency_ms=provider_latency_ms,
+            provider_attempt_count=1,
+        )
+        if isinstance(provider_output, TravelRecommendationOutput):
+            return provider_output.model_copy(
+                update={
+                    "summary": provider_summary,
+                    "risk_level": validation.risk_level,
+                    "recommended_action": fallback.recommended_action,
+                    "recommendations": provider_recommendations,
+                    "requires_human_approval": fallback.requires_human_approval,
+                    "affected_item_references": fallback.affected_item_references,
+                    "affected_items": fallback.affected_items,
+                    "alternatives": fallback.alternatives,
+                    "safe_windows": fallback.safe_windows,
+                    "validation_result_id": validation.validation_result_id,
+                    "is_feasible": validation.is_feasible,
+                    "execution": execution,
+                }
+            )
+
+        return fallback.model_copy(
+            update={
+                "summary": provider_summary,
+                "recommendations": provider_recommendations,
+                "execution": execution,
             }
         )
 
@@ -309,6 +370,12 @@ class TravelIntelligenceAgent:
         status: str,
         reason: Optional[str],
         result_summary: str,
+        model_name: Optional[str] = None,
+        provider_attempted: bool = False,
+        provider_succeeded: bool = False,
+        attempted_provider_name: Optional[str] = None,
+        provider_latency_ms: Optional[int] = None,
+        provider_attempt_count: int = 0,
     ) -> AgentExecutionMetadata:
         executed_steps = plan_execution.executed_steps
         last_step = executed_steps[-1] if executed_steps else None
@@ -328,6 +395,12 @@ class TravelIntelligenceAgent:
             executedToolName=last_step.tool_name if last_step else None,
             durationMs=sum(step.duration_ms for step in executed_steps),
             resultSummary=result_summary,
+            modelName=model_name,
+            providerAttempted=provider_attempted,
+            providerSucceeded=provider_succeeded,
+            providerName=attempted_provider_name,
+            providerLatencyMs=provider_latency_ms,
+            providerAttemptCount=provider_attempt_count,
         )
 
     @staticmethod

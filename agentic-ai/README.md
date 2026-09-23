@@ -29,9 +29,17 @@ affected items, and finite recommendation actions. It has no database,
 filesystem, shell, booking, or itinerary-modification tools.
 
 When no provider is configured, or a provider fails, the agent uses its
-deterministic fallback. Provider configuration is intentionally not wired to a
-real external service in this phase; a future provider can implement the
-RecommendationProvider protocol without requiring API keys in tests.
+deterministic fallback. The optional Gemini provider is enabled only when both
+environment variables below are present:
+
+    GEMINI_API_KEY=<local secret>
+    GEMINI_MODEL=<supported Gemini model name>
+
+The provider returns only a proposed action, concise summary, and rationale.
+Deterministic validation, affected items, alternatives, safe windows, and
+approval requirements remain authoritative. Provider calls are bounded to four
+seconds with no automatic retries in this checkpoint. Tests do not require an
+API key or network access.
 Recommendations such as rescheduling, budget review, and conflict resolution
 remain advisory and require human approval when consequential.
 
