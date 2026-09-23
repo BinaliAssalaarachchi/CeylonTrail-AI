@@ -34,7 +34,7 @@ export default function AppShell() {
   const canMonitorTrips = ['TravelCoordinator', 'Administrator'].includes(user.role)
 
   const canManageAlerts = ['TravelCoordinator', 'Administrator'].includes(user.role)
-  const isTourist = user.role === 'Tourist'
+  const canViewAdvisories = ['Tourist', 'TourismProvider'].includes(user.role)
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Application navigation">
@@ -53,13 +53,13 @@ export default function AppShell() {
             <span className="nav-icon">□</span>
             <span>Bookings</span>
           </NavLink>
-          {isTourist && (
+          {canViewAdvisories && (
             <NavLink className="nav-link" to="/travel-advisories">
               <span className="nav-icon">✣</span><span>Travel Advisories</span>
             </NavLink>
           )}
           {futureModules
-            .filter((module) => module.label !== 'Bookings' && !(isTourist && ['Travel Operations', 'AI Recommendations'].includes(module.label)))
+            .filter((module) => module.label !== 'Bookings' && !(canViewAdvisories && ['Travel Operations', 'AI Recommendations'].includes(module.label)))
             .map((module) => (
               module.label === 'Travel Operations' && canManageAlerts ? (
                 <NavLink className="nav-link" to="/travel-alerts" key={module.label}>

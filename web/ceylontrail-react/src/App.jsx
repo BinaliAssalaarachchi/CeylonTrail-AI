@@ -54,7 +54,7 @@ function App() {
                 <Route path="/travel-alerts" element={<TravelAlertsPage />} />
                 <Route path="/ai-operations" element={<AIOperationsPage />} />
               </Route>
-              <Route element={<ProtectedRoute allowedRoles={['Tourist']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['Tourist', 'TourismProvider']} />}>
                 <Route path="/travel-advisories" element={<TravelAdvisoriesPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
