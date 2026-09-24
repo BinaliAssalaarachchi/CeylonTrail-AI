@@ -35,4 +35,16 @@ void main() {
   test('serializes calendar dates in the API format', () {
     expect(dateValue(DateTime(2026, 1, 5)), '2026-01-05');
   });
+
+  test('parses itinerary history status, cost, and timestamps', () {
+    final history = ItineraryHistoryItem.fromJson({
+      'id': 'i2', 'status': 'Superseded', 'totalEstimatedCost': '52000',
+      'createdAt': '2026-09-23T10:00:00Z', 'updatedAt': '2026-09-23T10:00:00Z', 'dayCount': 4,
+    });
+
+    expect(history.id, 'i2');
+    expect(history.status, 'Superseded');
+    expect(history.totalEstimatedCost, 52000);
+    expect(history.dayCount, 4);
+  });
 }

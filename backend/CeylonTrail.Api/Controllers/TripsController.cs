@@ -141,9 +141,27 @@ public sealed class TripsController(ITripService tripService) : ControllerBase
             return NotFound();
         }
 
-        return result.Error is not null
+        return result.ServiceUnavailable
+            ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Planner service is temporarily unavailable. Please try again." })
+            : result.Error is not null
             ? BadRequest(new { message = result.Error })
             : Ok(result.Value);
+    }
+
+    [HttpGet("{id:guid}/itineraries")]
+    public async Task<ActionResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetItineraryHistory(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetTouristId(out var touristId)) return Unauthorized();
+        var result = await tripService.GetItineraryHistoryAsync(touristId, id, cancellationToken);
+        return result.NotFound ? NotFound() : Ok(result.Value);
+    }
+
+    [HttpGet("{id:guid}/itineraries/{itineraryId:guid}")]
+    public async Task<ActionResult<ItineraryResponse>> GetHistoricalItinerary(Guid id, Guid itineraryId, CancellationToken cancellationToken)
+    {
+        if (!TryGetTouristId(out var touristId)) return Unauthorized();
+        var result = await tripService.GetItineraryAsync(touristId, id, itineraryId, cancellationToken);
+        return result.NotFound ? NotFound() : Ok(result.Value);
     }
 
     private bool TryGetTouristId(out Guid touristId) =>

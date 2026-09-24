@@ -34,30 +34,32 @@ public sealed class PlannerAgentService(
                     "Planner Agent returned HTTP {StatusCode} for trip {TripId}.",
                     (int)response.StatusCode,
                     request.TripId);
-                return new PlannerAgentServiceResult(Error: "Planner Agent rejected the itinerary request.");
+                return new PlannerAgentServiceResult(
+                    Error: "Planner Agent rejected the itinerary request.",
+                    ServiceUnavailable: (int)response.StatusCode >= 500 || (int)response.StatusCode == 429);
             }
 
             var result = await response.Content.ReadFromJsonAsync<PlannerAgentResponse>(
                 JsonOptions,
                 cancellationToken);
             return result is null
-                ? new PlannerAgentServiceResult(Error: "Planner Agent returned an empty response.")
+                ? new PlannerAgentServiceResult(Error: "Planner Agent returned an empty response.", ServiceUnavailable: true)
                 : new PlannerAgentServiceResult(Value: result);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("Planner Agent timed out for trip {TripId}.", request.TripId);
-            return new PlannerAgentServiceResult(Error: "Planner Agent request timed out.");
+            return new PlannerAgentServiceResult(Error: "Planner Agent request timed out.", ServiceUnavailable: true);
         }
         catch (HttpRequestException exception)
         {
             logger.LogWarning(exception, "Planner Agent was unavailable for trip {TripId}.", request.TripId);
-            return new PlannerAgentServiceResult(Error: "Planner Agent was unavailable.");
+            return new PlannerAgentServiceResult(Error: "Planner Agent was unavailable.", ServiceUnavailable: true);
         }
         catch (JsonException exception)
         {
             logger.LogWarning(exception, "Planner Agent returned malformed JSON for trip {TripId}.", request.TripId);
-            return new PlannerAgentServiceResult(Error: "Planner Agent returned malformed JSON.");
+            return new PlannerAgentServiceResult(Error: "Planner Agent returned malformed JSON.", ServiceUnavailable: true);
         }
     }
 }

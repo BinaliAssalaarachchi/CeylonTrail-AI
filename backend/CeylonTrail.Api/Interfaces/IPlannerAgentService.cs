@@ -4,7 +4,8 @@ namespace CeylonTrail.Api.Interfaces;
 
 public sealed record PlannerAgentServiceResult(
     PlannerAgentResponse? Value = null,
-    string? Error = null)
+    string? Error = null,
+    bool ServiceUnavailable = false)
 {
     public bool Succeeded => Value is not null && Error is null;
 }

@@ -222,6 +222,30 @@ public sealed class TripService(
             : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
     }
 
+    public async Task<TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetItineraryHistoryAsync(
+        Guid touristId, Guid tripId, CancellationToken cancellationToken = default)
+    {
+        if (tripId == Guid.Empty || !await dbContext.Trips.AnyAsync(t => t.Id == tripId && t.TouristId == touristId, cancellationToken))
+            return new TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>(NotFound: true);
+
+        var history = await dbContext.Itineraries.AsNoTracking()
+            .Where(i => i.TripId == tripId)
+            .OrderByDescending(i => i.CreatedAt)
+            .Select(i => new ItineraryHistoryItemResponse(i.Id, i.Status, i.TotalEstimatedCost, i.CreatedAt, i.UpdatedAt, i.Days.Count))
+            .ToListAsync(cancellationToken);
+        return new TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>(history);
+    }
+
+    public async Task<TripServiceResult<ItineraryResponse>> GetItineraryAsync(
+        Guid touristId, Guid tripId, Guid itineraryId, CancellationToken cancellationToken = default)
+    {
+        var itinerary = await dbContext.Itineraries.AsNoTracking()
+            .Where(i => i.Id == itineraryId && i.TripId == tripId && i.Trip.TouristId == touristId)
+            .Include(i => i.Days).ThenInclude(d => d.Items)
+            .SingleOrDefaultAsync(cancellationToken);
+        return itinerary is null ? new TripServiceResult<ItineraryResponse>(NotFound: true) : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+    }
+
     public async Task<TripServiceResult<ItineraryResponse>> GenerateItineraryAsync(
         Guid touristId,
         Guid tripId,
@@ -296,16 +320,17 @@ public sealed class TripService(
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new TripServiceResult<ItineraryResponse>(Error: "Planner Agent request timed out.");
+            return new TripServiceResult<ItineraryResponse>(Error: "Planner Agent request timed out.", ServiceUnavailable: true);
         }
         catch (Exception)
         {
-            return new TripServiceResult<ItineraryResponse>(Error: "Planner Agent failed to generate an itinerary.");
+            return new TripServiceResult<ItineraryResponse>(Error: "Planner Agent failed to generate an itinerary.", ServiceUnavailable: true);
         }
         if (!plannerResult.Succeeded)
         {
             return new TripServiceResult<ItineraryResponse>(
-                Error: plannerResult.Error ?? "Planner Agent failed to generate an itinerary.");
+                Error: plannerResult.Error ?? "Planner Agent failed to generate an itinerary.",
+                ServiceUnavailable: plannerResult.ServiceUnavailable);
         }
 
         var plannerOutput = plannerResult.Value!;
@@ -443,6 +468,30 @@ public sealed class TripService(
         }
 
         return budget < 0 ? "Budget must be greater than or equal to zero." : null;
+    }
+
+    public async Task<TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetStaffItineraryHistoryAsync(
+        Guid tripId, CancellationToken cancellationToken = default)
+    {
+        if (tripId == Guid.Empty || !await dbContext.Trips.AnyAsync(t => t.Id == tripId, cancellationToken))
+            return new TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>(NotFound: true);
+
+        var history = await dbContext.Itineraries.AsNoTracking()
+            .Where(i => i.TripId == tripId)
+            .OrderByDescending(i => i.CreatedAt)
+            .Select(i => new ItineraryHistoryItemResponse(i.Id, i.Status, i.TotalEstimatedCost, i.CreatedAt, i.UpdatedAt, i.Days.Count))
+            .ToListAsync(cancellationToken);
+        return new TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>(history);
+    }
+
+    public async Task<TripServiceResult<ItineraryResponse>> GetStaffItineraryAsync(
+        Guid tripId, Guid itineraryId, CancellationToken cancellationToken = default)
+    {
+        var itinerary = await dbContext.Itineraries.AsNoTracking()
+            .Where(i => i.Id == itineraryId && i.TripId == tripId)
+            .Include(i => i.Days).ThenInclude(d => d.Items)
+            .SingleOrDefaultAsync(cancellationToken);
+        return itinerary is null ? new TripServiceResult<ItineraryResponse>(NotFound: true) : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
     }
 
     private static PlannerCandidateAttraction ToPlannerCandidate(AttractionResponse attraction) => new(

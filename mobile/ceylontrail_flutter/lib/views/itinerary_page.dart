@@ -18,6 +18,7 @@ class ItineraryPage extends StatefulWidget {
 
 class _ItineraryPageState extends State<ItineraryPage> {
   Itinerary? _itinerary;
+  List<ItineraryHistoryItem> _history = const [];
   String? _error;
   var _loading = true;
 
@@ -33,10 +34,16 @@ class _ItineraryPageState extends State<ItineraryPage> {
       _error = null;
     });
     try {
-      final itinerary = await widget.api.getItinerary(widget.tripId);
+      final results = await Future.wait([
+        widget.api.getItinerary(widget.tripId),
+        widget.api.getItineraryHistory(widget.tripId),
+      ]);
+      final itinerary = results[0] as Itinerary?;
+      final history = results[1] as List<ItineraryHistoryItem>;
       if (mounted) {
         setState(() {
           _itinerary = itinerary;
+          _history = history;
           _loading = false;
         });
       }
@@ -89,9 +96,8 @@ class _ItineraryPageState extends State<ItineraryPage> {
                   ],
                 ),
                 const SizedBox(height: CeylonSpacing.sm),
-                Text(
-                  'Estimated cost: ${displayMoney(itinerary.totalEstimatedCost)}',
-                ),
+                Text('Estimated cost: ${displayMoney(itinerary.totalEstimatedCost)}'),
+                if (itinerary.createdAt != null) Text('Generated ${displayDate(itinerary.createdAt!)}'),
                 const SizedBox(height: CeylonSpacing.lg),
                 ...itinerary.days.map(
                   (day) => Card(
@@ -109,6 +115,23 @@ class _ItineraryPageState extends State<ItineraryPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: CeylonSpacing.lg),
+                Text('Previous versions', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: CeylonSpacing.sm),
+                if (_history.length <= 1)
+                  const Text('No previous itinerary versions are available.')
+                else
+                  ..._history.skip(1).map((version) => Card(
+                    child: ListTile(
+                      title: Text(version.createdAt == null ? 'Itinerary version' : displayDate(version.createdAt!)),
+                      subtitle: Text('${version.status} • ${displayMoney(version.totalEstimatedCost)}'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        final selected = await widget.api.getItineraryVersion(widget.tripId, version.id);
+                        if (mounted) setState(() => _itinerary = selected);
+                      },
+                    ),
+                  )),
               ],
             ),
     );

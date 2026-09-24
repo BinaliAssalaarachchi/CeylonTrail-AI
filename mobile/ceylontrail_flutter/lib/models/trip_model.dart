@@ -85,6 +85,20 @@ class Itinerary {
   );
 }
 
+class ItineraryHistoryItem {
+  const ItineraryHistoryItem({required this.id, required this.status, required this.totalEstimatedCost, required this.createdAt, required this.updatedAt, required this.dayCount});
+  final String id;
+  final String status;
+  final double totalEstimatedCost;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final int dayCount;
+  factory ItineraryHistoryItem.fromJson(Map<String, dynamic> json) => ItineraryHistoryItem(
+    id: json['id']?.toString() ?? '', status: json['status']?.toString() ?? '',
+    totalEstimatedCost: parseMoney(json['totalEstimatedCost']), createdAt: parseTimestamp(json['createdAt']),
+    updatedAt: parseTimestamp(json['updatedAt']), dayCount: (json['dayCount'] as num?)?.toInt() ?? 0);
+}
+
 class ItineraryDay {
   const ItineraryDay({required this.id, required this.dayNumber, required this.date, required this.items});
 

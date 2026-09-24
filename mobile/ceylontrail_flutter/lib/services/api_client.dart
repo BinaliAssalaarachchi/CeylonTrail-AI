@@ -86,6 +86,7 @@ class ApiClient {
     if (error.response?.statusCode == 403) return 'You do not have access to this feature.';
     if (error.response?.statusCode == 404) return 'The requested item could not be found.';
     if (error.response?.statusCode == 400) return 'Please check the information and try again.';
+    if (error.response?.statusCode == 503) return 'Planner service is temporarily unavailable. Please try again.';
     if (error.type == DioExceptionType.connectionError ||
         error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {

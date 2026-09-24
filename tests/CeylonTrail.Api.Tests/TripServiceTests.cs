@@ -322,6 +322,34 @@ public sealed class TripServiceTests
     }
 
     [Fact]
+    public async Task ItineraryHistory_ReturnsOwnVersionsNewestFirst_AndIndividualVersionsAreScoped()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new TripService(dbContext);
+        var ownerId = Guid.NewGuid();
+        var otherOwnerId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, ownerId, "History trip");
+        var otherTrip = await SeedTripAsync(dbContext, otherOwnerId, "Other history trip");
+        var older = new Itinerary { Id = Guid.NewGuid(), TripId = trip.Id, Status = ItineraryStatus.Superseded, TotalEstimatedCost = 52000m, CreatedAt = DateTime.UtcNow.AddDays(-1), UpdatedAt = DateTime.UtcNow.AddDays(-1) };
+        var latest = new Itinerary { Id = Guid.NewGuid(), TripId = trip.Id, Status = ItineraryStatus.Active, TotalEstimatedCost = 48000m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var foreign = new Itinerary { Id = Guid.NewGuid(), TripId = otherTrip.Id, Status = ItineraryStatus.Active, TotalEstimatedCost = 1m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        dbContext.Itineraries.AddRange(older, latest, foreign);
+        await dbContext.SaveChangesAsync();
+
+        var history = await service.GetItineraryHistoryAsync(ownerId, trip.Id);
+        Assert.False(history.NotFound);
+        var historyItems = history.Value ?? throw new InvalidOperationException("History was not returned.");
+        Assert.Equal(new[] { latest.Id, older.Id }, historyItems.Select(item => item.Id));
+        Assert.Equal(new[] { ItineraryStatus.Active, ItineraryStatus.Superseded }, historyItems.Select(item => item.Status));
+        Assert.Equal(2, historyItems.Count);
+
+        Assert.False((await service.GetItineraryAsync(ownerId, trip.Id, older.Id)).NotFound);
+        Assert.True((await service.GetItineraryAsync(otherOwnerId, trip.Id, latest.Id)).NotFound);
+        Assert.True((await service.GetItineraryAsync(ownerId, trip.Id, foreign.Id)).NotFound);
+        Assert.True((await service.GetItineraryHistoryAsync(ownerId, Guid.NewGuid())).NotFound);
+    }
+
+    [Fact]
     public async Task ResourceOperations_WithEmptyOrMissingTripId_ReturnNotFound()
     {
         await using var dbContext = CreateDbContext();
