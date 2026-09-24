@@ -4,25 +4,22 @@ public class Booking
 {
     public Guid Id { get; set; }
 
-    // The tourist who created this booking
-    public Guid TouristId { get; set; }
-    public User? Tourist { get; set; }
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
 
-    // Optional link to an approved trip itinerary
     public Guid? TripId { get; set; }
+    public Trip? Trip { get; set; }
 
-    // Controlled workflow status (Pending, Confirmed, Completed, Rejected, Cancelled)
-    public BookingStatus Status { get; set; } = BookingStatus.Pending;
+    public BookingStatus CurrentStatus { get; set; } = BookingStatus.Draft;
 
-    // Total cost of all booking items
     public decimal TotalAmount { get; set; }
 
-    // Audit timestamps
+    public string? QrCodeHash { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation properties
     public ICollection<BookingItem> Items { get; set; } = new List<BookingItem>();
     public ICollection<BookingStatusHistory> StatusHistory { get; set; } = new List<BookingStatusHistory>();
-    public Cancellation? Cancellation { get; set; }
+    public ICollection<CancellationRequest> CancellationRequests { get; set; } = new List<CancellationRequest>();
 }
