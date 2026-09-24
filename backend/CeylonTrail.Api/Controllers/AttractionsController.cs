@@ -8,9 +8,23 @@ namespace CeylonTrail.Api.Controllers;
 
 [ApiController]
 [Route("api/attractions")]
-public sealed class AttractionsController(IAttractionService attractionService) : ControllerBase
+public sealed class AttractionsController(IAttractionService attractionService, IDestinationAgentService destinationAgentService) : ControllerBase
 {
     private const string ProviderOrAdministrator = "TourismProvider,Administrator";
+
+    [HttpPost("recommendations")]
+    [Authorize(Roles = "Tourist")]
+    public async Task<IActionResult> Recommend(
+        DestinationRecommendationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await destinationAgentService.RecommendAsync(request, cancellationToken);
+        return result.ServiceUnavailable
+            ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = result.Error })
+            : result.Error is not null
+                ? BadRequest(new { message = result.Error })
+                : Ok(result.Value);
+    }
 
     [HttpPost]
     [Authorize(Roles = ProviderOrAdministrator)]
