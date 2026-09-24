@@ -56,7 +56,7 @@ builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceSer
         .GetRequiredService<Microsoft.Extensions.Options.IOptions<TravelIntelligenceOptions>>()
         .Value;
     client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 10);
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 20);
 });
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

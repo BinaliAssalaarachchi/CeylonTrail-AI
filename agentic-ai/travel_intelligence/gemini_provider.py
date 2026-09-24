@@ -8,6 +8,26 @@ from .providers import ProviderUnavailableError
 from .schemas import ProviderRecommendation, ToolRequest, TravelValidationInput
 
 
+GEMINI_REQUEST_TIMEOUT_SECONDS = 10.0
+
+
+def _gemini_response_schema(model: Any) -> dict[str, Any]:
+    """Return a Gemini-compatible copy without additionalProperties keywords."""
+
+    def remove_additional_properties(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: remove_additional_properties(item)
+                for key, item in value.items()
+                if key != "additionalProperties"
+            }
+        if isinstance(value, list):
+            return [remove_additional_properties(item) for item in value]
+        return value
+
+    return remove_additional_properties(model.model_json_schema())
+
+
 class GeminiRecommendationProvider:
     """Call Gemini for a narrow, non-authoritative recommendation proposal."""
 
@@ -17,7 +37,7 @@ class GeminiRecommendationProvider:
         self,
         api_key: str,
         model: str,
-        timeout_seconds: float = 4.0,
+        timeout_seconds: float = GEMINI_REQUEST_TIMEOUT_SECONDS,
         client: Any = None,
     ) -> None:
         self.model = model
@@ -56,12 +76,8 @@ class GeminiRecommendationProvider:
                 model=self.model,
                 contents=build_provider_prompt(validation, system_policy),
                 config={
-                    "response_format": {
-                        "text": {
-                            "mime_type": "application/json",
-                            "schema": ProviderRecommendation.model_json_schema(),
-                        }
-                    },
+                    "response_mime_type": "application/json",
+                    "response_schema": _gemini_response_schema(ProviderRecommendation),
                     "temperature": 0.1,
                 },
             )
@@ -102,12 +118,8 @@ class GeminiRecommendationProvider:
                     executed_tools,
                 ),
                 config={
-                    "response_format": {
-                        "text": {
-                            "mime_type": "application/json",
-                            "schema": ToolRequest.model_json_schema(),
-                        }
-                    },
+                    "response_mime_type": "application/json",
+                    "response_schema": _gemini_response_schema(ToolRequest),
                     "temperature": 0.0,
                 },
             )

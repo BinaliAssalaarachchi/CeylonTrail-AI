@@ -3,13 +3,20 @@
 import unittest
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from travel_intelligence.agent import TravelIntelligenceAgent
-from travel_intelligence.gemini_provider import GeminiRecommendationProvider
+from travel_intelligence.gemini_provider import (
+    GEMINI_REQUEST_TIMEOUT_SECONDS,
+    GeminiRecommendationProvider,
+    _gemini_response_schema,
+)
 from travel_intelligence.prompts import build_provider_prompt
 from travel_intelligence.providers import create_recommendation_provider
 from travel_intelligence.schemas import (
     ProviderRecommendation,
     RecommendationAction,
+    ToolRequest,
     TravelValidationInput,
 )
 
@@ -57,6 +64,57 @@ class FakeClient:
 
 
 class GeminiProviderFoundationTests(unittest.TestCase):
+    def assert_no_additional_properties(self, value):
+        if isinstance(value, dict):
+            self.assertNotIn("additionalProperties", value)
+            for item in value.values():
+                self.assert_no_additional_properties(item)
+        elif isinstance(value, list):
+            for item in value:
+                self.assert_no_additional_properties(item)
+
+    def contains_schema_key(self, value, key):
+        if isinstance(value, dict):
+            return key in value or any(
+                self.contains_schema_key(item, key) for item in value.values()
+            )
+        if isinstance(value, list):
+            return any(self.contains_schema_key(item, key) for item in value)
+        return False
+
+    def test_gemini_provider_schema_removes_only_additional_properties(self):
+        recommendation_schema = _gemini_response_schema(ProviderRecommendation)
+        tool_schema = _gemini_response_schema(ToolRequest)
+
+        self.assert_no_additional_properties(recommendation_schema)
+        self.assert_no_additional_properties(tool_schema)
+        self.assertEqual(recommendation_schema["type"], "object")
+        self.assertIn("properties", recommendation_schema)
+        self.assertIn("required", recommendation_schema)
+        self.assertTrue(self.contains_schema_key(recommendation_schema, "enum"))
+        self.assertEqual(tool_schema["type"], "object")
+        self.assertIn("properties", tool_schema)
+        self.assertIn("required", tool_schema)
+
+    def test_original_strict_models_still_reject_extra_fields(self):
+        with self.assertRaises(ValidationError):
+            ProviderRecommendation.model_validate(
+                {
+                    "proposedAction": "Proceed",
+                    "summary": "ok",
+                    "rationale": "ok",
+                    "unexpected": "reject",
+                }
+            )
+        with self.assertRaises(ValidationError):
+            ToolRequest.model_validate(
+                {
+                    "toolName": "summarize_validation",
+                    "rationale": "ok",
+                    "unexpected": "reject",
+                }
+            )
+
     def test_factory_returns_no_provider_without_key_or_model(self):
         self.assertIsNone(create_recommendation_provider({}))
         self.assertIsNone(
@@ -92,9 +150,75 @@ class GeminiProviderFoundationTests(unittest.TestCase):
             result.proposed_action, RecommendationAction.PROCEED_WITH_CAUTION
         )
         self.assertEqual(
-            client.models.config["response_format"]["text"]["mime_type"],
+            client.models.config["response_mime_type"],
             "application/json",
         )
+        self.assertEqual(
+            client.models.config["response_schema"],
+            _gemini_response_schema(ProviderRecommendation),
+        )
+        self.assertNotIn("response_format", client.models.config)
+        self.assertEqual(client.models.config["temperature"], 0.1)
+
+    def test_recommend_uses_supported_gemini_deadline(self):
+        provider = GeminiRecommendationProvider(
+            "secret", "model", client=FakeClient(
+                response=FakeResponse(
+                    '{"proposedAction":"Proceed","summary":"ok",'
+                    '"rationale":"No risk was found."}'
+                )
+            )
+        )
+
+        provider.recommend(make_validation(), "policy")
+
+        self.assertEqual(provider.timeout_seconds, GEMINI_REQUEST_TIMEOUT_SECONDS)
+        self.assertEqual(GEMINI_REQUEST_TIMEOUT_SECONDS, 10.0)
+
+    def test_tool_selection_uses_supported_structured_config(self):
+        client = FakeClient(
+            response=FakeResponse(
+                '{"toolName":"summarize_validation",'
+                '"rationale":"Review the authoritative validation state."}'
+            )
+        )
+        provider = GeminiRecommendationProvider("secret", "model", client=client)
+        result = provider.select_tool(
+            make_validation(),
+            "travel_intelligence_assessment",
+            "review_validation",
+            ["summarize_validation"],
+            [],
+        )
+        self.assertIsInstance(result, ToolRequest)
+        self.assertEqual(result.tool_name, "summarize_validation")
+        self.assertEqual(client.models.config["response_mime_type"], "application/json")
+        self.assertEqual(
+            client.models.config["response_schema"],
+            _gemini_response_schema(ToolRequest),
+        )
+        self.assertNotIn("response_format", client.models.config)
+        self.assertEqual(client.models.config["temperature"], 0.0)
+
+    def test_select_tool_uses_supported_gemini_deadline(self):
+        provider = GeminiRecommendationProvider(
+            "secret", "model", client=FakeClient(
+                response=FakeResponse(
+                    '{"toolName":"summarize_validation",'
+                    '"rationale":"Review validation."}'
+                )
+            )
+        )
+
+        provider.select_tool(
+            make_validation(),
+            "travel_intelligence_assessment",
+            "review_validation",
+            ["summarize_validation"],
+            [],
+        )
+
+        self.assertEqual(provider.timeout_seconds, GEMINI_REQUEST_TIMEOUT_SECONDS)
 
     def test_malformed_json_extra_field_and_invalid_action_are_rejected(self):
         for text in (
