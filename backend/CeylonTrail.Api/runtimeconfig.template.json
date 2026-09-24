@@ -1,13 +1,3 @@
 {
-  "rollForward": "LatestPatch",
-  "frameworks": [
-    {
-      "name": "Microsoft.NETCore.App",
-      "version": "8.0.29"
-    },
-    {
-      "name": "Microsoft.AspNetCore.App",
-      "version": "8.0.29"
-    }
-  ]
+  "rollForward": "Disable"
 }
