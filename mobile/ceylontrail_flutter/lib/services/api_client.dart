@@ -4,9 +4,10 @@ import '../config/api_config.dart';
 import 'auth_storage.dart';
 
 class ApiException implements Exception {
-  const ApiException(this.message);
+  const ApiException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => message;
@@ -36,14 +37,14 @@ class ApiClient {
     try {
       return await _dio.post(path, data: data);
     } on DioException catch (error) {
-      throw ApiException(_messageFor(error));
+      throw ApiException(_messageFor(error), statusCode: error.response?.statusCode);
     }
   }
     Future<Response<dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
     try {
       return await _dio.get(path, queryParameters: queryParameters);
     } on DioException catch (error) {
-      throw ApiException(_messageFor(error));
+      throw ApiException(_messageFor(error), statusCode: error.response?.statusCode);
     }
   }
 
