@@ -2,37 +2,39 @@ namespace CeylonTrail.Api.DTOs.Bookings;
 
 public record BookingItemResponse(
     Guid Id,
-    Guid AttractionId,
-    int Quantity,
+    Guid AvailabilitySlotId,
+    int NumberOfGuests,
     decimal UnitPrice,
-    decimal Subtotal
+    decimal SubTotal
 );
 
 public record BookingHistoryResponse(
     Guid Id,
     string PreviousStatus,
     string NewStatus,
-    Guid ChangedBy,
-    DateTime ChangedAt,
+    Guid? ChangedByUserId,
+    DateTime Timestamp,
     string? Reason
 );
 
-public record CancellationResponse(
+public record CancellationRequestResponse(
     Guid Id,
     string Reason,
-    Guid CancelledBy,
-    DateTime CancelledAt
+    string Status,
+    decimal? RefundAmount,
+    DateTime RequestedAt
 );
 
 public record BookingResponse(
     Guid Id,
-    Guid TouristId,
+    Guid UserId,
     Guid? TripId,
-    string Status,
+    string CurrentStatus,
     decimal TotalAmount,
+    string? QrCodeHash,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<BookingItemResponse> Items,
     List<BookingHistoryResponse>? StatusHistory,
-    CancellationResponse? Cancellation
+    List<CancellationRequestResponse>? CancellationRequests
 );

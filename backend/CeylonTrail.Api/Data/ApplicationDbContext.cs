@@ -13,10 +13,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ExperienceSlot> ExperienceSlots => Set<ExperienceSlot>();
     public DbSet<AttractionImage> AttractionImages => Set<AttractionImage>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
+    public DbSet<AvailabilitySlot> AvailabilitySlots => Set<AvailabilitySlot>();
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<BookingItem> BookingItems => Set<BookingItem>();
     public DbSet<BookingStatusHistory> BookingStatusHistories => Set<BookingStatusHistory>();
-    public DbSet<Cancellation> Cancellations => Set<Cancellation>();
+    public DbSet<CancellationRequest> CancellationRequests => Set<CancellationRequest>();
     public DbSet<TravelAlert> TravelAlerts => Set<TravelAlert>();
     public DbSet<ValidationResult> ValidationResults => Set<ValidationResult>();
     public DbSet<ValidationIssue> ValidationIssues => Set<ValidationIssue>();
@@ -145,30 +146,99 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasOne(favorite => favorite.Attraction).WithMany(attraction => attraction.Favorites).HasForeignKey(favorite => favorite.AttractionId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<AvailabilitySlot>(entity =>
+        {
+            entity.HasKey(slot => slot.Id);
+            entity.Property(slot => slot.Id).ValueGeneratedOnAdd();
+            entity.Property(slot => slot.StartTime).IsRequired();
+            entity.Property(slot => slot.EndTime).IsRequired();
+            entity.Property(slot => slot.MaxCapacity).IsRequired();
+            entity.Property(slot => slot.BookedCapacity).IsRequired().HasDefaultValue(0);
+            entity.Property(slot => slot.PricePerPerson).HasPrecision(18, 2).IsRequired();
+            entity.Property(slot => slot.CreatedAt).IsRequired();
+            entity.Property(slot => slot.UpdatedAt).IsRequired();
+
+            entity.Property(slot => slot.RowVersion).IsRowVersion();
+
+            entity.HasIndex(slot => new { slot.AttractionId, slot.StartTime, slot.EndTime });
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_AvailabilitySlot_TimeRange", "\"StartTime\" < \"EndTime\"");
+                table.HasCheckConstraint("CK_AvailabilitySlot_Capacity_Valid", "\"BookedCapacity\" >= 0 AND \"BookedCapacity\" <= \"MaxCapacity\"");
+                table.HasCheckConstraint("CK_AvailabilitySlot_Price_NonNegative", "\"PricePerPerson\" >= 0");
+            });
+
+            entity.HasOne(slot => slot.Attraction)
+                .WithMany()
+                .HasForeignKey(slot => slot.AttractionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Booking>(entity =>
         {
             entity.HasKey(booking => booking.Id);
             entity.Property(booking => booking.Id).ValueGeneratedOnAdd();
-            entity.Property(booking => booking.Status).HasConversion<string>().IsRequired().HasMaxLength(30);
+            entity.Property(booking => booking.CurrentStatus).HasConversion<string>().IsRequired().HasMaxLength(30);
             entity.Property(booking => booking.TotalAmount).HasPrecision(18, 2).IsRequired();
+            entity.Property(booking => booking.QrCodeHash).HasMaxLength(256);
             entity.Property(booking => booking.CreatedAt).IsRequired();
             entity.Property(booking => booking.UpdatedAt).IsRequired();
-            entity.HasIndex(booking => booking.TouristId);
-            entity.HasIndex(booking => booking.Status);
-            entity.HasIndex(booking => booking.CreatedAt);
-            entity.HasOne(booking => booking.Tourist).WithMany().HasForeignKey(booking => booking.TouristId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasMany(booking => booking.Items).WithOne(item => item.Booking).HasForeignKey(item => item.BookingId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(booking => booking.StatusHistory).WithOne(history => history.Booking).HasForeignKey(history => history.BookingId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(booking => booking.Cancellation).WithOne(cancellation => cancellation.Booking).HasForeignKey<Cancellation>(cancellation => cancellation.BookingId).OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(booking => booking.UserId);
+            entity.HasIndex(booking => booking.TripId);
+            entity.HasIndex(booking => booking.CurrentStatus);
+            entity.HasIndex(booking => booking.QrCodeHash).IsUnique().HasFilter("\"QrCodeHash\" IS NOT NULL");
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_Booking_TotalAmount_NonNegative", "\"TotalAmount\" >= 0");
+            });
+
+            entity.HasOne(booking => booking.User)
+                .WithMany()
+                .HasForeignKey(booking => booking.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(booking => booking.Trip)
+                .WithMany()
+                .HasForeignKey(booking => booking.TripId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(booking => booking.Items)
+                .WithOne(item => item.Booking)
+                .HasForeignKey(item => item.BookingId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(booking => booking.StatusHistory)
+                .WithOne(history => history.Booking)
+                .HasForeignKey(history => history.BookingId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(booking => booking.CancellationRequests)
+                .WithOne(cr => cr.Booking)
+                .HasForeignKey(cr => cr.BookingId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<BookingItem>(entity =>
         {
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).ValueGeneratedOnAdd();
-            entity.Property(item => item.Quantity).IsRequired();
+            entity.Property(item => item.NumberOfGuests).IsRequired();
             entity.Property(item => item.UnitPrice).HasPrecision(18, 2).IsRequired();
-            entity.Property(item => item.Subtotal).HasPrecision(18, 2).IsRequired();
+            entity.Property(item => item.SubTotal).HasPrecision(18, 2).IsRequired();
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_BookingItem_Guests_Positive", "\"NumberOfGuests\" > 0");
+                table.HasCheckConstraint("CK_BookingItem_UnitPrice_NonNegative", "\"UnitPrice\" >= 0");
+                table.HasCheckConstraint("CK_BookingItem_SubTotal_NonNegative", "\"SubTotal\" >= 0");
+            });
+
+            entity.HasOne(item => item.AvailabilitySlot)
+                .WithMany(slot => slot.BookingItems)
+                .HasForeignKey(item => item.AvailabilitySlotId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<BookingStatusHistory>(entity =>
@@ -177,16 +247,37 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(history => history.Id).ValueGeneratedOnAdd();
             entity.Property(history => history.PreviousStatus).HasConversion<string>().IsRequired().HasMaxLength(30);
             entity.Property(history => history.NewStatus).HasConversion<string>().IsRequired().HasMaxLength(30);
-            entity.Property(history => history.Reason).HasMaxLength(500);
-            entity.Property(history => history.ChangedAt).IsRequired();
+            entity.Property(history => history.Reason).HasMaxLength(1000);
+            entity.Property(history => history.Timestamp).IsRequired();
+
+            entity.HasIndex(history => new { history.BookingId, history.Timestamp });
+
+            entity.HasOne(history => history.ChangedByUser)
+                .WithMany()
+                .HasForeignKey(history => history.ChangedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
-        modelBuilder.Entity<Cancellation>(entity =>
+        modelBuilder.Entity<CancellationRequest>(entity =>
         {
-            entity.HasKey(cancellation => cancellation.Id);
-            entity.Property(cancellation => cancellation.Id).ValueGeneratedOnAdd();
-            entity.Property(cancellation => cancellation.Reason).IsRequired().HasMaxLength(500);
-            entity.Property(cancellation => cancellation.CancelledAt).IsRequired();
+            entity.HasKey(cr => cr.Id);
+            entity.Property(cr => cr.Id).ValueGeneratedOnAdd();
+            entity.Property(cr => cr.Reason).IsRequired().HasMaxLength(1000);
+            entity.Property(cr => cr.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(cr => cr.RefundAmount).HasPrecision(18, 2);
+            entity.Property(cr => cr.RequestedAt).IsRequired();
+
+            entity.HasIndex(cr => new { cr.BookingId, cr.Status });
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_CancellationRequest_RefundAmount_NonNegative", "\"RefundAmount\" IS NULL OR \"RefundAmount\" >= 0");
+            });
+
+            entity.HasOne(cr => cr.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(cr => cr.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<TravelAlert>(entity =>

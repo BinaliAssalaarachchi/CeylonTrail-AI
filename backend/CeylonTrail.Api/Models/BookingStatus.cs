@@ -2,9 +2,10 @@ namespace CeylonTrail.Api.Models;
 
 public enum BookingStatus
 {
-    Pending,
+    Draft,
+    PendingAI,
+    PendingHumanApproval,
     Confirmed,
-    Completed,
-    Rejected,
-    Cancelled
+    Cancelled,
+    Rejected
 }
