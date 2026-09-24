@@ -49,6 +49,7 @@ builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IItineraryValidationService, ItineraryValidationService>();
 builder.Services.AddScoped<IApprovalRequestService, ApprovalRequestService>();
 builder.Services.AddScoped<ITravelIntelligenceExecutionPersistenceService, TravelIntelligenceExecutionPersistenceService>();
+builder.Services.AddScoped<ITravelIntelligenceExecutionQueryService, TravelIntelligenceExecutionQueryService>();
 builder.Services.Configure<TravelIntelligenceOptions>(
     builder.Configuration.GetSection(TravelIntelligenceOptions.SectionName));
 builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceService>((serviceProvider, client) =>

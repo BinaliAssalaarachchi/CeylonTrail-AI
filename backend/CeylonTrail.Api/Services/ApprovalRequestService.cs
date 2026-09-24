@@ -173,7 +173,7 @@ public sealed class ApprovalRequestService(ApplicationDbContext dbContext) : IAp
     private static ApprovalRecommendedAction ToModelAction(TravelIntelligenceAction action) =>
         (ApprovalRecommendedAction)action;
 
-    private static ApprovalRequestResponse ToResponse(
+    public static ApprovalRequestResponse ToResponseForRead(
         ApprovalRequest request,
         string? tripReference = null) => new()
     {
@@ -198,7 +198,10 @@ public sealed class ApprovalRequestService(ApplicationDbContext dbContext) : IAp
                 Comment = request.Decision.Comment,
                 DecidedAt = request.Decision.DecidedAt
             }
-    };
+        };
+
+    private static ApprovalRequestResponse ToResponse(ApprovalRequest request, string? tripReference = null) =>
+        ToResponseForRead(request, tripReference);
 
     private static List<string> SplitReferences(string? references) =>
         (references ?? string.Empty)

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CeylonTrail.Api.Controllers;
 using CeylonTrail.Api.DTOs.ApprovalRequests;
 using CeylonTrail.Api.DTOs.ItineraryValidations;
+using CeylonTrail.Api.DTOs.TravelIntelligence;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using Microsoft.AspNetCore.Http;
@@ -93,7 +94,8 @@ public sealed class ItineraryValidationsControllerTests
         var controller = new ItineraryValidationsController(
             validationService,
             intelligenceService,
-            persistenceService ?? new RecordingPersistenceService())
+            persistenceService ?? new RecordingPersistenceService(),
+            new RecordingExecutionQueryService())
         {
             ControllerContext = new ControllerContext
             {
@@ -166,5 +168,20 @@ public sealed class ItineraryValidationsControllerTests
                 null,
                 Guid.NewGuid(),
                 null));
+    }
+
+    private sealed class RecordingExecutionQueryService : ITravelIntelligenceExecutionQueryService
+    {
+        public Task<TravelIntelligenceExecutionPageResponse?> ListForOwnerAsync(Guid validationResultId, Guid ownerUserId, TravelIntelligenceExecutionQuery query, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TravelIntelligenceExecutionPageResponse?>(null);
+
+        public Task<TravelIntelligenceExecutionDetailResponse?> GetForOwnerAsync(Guid validationResultId, Guid executionId, Guid ownerUserId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TravelIntelligenceExecutionDetailResponse?>(null);
+
+        public Task<TravelIntelligenceExecutionPageResponse> ListForStaffAsync(TravelIntelligenceExecutionQuery query, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TravelIntelligenceExecutionPageResponse());
+
+        public Task<TravelIntelligenceExecutionDetailResponse?> GetForStaffAsync(Guid executionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TravelIntelligenceExecutionDetailResponse?>(null);
     }
 }

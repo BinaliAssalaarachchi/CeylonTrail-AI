@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CeylonTrail.Api.DTOs.ItineraryValidations;
+using CeylonTrail.Api.DTOs.TravelIntelligence;
 using CeylonTrail.Api.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,8 @@ namespace CeylonTrail.Api.Controllers;
 public sealed class ItineraryValidationsController(
     IItineraryValidationService validationService,
     ITravelIntelligenceService travelIntelligenceService,
-    ITravelIntelligenceExecutionPersistenceService executionPersistenceService) : ControllerBase
+    ITravelIntelligenceExecutionPersistenceService executionPersistenceService,
+    ITravelIntelligenceExecutionQueryService executionQueryService) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(ItineraryValidationResponse), StatusCodes.Status201Created)]
@@ -87,6 +89,28 @@ public sealed class ItineraryValidationsController(
         recommendation.ApprovalRequest = persistence.ApprovalRequest;
 
         return Ok(recommendation);
+    }
+
+    [HttpGet("{id:guid}/travel-intelligence/executions")]
+    public async Task<ActionResult<TravelIntelligenceExecutionPageResponse>> ListTravelIntelligenceExecutions(
+        Guid id,
+        [FromQuery] TravelIntelligenceExecutionQuery query,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetAuthenticatedUserId(out var userId)) return Unauthorized();
+        var result = await executionQueryService.ListForOwnerAsync(id, userId, query, cancellationToken);
+        return result is null ? NotFound(new { message = "Itinerary validation was not found." }) : Ok(result);
+    }
+
+    [HttpGet("{id:guid}/travel-intelligence/executions/{executionId:guid}")]
+    public async Task<ActionResult<TravelIntelligenceExecutionDetailResponse>> GetTravelIntelligenceExecution(
+        Guid id,
+        Guid executionId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetAuthenticatedUserId(out var userId)) return Unauthorized();
+        var result = await executionQueryService.GetForOwnerAsync(id, executionId, userId, cancellationToken);
+        return result is null ? NotFound(new { message = "Travel Intelligence execution was not found." }) : Ok(result);
     }
 
     private bool TryGetAuthenticatedUserId(out Guid userId) =>
