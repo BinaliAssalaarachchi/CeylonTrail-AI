@@ -730,6 +730,44 @@ h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.
 .approval-actions { display: grid; gap: 14px; margin-top: 28px; padding-top: 22px; border-top: 1px solid #edf3f0; }
 .approval-actions .modal-actions { justify-content: flex-end; }
 .non-actionable-notice { margin: 28px 0 0; padding: 13px 15px; border-radius: 8px; background: #f2f8f5; color: var(--color-ink-muted); font-size: 0.78rem; }
+.ai-filter-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.ai-filter-row .filter-field { min-width: 170px; }
+.ai-toolbar-count, .ai-execution-id { margin: 5px 0 0; color: var(--color-ink-muted); font-size: 0.75rem; }
+.ai-list-evidence { display: flex; flex-wrap: wrap; gap: 8px; color: var(--color-ink-muted); font-size: 0.7rem; }
+.ai-risk { padding: 3px 7px; border-radius: 999px; background: #eef5f2; color: var(--color-forest); }
+.risk-critical { background: #fff0ed; color: #a43b2d; }
+.risk-high { background: #fff7df; color: #8a6415; }
+.ai-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-top: 1px solid #edf3f0; color: var(--color-ink-muted); font-size: 0.75rem; }
+.ai-pagination button { border: 1px solid #dce9e4; border-radius: 7px; background: #fff; color: var(--color-forest); cursor: pointer; padding: 7px 10px; }
+.ai-pagination button:disabled { cursor: not-allowed; opacity: 0.45; }
+.ai-operations-feedback { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-detail-section { margin-top: 26px; padding-top: 20px; border-top: 1px solid #edf3f0; }
+.ai-detail-section > .eyebrow { margin-bottom: 12px; }
+.ai-empty-inline { margin: 0; color: var(--color-ink-muted); font-size: 0.82rem; }
+.ai-objective-card, .ai-recommendation-card, .ai-evidence-card, .ai-review-card { padding: 16px; border-radius: 10px; background: #f7faf8; }
+.ai-objective-card h3, .ai-recommendation-card h3 { margin: 0; color: var(--color-forest); }
+.ai-objective-card p, .ai-recommendation-card p { margin: 8px 0; color: var(--color-ink); line-height: 1.55; }
+.ai-objective-card span, .ai-recommendation-card span, .ai-evidence-card p { color: var(--color-ink-muted); font-size: 0.75rem; }
+.ai-step-list { display: grid; gap: 10px; }
+.ai-step { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 14px; border: 1px solid #dce9e4; border-radius: 10px; background: #fff; }
+.ai-step-number { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: var(--color-forest); color: #fff; font-weight: 700; }
+.ai-step-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-forest); }
+.ai-step p { margin: 6px 0; color: var(--color-ink); font-size: 0.82rem; }
+.ai-step small { color: var(--color-ink-muted); font-size: 0.72rem; }
+.ai-step-result { margin-top: 8px; padding: 8px 10px; border-left: 2px solid var(--color-tea); color: var(--color-ink-muted); font-size: 0.75rem; }
+.ai-item-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.ai-item-card { display: grid; gap: 6px; padding: 13px; border: 1px solid #dce9e4; border-radius: 9px; background: #fff; }
+.ai-item-card strong { color: var(--color-forest); font-size: 0.82rem; }
+.ai-item-card span, .ai-item-card small { color: var(--color-ink-muted); font-size: 0.73rem; line-height: 1.45; }
+.ai-recommendation-list { display: grid; gap: 8px; margin-top: 10px; }
+.ai-recommendation-list div { padding: 11px 13px; border-left: 3px solid var(--color-tea); background: #fff; }
+.ai-recommendation-list strong { color: var(--color-forest); font-size: 0.8rem; }
+.ai-recommendation-list p { margin: 5px 0 0; font-size: 0.78rem; }
+.ai-evidence-card > strong { display: block; color: var(--color-forest); line-height: 1.45; }
+.ai-evidence-card .approval-facts { margin: 15px 0 0; }
+.ai-evidence-card p { margin: 9px 0 0; }
+.ai-review-comment { margin: 14px 0 0; padding: 10px 12px; border-left: 3px solid var(--color-tea); color: var(--color-ink-muted); font-size: 0.82rem; }
+.ai-review-card .approval-actions { margin-top: 20px; }
 
 @media (max-width: 820px) {
   .ai-operations-page .page-header { align-items: flex-start; flex-direction: column; }
@@ -742,4 +780,7 @@ h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.
   .ai-status-filter { min-width: 0; }
   .approval-detail { padding: 20px; }
   .approval-detail-heading { align-items: flex-start; flex-direction: column; }
+  .ai-filter-row { display: grid; }
+  .ai-filter-row .filter-field { min-width: 0; }
+  .ai-operations-feedback { align-items: flex-start; flex-direction: column; }
 }
