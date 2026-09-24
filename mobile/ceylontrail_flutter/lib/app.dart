@@ -7,6 +7,9 @@ import 'views/home_page.dart';
 import 'views/bookings_page.dart';
 import 'views/login_page.dart';
 import 'views/module_placeholder_page.dart';
+import 'views/discover_page.dart';
+import 'views/attraction_detail_page.dart';
+import 'views/favorites_page.dart';
 import 'views/travel_alerts_page.dart';
 import 'views/trips_page.dart';
 import 'views/travel_safety_page.dart';
@@ -93,6 +96,10 @@ class CeylonTrailApp extends StatelessWidget {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(
+        path: '/favorites',
+        builder: (context, state) => const FavoritesPage(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             MobileShell(navigationShell: navigationShell),
@@ -118,12 +125,15 @@ class CeylonTrailApp extends StatelessWidget {
             routes: [
               GoRoute(
                 path: '/discover',
-                builder: (context, state) => const ModulePlaceholderPage(
-                  title: 'Discover',
-                  description:
-                      'Find places, experiences and stories that make Sri Lanka feel closer.',
-                  icon: Icons.explore_outlined,
-                ),
+                builder: (context, state) => const DiscoverPage(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) => AttractionDetailPage(
+                      id: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

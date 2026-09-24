@@ -33,6 +33,11 @@ export default function AppShell() {
   const roleLink = roleLinks[user.role]
   const canManageM4 = ['TravelCoordinator', 'Administrator'].includes(user.role)
   const canViewAdvisories = ['Tourist', 'TourismProvider'].includes(user.role)
+  const attractionRoute = user.role === 'TourismProvider'
+    ? '/provider/attractions'
+    : user.role === 'Administrator'
+      ? '/admin/attractions'
+      : null
 
   return (
     <div className="app-shell">
@@ -53,6 +58,11 @@ export default function AppShell() {
               <span>{module.label}</span>
             </NavLink>
           ))}
+          {attractionRoute && (
+            <NavLink className="nav-link" to={attractionRoute}>
+              <span className="nav-icon">AT</span><span>Discover / Attractions</span>
+            </NavLink>
+          )}
           {canViewAdvisories && (
             <NavLink className="nav-link" to="/travel-advisories">
               <span className="nav-icon">✣</span><span>Travel Advisories</span>
