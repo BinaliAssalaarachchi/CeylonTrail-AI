@@ -12,7 +12,7 @@ namespace CeylonTrail.Api.Controllers;
 public sealed class ItineraryValidationsController(
     IItineraryValidationService validationService,
     ITravelIntelligenceService travelIntelligenceService,
-    IApprovalRequestService approvalRequestService) : ControllerBase
+    ITravelIntelligenceExecutionPersistenceService executionPersistenceService) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(ItineraryValidationResponse), StatusCodes.Status201Created)]
@@ -72,22 +72,19 @@ public sealed class ItineraryValidationsController(
         }
 
         var recommendation = await travelIntelligenceService.AnalyzeAsync(validation, cancellationToken);
-        if (recommendation.RequiresHumanApproval)
+        var persistence = await executionPersistenceService.PersistAsync(
+            validation,
+            userId,
+            recommendation,
+            cancellationToken);
+        if (!persistence.Succeeded)
         {
-            var approval = await approvalRequestService.CreateOrReusePendingAsync(
-                validation.Id,
-                userId,
-                recommendation,
-                cancellationToken);
-            if (!approval.Succeeded)
-            {
-                return Problem(
-                    detail: approval.Error,
-                    statusCode: StatusCodes.Status500InternalServerError);
-            }
-
-            recommendation.ApprovalRequest = approval.Response;
+            return Problem(
+                detail: persistence.Error,
+                statusCode: StatusCodes.Status500InternalServerError);
         }
+
+        recommendation.ApprovalRequest = persistence.ApprovalRequest;
 
         return Ok(recommendation);
     }
