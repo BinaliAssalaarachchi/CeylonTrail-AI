@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'services/auth_service.dart';
+import 'services/trip_api_service.dart';
+import 'models/trip_model.dart';
 import 'theme/app_theme.dart';
 import 'views/home_page.dart';
 import 'views/bookings_page.dart';
 import 'views/login_page.dart';
-import 'views/module_placeholder_page.dart';
 import 'views/discover_page.dart';
 import 'views/attraction_detail_page.dart';
 import 'views/favorites_page.dart';
 import 'views/travel_alerts_page.dart';
+import 'views/my_trips_page.dart';
+import 'views/trip_details_page.dart';
+import 'views/trip_form_page.dart';
+import 'views/trip_preferences_page.dart';
+import 'views/itinerary_page.dart';
+import 'views/itinerary_day_page.dart';
 import 'widgets/auth_scope.dart';
 import 'widgets/brand_mark.dart';
 import 'widgets/mobile_shell.dart';
@@ -76,13 +83,14 @@ class ProfilePage extends StatelessWidget {
 }
 
 class CeylonTrailApp extends StatelessWidget {
-  CeylonTrailApp({required this.authService, super.key})
-    : _router = _createRouter(authService);
+  CeylonTrailApp({required this.authService, this.tripApiService, super.key})
+    : _router = _createRouter(authService, tripApiService);
 
   final AuthService authService;
+  final TripApiService? tripApiService;
   final GoRouter _router;
 
-  static GoRouter _createRouter(AuthService authService) => GoRouter(
+  static GoRouter _createRouter(AuthService authService, TripApiService? tripApiService) => GoRouter(
     initialLocation: '/login',
     refreshListenable: authService,
     redirect: (context, state) {
@@ -90,6 +98,7 @@ class CeylonTrailApp extends StatelessWidget {
       if (authService.status == AuthStatus.restoring) return null;
       if (!authService.isAuthenticated && !isLogin) return '/login';
       if (authService.isAuthenticated && isLogin) return '/';
+      if (state.matchedLocation.startsWith('/trips') && authService.user?.role != 'Tourist') return '/';
       return null;
     },
     routes: [
@@ -139,12 +148,25 @@ class CeylonTrailApp extends StatelessWidget {
             routes: [
               GoRoute(
                 path: '/trips',
-                builder: (context, state) => const ModulePlaceholderPage(
-                  title: 'Trips',
-                  description:
-                      'Your thoughtful itineraries will live here when the Trips feature arrives.',
-                  icon: Icons.route_outlined,
-                ),
+                builder: (context, state) => MyTripsPage(api: tripApiService!),
+                routes: [
+                  GoRoute(path: 'create', builder: (context, state) => TripFormPage(api: tripApiService!)),
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) => TripDetailsPage(api: tripApiService!, id: state.pathParameters['id']!),
+                    routes: [
+                      GoRoute(path: 'edit', builder: (context, state) => TripFormPage(api: tripApiService!, trip: state.extra as Trip?)),
+                      GoRoute(path: 'preferences', builder: (context, state) => TripPreferencesPage(api: tripApiService!, tripId: state.pathParameters['id']!)),
+                      GoRoute(
+                        path: 'itinerary',
+                        builder: (context, state) => ItineraryPage(api: tripApiService!, tripId: state.pathParameters['id']!),
+                        routes: [
+                          GoRoute(path: 'day/:dayNumber', builder: (context, state) => ItineraryDayPage(day: state.extra! as ItineraryDay)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
