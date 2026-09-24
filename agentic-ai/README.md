@@ -37,8 +37,10 @@ environment variables below are present:
 
 The provider returns only a proposed action, concise summary, and rationale.
 Deterministic validation, affected items, alternatives, safe windows, and
-approval requirements remain authoritative. Provider calls are bounded to four
-seconds with no automatic retries in this checkpoint. Tests do not require an
+approval requirements remain authoritative. Gemini provider requests are
+bounded to 10 seconds, while the ASP.NET outer Travel Intelligence request is
+configured for 20 seconds. There are no automatic retries; provider failure or
+timeout safely falls back to deterministic behavior. Tests do not require an
 API key or network access.
 Recommendations such as rescheduling, budget review, and conflict resolution
 remain advisory and require human approval when consequential.
