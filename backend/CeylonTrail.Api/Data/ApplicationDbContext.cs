@@ -23,6 +23,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
     public DbSet<ApprovalDecision> ApprovalDecisions => Set<ApprovalDecision>();
 
+    public DbSet<TravelIntelligenceExecution> TravelIntelligenceExecutions => Set<TravelIntelligenceExecution>();
+
+    public DbSet<TravelIntelligenceExecutionStep> TravelIntelligenceExecutionSteps => Set<TravelIntelligenceExecutionStep>();
+
     public DbSet<Trip> Trips => Set<Trip>();
 
     public DbSet<TripPreference> TripPreferences => Set<TripPreference>();
@@ -400,8 +404,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(request => request.ValidationResultId).IsRequired();
             entity.Property(request => request.CreatedAt).IsRequired();
             entity.Property(request => request.UpdatedAt).IsRequired();
+            entity.Property(request => request.TravelIntelligenceExecutionId);
             entity.HasIndex(request => new { request.Status, request.CreatedAt });
             entity.HasIndex(request => request.ValidationResultId);
+            entity.HasIndex(request => request.TravelIntelligenceExecutionId);
             entity.HasOne(request => request.ValidationResult)
                 .WithMany(validation => validation.ApprovalRequests)
                 .HasForeignKey(request => request.ValidationResultId)
@@ -410,6 +416,82 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany()
                 .HasForeignKey(request => request.RequestedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.TravelIntelligenceExecution)
+                .WithOne(execution => execution.ApprovalRequest)
+                .HasForeignKey<ApprovalRequest>(request => request.TravelIntelligenceExecutionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<TravelIntelligenceExecution>(entity =>
+        {
+            entity.HasKey(execution => execution.Id);
+            entity.Property(execution => execution.Id).ValueGeneratedOnAdd();
+            entity.Property(execution => execution.WorkflowId).IsRequired().HasMaxLength(100);
+            entity.Property(execution => execution.AgentName).IsRequired().HasMaxLength(150);
+            entity.Property(execution => execution.AgentVersion).IsRequired().HasMaxLength(50);
+            entity.Property(execution => execution.ObjectiveName).IsRequired().HasMaxLength(100);
+            entity.Property(execution => execution.ObjectiveDescription).IsRequired().HasMaxLength(500);
+            entity.Property(execution => execution.ObjectiveSource).IsRequired().HasMaxLength(50);
+            entity.Property(execution => execution.ExecutionStatus).IsRequired().HasMaxLength(30);
+            entity.Property(execution => execution.RiskLevel).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(execution => execution.IsFeasible).IsRequired();
+            entity.Property(execution => execution.RecommendedAction).HasConversion<string>().IsRequired().HasMaxLength(40);
+            entity.Property(execution => execution.Summary).IsRequired().HasMaxLength(2000);
+            entity.Property(execution => execution.RequiresHumanApproval).IsRequired();
+            entity.Property(execution => execution.Provider).IsRequired().HasMaxLength(120);
+            entity.Property(execution => execution.ProviderName).HasMaxLength(120);
+            entity.Property(execution => execution.ModelName).HasMaxLength(120);
+            entity.Property(execution => execution.ProviderAttempted).IsRequired();
+            entity.Property(execution => execution.ProviderSucceeded).IsRequired();
+            entity.Property(execution => execution.UsedFallback).IsRequired();
+            entity.Property(execution => execution.FallbackReason).HasMaxLength(300);
+            entity.Property(execution => execution.ProviderAttemptCount).IsRequired();
+            entity.Property(execution => execution.SelectedToolNamesJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(execution => execution.RejectedToolNamesJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(execution => execution.ToolSelectionProviderAttempted).IsRequired();
+            entity.Property(execution => execution.ToolSelectionFallbackUsed).IsRequired();
+            entity.Property(execution => execution.ToolSelectionFallbackReason).HasMaxLength(300);
+            entity.Property(execution => execution.SelectionAttemptCount).IsRequired();
+            entity.Property(execution => execution.RecommendationsJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(execution => execution.AffectedItemsJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(execution => execution.AlternativesJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(execution => execution.SafeWindowsJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(execution => execution.StartedAt).IsRequired();
+            entity.Property(execution => execution.DurationMs).IsRequired();
+            entity.Property(execution => execution.ResultSummary).IsRequired().HasMaxLength(500);
+            entity.Property(execution => execution.CreatedAt).IsRequired();
+            entity.HasIndex(execution => execution.WorkflowId).IsUnique();
+            entity.HasIndex(execution => new { execution.ValidationResultId, execution.StartedAt });
+            entity.HasIndex(execution => new { execution.RequestedByUserId, execution.StartedAt });
+            entity.HasIndex(execution => new { execution.ExecutionStatus, execution.StartedAt });
+            entity.HasOne(execution => execution.ValidationResult)
+                .WithMany(result => result.TravelIntelligenceExecutions)
+                .HasForeignKey(execution => execution.ValidationResultId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(execution => execution.RequestedByUser)
+                .WithMany(user => user.TravelIntelligenceExecutions)
+                .HasForeignKey(execution => execution.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(execution => execution.Steps)
+                .WithOne(step => step.TravelIntelligenceExecution)
+                .HasForeignKey(step => step.TravelIntelligenceExecutionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TravelIntelligenceExecutionStep>(entity =>
+        {
+            entity.HasKey(step => step.Id);
+            entity.Property(step => step.Id).ValueGeneratedOnAdd();
+            entity.Property(step => step.Sequence).IsRequired();
+            entity.Property(step => step.StepId).IsRequired().HasMaxLength(80);
+            entity.Property(step => step.Name).IsRequired().HasMaxLength(150);
+            entity.Property(step => step.Purpose).IsRequired().HasMaxLength(500);
+            entity.Property(step => step.PlannedToolName).HasMaxLength(80);
+            entity.Property(step => step.ExecutedToolName).HasMaxLength(80);
+            entity.Property(step => step.Status).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(step => step.ResultSummary).HasMaxLength(500);
+            entity.Property(step => step.CreatedAt).IsRequired();
+            entity.HasIndex(step => new { step.TravelIntelligenceExecutionId, step.Sequence }).IsUnique();
         });
 
         modelBuilder.Entity<ApprovalDecision>(entity =>

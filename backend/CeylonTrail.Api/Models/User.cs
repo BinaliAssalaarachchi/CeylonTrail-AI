@@ -21,4 +21,6 @@ public class User
     public DateTime UpdatedAt { get; set; }
 
     public ICollection<Trip> Trips { get; set; } = new List<Trip>();
+
+    public ICollection<TravelIntelligenceExecution> TravelIntelligenceExecutions { get; set; } = new List<TravelIntelligenceExecution>();
 }
