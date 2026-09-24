@@ -8,6 +8,8 @@ import 'views/bookings_page.dart';
 import 'views/login_page.dart';
 import 'views/module_placeholder_page.dart';
 import 'views/travel_alerts_page.dart';
+import 'views/trips_page.dart';
+import 'views/trip_detail_placeholder_page.dart';
 import 'widgets/auth_scope.dart';
 import 'widgets/brand_mark.dart';
 import 'widgets/mobile_shell.dart';
@@ -129,12 +131,15 @@ class CeylonTrailApp extends StatelessWidget {
             routes: [
               GoRoute(
                 path: '/trips',
-                builder: (context, state) => const ModulePlaceholderPage(
-                  title: 'Trips',
-                  description:
-                      'Your thoughtful itineraries will live here when the Trips feature arrives.',
-                  icon: Icons.route_outlined,
-                ),
+                builder: (context, state) => const TripsPage(),
+                routes: [
+                  GoRoute(
+                    path: ':tripId',
+                    builder: (context, state) => TripDetailPlaceholderPage(
+                      tripId: state.pathParameters['tripId']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
