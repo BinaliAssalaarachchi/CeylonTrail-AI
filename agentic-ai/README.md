@@ -90,6 +90,16 @@ The Planner uses Gemini structured JSON output followed by deterministic
 schema and trusted-context validation. ASP.NET calls it through
 `PlannerAgent:BaseUrl`, configured as `http://localhost:8002`.
 
+### Member 2: Destination Agent (`destination/`)
+
+The Destination Agent recommends only approved, active attractions supplied by
+ASP.NET's authoritative `IAttractionService`. It exposes `GET /health` and
+`POST /destination/recommend` on port 8003. Its controlled tools perform
+district, category, budget, and date/availability filtering and its final
+output is checked against the trusted source records. ASP.NET exposes the
+client-facing `POST /api/attractions/recommendations`; React and Flutter never
+call the Python service directly.
+
 ### Human approval workflow
 
 When ASP.NET receives a recommendation whose `RequiresHumanApproval` flag is
