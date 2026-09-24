@@ -39,9 +39,29 @@ class ApiClient {
       throw ApiException(_messageFor(error));
     }
   }
-    Future<Response<dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
+
+  Future<Response<dynamic>> get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
     try {
       return await _dio.get(path, queryParameters: queryParameters);
+    } on DioException catch (error) {
+      throw ApiException(_messageFor(error));
+    }
+  }
+
+  Future<Response<dynamic>> delete(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      return await _dio.delete(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+      );
     } on DioException catch (error) {
       throw ApiException(_messageFor(error));
     }

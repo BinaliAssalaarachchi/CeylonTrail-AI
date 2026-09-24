@@ -37,7 +37,7 @@ class HomePage extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: CeylonSpacing.lg),
-            _DiscoveryEntry(),
+            const _DiscoveryEntry(),
             const SizedBox(height: CeylonSpacing.lg),
             _HeroDestination(),
             const SizedBox(height: CeylonSpacing.xl),
@@ -66,11 +66,15 @@ class HomePage extends StatelessWidget {
 }
 
 class _DiscoveryEntry extends StatelessWidget {
+  const _DiscoveryEntry();
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'Search destinations and experiences. Discovery is coming soon.',
+    label: 'Search attractions and experiences',
     button: true,
-    child: Container(
+    child: InkWell(
+      borderRadius: BorderRadius.circular(CeylonRadii.field),
+      onTap: () => context.go('/discover'),
+      child: Container(
       padding: const EdgeInsets.symmetric(
         horizontal: CeylonSpacing.md,
         vertical: 14,
@@ -98,6 +102,7 @@ class _DiscoveryEntry extends StatelessWidget {
           ),
           const Icon(Icons.tune, color: CeylonColors.inkMuted, size: 20),
         ],
+      ),
       ),
     ),
   );
