@@ -3,13 +3,14 @@
 from fastapi import FastAPI, HTTPException
 
 from .agent import TravelIntelligenceAgent
+from .providers import create_recommendation_provider
 from .schemas import TravelRecommendationOutput, TravelValidationInput
 
 app = FastAPI(
     title="CeylonTrail Travel Intelligence Internal Service",
     version="1.0",
 )
-agent = TravelIntelligenceAgent()
+agent = TravelIntelligenceAgent(create_recommendation_provider())
 
 
 @app.get("/health")

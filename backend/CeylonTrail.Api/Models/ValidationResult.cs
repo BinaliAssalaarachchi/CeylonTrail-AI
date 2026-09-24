@@ -23,4 +23,6 @@ public class ValidationResult
     public ICollection<ValidationIssue> Issues { get; set; } = new List<ValidationIssue>();
 
     public ICollection<ApprovalRequest> ApprovalRequests { get; set; } = new List<ApprovalRequest>();
+
+    public ICollection<TravelIntelligenceExecution> TravelIntelligenceExecutions { get; set; } = new List<TravelIntelligenceExecution>();
 }
