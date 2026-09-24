@@ -74,7 +74,7 @@ Start it independently on port 8002:
 Configuration variables:
 
     GEMINI_API_KEY   Required for actual generation
-    PLANNER_MODEL    Optional Gemini model name; defaults to gemini-2.5-flash
+    PLANNER_MODEL    Optional Gemini model name; defaults to gemini-3.6-flash
 
 The Planner uses Gemini structured JSON output followed by deterministic
 schema and trusted-context validation. ASP.NET calls it through

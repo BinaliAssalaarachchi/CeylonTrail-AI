@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 import planner.api as planner_api
 from planner.agent import PlannerAgent
 from planner.providers import MissingPlannerProvider
+from planner.providers import PlannerProviderError
 
 
 client = TestClient(planner_api.app)
@@ -63,3 +64,17 @@ def test_invalid_request_is_validation_error():
     payload["endDate"] = "not-a-date"
     response = client.post("/planner/generate", json=payload)
     assert response.status_code == 422
+
+
+def test_upstream_unavailable_is_not_misreported_as_bad_gateway():
+    class UnavailableProvider:
+        def generate(self, request, system_prompt):
+            raise PlannerProviderError("upstream unavailable", retryable=False, status_code=503)
+
+    original = planner_api.planner_agent
+    planner_api.planner_agent = PlannerAgent(UnavailableProvider())
+    try:
+        response = client.post("/planner/generate", json=valid_payload())
+    finally:
+        planner_api.planner_agent = original
+    assert response.status_code == 503

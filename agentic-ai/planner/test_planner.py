@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 from decimal import Decimal
@@ -5,8 +6,8 @@ from decimal import Decimal
 from pydantic import ValidationError
 
 from planner.agent import DeterministicPlannerFixture, PlannerAgent, PlannerError, PlannerValidationError
-from planner.providers import MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, create_planner_provider
-from planner.schemas import PlannerInput
+from planner.providers import GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, _gemini_output_schema, create_planner_provider
+from planner.schemas import PlannerInput, PlannerOutput
 
 
 def request(**overrides):
@@ -44,6 +45,25 @@ class RecordingProvider:
         if self.responses:
             return self.responses.pop(0)
         return self.response
+
+
+class FakeGeminiResponse:
+    parsed = valid_output()
+    text = None
+
+
+class FakeGeminiModels:
+    def __init__(self):
+        self.calls = []
+
+    def generate_content(self, **kwargs):
+        self.calls.append(kwargs)
+        return FakeGeminiResponse()
+
+
+class FakeGeminiClient:
+    def __init__(self):
+        self.models = FakeGeminiModels()
 
 
 class PlannerTests(unittest.TestCase):
@@ -136,6 +156,51 @@ class PlannerTests(unittest.TestCase):
         finally:
             if old is not None:
                 os.environ["GEMINI_API_KEY"] = old
+
+    def test_gemini_provider_uses_configured_model_and_structured_schema(self):
+        old_key = os.environ.get("GEMINI_API_KEY")
+        old_model = os.environ.get("PLANNER_MODEL")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        os.environ["PLANNER_MODEL"] = "gemini-test-model"
+        try:
+            provider = create_planner_provider()
+            self.assertIsInstance(provider, GeminiPlannerModelProvider)
+            client = FakeGeminiClient()
+            provider._client = client
+            provider.generate(request(), "policy")
+            call = client.models.calls[0]
+            self.assertEqual(call["model"], "gemini-test-model")
+            self.assertEqual(call["config"]["response_mime_type"], "application/json")
+            self.assertEqual(call["config"]["response_json_schema"], _gemini_output_schema())
+            self.assertNotIn("exclusiveMinimum", str(call["config"]["response_json_schema"]))
+            self.assertEqual(call["config"]["automatic_function_calling"], {"disable": True})
+            self.assertNotIn("tools", call["config"])
+        finally:
+            if old_key is None:
+                os.environ.pop("GEMINI_API_KEY", None)
+            else:
+                os.environ["GEMINI_API_KEY"] = old_key
+            if old_model is None:
+                os.environ.pop("PLANNER_MODEL", None)
+            else:
+                os.environ["PLANNER_MODEL"] = old_model
+
+    def test_empty_sdk_parsed_value_falls_back_to_response_text(self):
+        class Response:
+            parsed = {}
+            text = json.dumps(valid_output())
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        result = provider.generate(request(), "policy")
+        self.assertEqual(result["status"], "Generated")
 
     def test_deterministic_fixture_is_explicitly_test_only(self):
         result = DeterministicPlannerFixture().generate(request())

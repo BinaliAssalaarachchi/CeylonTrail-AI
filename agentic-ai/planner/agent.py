@@ -23,9 +23,19 @@ from .schemas import (
 class PlannerError(RuntimeError):
     """Base error exposed by the Planner Agent."""
 
+    def __init__(self, message: str, *, stage: str = "planner", diagnostic_message: str | None = None, provider_exception_type: str | None = None, status_code: int | None = None):
+        super().__init__(message)
+        self.stage = stage
+        self.diagnostic_message = diagnostic_message or message
+        self.provider_exception_type = provider_exception_type or type(self).__name__
+        self.status_code = status_code
+
 
 class PlannerValidationError(PlannerError):
     """The model returned data that failed schema or trusted-context checks."""
+
+    def __init__(self, message: str, *, stage: str = "pydantic_validation", diagnostic_message: str | None = None):
+        super().__init__(message, stage=stage, diagnostic_message=diagnostic_message)
 
 
 class PlannerAgent:
@@ -49,17 +59,29 @@ class PlannerAgent:
             except PlannerProviderError as error:
                 if error.retryable and attempt + 1 < attempts:
                     continue
-                raise PlannerError("Planner model provider failed.") from error
+                raise PlannerError(
+                    "Planner model provider failed.",
+                    stage=error.stage,
+                    diagnostic_message=error.diagnostic_message,
+                    provider_exception_type=error.provider_exception_type,
+                    status_code=error.status_code,
+                ) from error
             except (ValidationError, TypeError, ValueError) as error:
                 if attempt + 1 < attempts:
                     continue
-                raise PlannerValidationError("Planner model output failed schema validation.") from error
+                raise PlannerValidationError(
+                    "Planner model output failed schema validation.",
+                    stage="pydantic_validation",
+                    diagnostic_message=str(error)[:500],
+                ) from error
 
             try:
                 return validate_planner_output(output, request)
             except ValueError as error:
                 raise PlannerValidationError(
-                    "Planner output failed deterministic validation."
+                    "Planner output failed deterministic validation.",
+                    stage="deterministic_validation",
+                    diagnostic_message=str(error)[:500],
                 ) from error
 
         raise PlannerError("Planner model provider failed.")
