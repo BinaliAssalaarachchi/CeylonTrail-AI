@@ -35,8 +35,10 @@ function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/discover" element={<DiscoverPage />} />
               <Route path="/bookings" element={<RoleDashboardPage title="Reservation & Booking Operations" description="Manage incoming reservations, accept or reject requests, and track status histories." />} />
-              <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />
-              <Route path="/trip-planning/:id" element={<ItineraryReviewPage />} />
+              <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
+                <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />
+                <Route path="/trip-planning/:id" element={<ItineraryReviewPage />} />
+              </Route>
               <Route path="/travel-alerts" element={<TravelAlertsPage />} />
               <Route path="/ai-operations" element={<AIOperationsPage />} />
 

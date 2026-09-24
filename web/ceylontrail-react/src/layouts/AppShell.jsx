@@ -7,7 +7,7 @@ const roleLinks = {
   Administrator: { label: 'Administrator workspace', to: '/administrator' },
 }
 
-const platformModules = [
+const _platformModules = [
   { label: 'Bookings', to: '/bookings', icon: '□' },
   { label: 'Trips & Itineraries', to: '/trip-planning', icon: '↗' },
   { label: 'Discover', to: '/discover', icon: '◉' },
@@ -24,16 +24,6 @@ export default function AppShell() {
   const roleLink = roleLinks[user.role]
   const canManageOperations = ['TravelCoordinator', 'Administrator'].includes(user.role)
   const attractionRoute = user.role === 'TourismProvider' ? '/provider/attractions' : user.role === 'Administrator' ? '/admin/attractions' : null
-  return <div className="app-shell"><aside className="sidebar" aria-label="Application navigation"><NavLink className="brand-link" to="/" aria-label="CeylonTrail home"><BrandMark /></NavLink><div className="workspace-note"><span className="workspace-note-label"><span className="signal-dot" /> Shared workspace</span><span>Travel intelligence for the CeylonTrail team.</span></div><nav className="primary-nav">
-    <NavLink className="nav-link" to="/"><span className="nav-icon">OV</span><span>Overview / Dashboard</span></NavLink>
-    {roleLink && <NavLink className="nav-link" to={roleLink.to}><span className="nav-icon">WS</span><span>{roleLink.label}</span></NavLink>}
-    {canManageOperations && <NavLink className="nav-link" to="/trip-planning"><span className="nav-icon">TR</span><span>Trip planning</span></NavLink>}
-    <div className="nav-divider" /><p className="nav-section-label">Platform modules</p>
-    <NavLink className="nav-link" to="/bookings"><span className="nav-icon">BK</span><span>Bookings</span></NavLink>
-    {canManageOperations && <><NavLink className="nav-link" to="/travel-alerts"><span className="nav-icon">OP</span><span>Travel Operations</span></NavLink><NavLink className="nav-link" to="/ai-operations"><span className="nav-icon">AI</span><span>AI Operations</span></NavLink></>}
-    {attractionRoute ? <NavLink className="nav-link" to={attractionRoute}><span className="nav-icon">AT</span><span>Discover / Attractions</span></NavLink> : <span className="nav-link nav-link-disabled" aria-disabled="true"><span className="nav-icon">AT</span><span>Discover</span></span>}
-  </nav><div className="sidebar-footer"><div className="protocol-note"><span className="protocol-icon">OK</span><span><strong>Shared foundation</strong><small>Feature workspaces will appear here.</small></span></div><small>Copyright 2025 CeylonTrail</small></div></aside><div className="shell-content"><header className="topbar"><div className="topbar-context"><span className="topbar-kicker">CeylonTrail AI</span><span className="topbar-separator">/</span><span>Workspace overview</span></div><div className="account-summary"><div className="account-copy"><strong>{user.firstName} {user.lastName}</strong><span>{user.role}</span></div><span className="avatar" aria-hidden="true">{user.firstName?.[0]}{user.lastName?.[0]}</span><button className="icon-button" type="button" onClick={logout} aria-label="Log out" title="Log out">OUT</button></div></header><main className="main-content"><Outlet /></main></div></div>
-
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Application navigation">
@@ -45,14 +35,11 @@ export default function AppShell() {
         <nav className="primary-nav">
           <NavLink className="nav-link" to="/"><span className="nav-icon">⌂</span><span>Overview / Dashboard</span></NavLink>
           {roleLink && <NavLink className="nav-link" to={roleLink.to}><span className="nav-icon">◇</span><span>{roleLink.label}</span></NavLink>}
-          <div className="nav-divider" />
-          <p className="nav-section-label">Platform modules</p>
-          {platformModules.map((module) => (
-            <NavLink className="nav-link" to={module.to} key={module.label}>
-              <span className="nav-icon">{module.icon}</span>
-              <span>{module.label}</span>
-            </NavLink>
-          ))}
+          {canManageOperations && <NavLink className="nav-link" to="/trip-planning"><span className="nav-icon">TR</span><span>Trip planning</span></NavLink>}
+          <div className="nav-divider" /><p className="nav-section-label">Platform modules</p>
+          <NavLink className="nav-link" to="/bookings"><span className="nav-icon">BK</span><span>Bookings</span></NavLink>
+          {canManageOperations && <><NavLink className="nav-link" to="/travel-alerts"><span className="nav-icon">OP</span><span>Travel Operations</span></NavLink><NavLink className="nav-link" to="/ai-operations"><span className="nav-icon">AI</span><span>AI Operations</span></NavLink></>}
+          {attractionRoute ? <NavLink className="nav-link" to={attractionRoute}><span className="nav-icon">AT</span><span>Discover / Attractions</span></NavLink> : <span className="nav-link nav-link-disabled" aria-disabled="true"><span className="nav-icon">AT</span><span>Discover</span></span>}
         </nav>
         <div className="sidebar-footer">
           <div className="protocol-note"><span className="protocol-icon">◬</span><span><strong>Shared platform</strong><small>All workspace modules unlocked.</small></span></div>

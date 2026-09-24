@@ -1,10 +1,5 @@
 import apiClient from './client'
 
-export async function getTouristTrips() {
-  const response = await apiClient.get('/api/trips')
-  return response.data
-}
-
 export async function getStaffTrips() {
   const response = await apiClient.get('/api/staff/trips')
   return response.data
