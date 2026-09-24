@@ -107,6 +107,95 @@ public sealed class TravelIntelligenceExecutionMetadata
     public string ExecutionStatus { get; set; } = string.Empty;
 
     public string? FallbackReason { get; set; }
+
+    public Guid WorkflowId { get; set; }
+
+    public TravelIntelligenceObjective Objective { get; set; } = new();
+
+    public TravelIntelligenceInvestigationPlan InvestigationPlan { get; set; } = new();
+
+    public List<TravelIntelligenceExecutedStep> ExecutedSteps { get; set; } = new();
+
+    public string? ExecutedStepId { get; set; }
+
+    public string? ExecutedToolName { get; set; }
+
+    public int DurationMs { get; set; }
+
+    public string ResultSummary { get; set; } = string.Empty;
+
+    public string? ModelName { get; set; }
+
+    public bool ProviderAttempted { get; set; }
+
+    public bool ProviderSucceeded { get; set; }
+
+    public string? ProviderName { get; set; }
+
+    public int? ProviderLatencyMs { get; set; }
+
+    public int ProviderAttemptCount { get; set; }
+
+    public bool ToolSelectionProviderAttempted { get; set; }
+
+    public List<string> SelectedToolNames { get; set; } = new();
+
+    public List<string> RejectedToolNames { get; set; } = new();
+
+    public bool ToolSelectionFallbackUsed { get; set; }
+
+    public string? ToolSelectionFallbackReason { get; set; }
+
+    public int SelectionAttemptCount { get; set; }
+}
+
+public sealed class TravelIntelligenceObjective
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string Source { get; set; } = string.Empty;
+}
+
+public sealed class TravelIntelligenceInvestigationPlan
+{
+    public List<TravelIntelligenceInvestigationStep> Steps { get; set; } = new();
+}
+
+public sealed class TravelIntelligenceInvestigationStep
+{
+    public string StepId { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Purpose { get; set; } = string.Empty;
+
+    public string? ToolName { get; set; }
+
+    public TravelIntelligenceStepStatus Status { get; set; }
+}
+
+public enum TravelIntelligenceStepStatus
+{
+    Pending,
+    Running,
+    Completed,
+    Failed,
+    Skipped
+}
+
+public sealed class TravelIntelligenceExecutedStep
+{
+    public string StepId { get; set; } = string.Empty;
+
+    public string? ToolName { get; set; }
+
+    public TravelIntelligenceStepStatus Status { get; set; }
+
+    public int DurationMs { get; set; }
+
+    public string ResultSummary { get; set; } = string.Empty;
 }
 
 public sealed class TravelIntelligenceItineraryItemRequest

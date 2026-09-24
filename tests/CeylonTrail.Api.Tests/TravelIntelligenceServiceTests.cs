@@ -222,6 +222,96 @@ public sealed class TravelIntelligenceServiceTests
     }
 
     [Fact]
+    public async Task AnalyzeAsync_DeserializesRichExecutionMetadata()
+    {
+        var validation = CreateValidation();
+        var workflowId = Guid.NewGuid();
+        var response = CreateAgentResponse(validation);
+        response.Execution = new TravelIntelligenceExecutionMetadata
+        {
+            AgentName = "TravelIntelligenceValidationAgent",
+            AgentVersion = "1.1",
+            ValidationResultId = validation.Id,
+            Provider = "gemini",
+            UsedFallback = false,
+            ExecutionStatus = "Completed",
+            WorkflowId = workflowId,
+            Objective = new TravelIntelligenceObjective
+            {
+                Name = "travel_intelligence_assessment",
+                Description = "Assess validated travel risks.",
+                Source = "system"
+            },
+            InvestigationPlan = new TravelIntelligenceInvestigationPlan
+            {
+                Steps =
+                [
+                    new TravelIntelligenceInvestigationStep
+                    {
+                        StepId = "review_validation",
+                        Name = "Review validation",
+                        Purpose = "Read authoritative validation state.",
+                        ToolName = "summarize_validation",
+                        Status = TravelIntelligenceStepStatus.Completed
+                    }
+                ]
+            },
+            ExecutedSteps =
+            [
+                new TravelIntelligenceExecutedStep
+                {
+                    StepId = "review_validation",
+                    ToolName = "summarize_validation",
+                    Status = TravelIntelligenceStepStatus.Completed,
+                    DurationMs = 12,
+                    ResultSummary = "Validation reviewed safely."
+                }
+            ],
+            ExecutedStepId = "review_validation",
+            ExecutedToolName = "summarize_validation",
+            DurationMs = 34,
+            ResultSummary = "Investigation completed.",
+            ModelName = "gemini-test",
+            ProviderAttempted = true,
+            ProviderSucceeded = true,
+            ProviderName = "gemini",
+            ProviderLatencyMs = 20,
+            ProviderAttemptCount = 1,
+            ToolSelectionProviderAttempted = true,
+            SelectedToolNames = ["summarize_validation"],
+            RejectedToolNames = ["delete_booking"],
+            ToolSelectionFallbackUsed = true,
+            ToolSelectionFallbackReason = "provider requested an unknown tool",
+            SelectionAttemptCount = 1
+        };
+        var service = CreateService(new RecordingHandler(_ => Task.FromResult(JsonResponse(response))));
+
+        var result = await service.AnalyzeAsync(validation);
+
+        Assert.Equal(workflowId, result.Execution.WorkflowId);
+        Assert.Equal("travel_intelligence_assessment", result.Execution.Objective.Name);
+        Assert.Equal("system", result.Execution.Objective.Source);
+        var planStep = Assert.Single(result.Execution.InvestigationPlan.Steps);
+        Assert.Equal("review_validation", planStep.StepId);
+        Assert.Equal("summarize_validation", planStep.ToolName);
+        var executedStep = Assert.Single(result.Execution.ExecutedSteps);
+        Assert.Equal(12, executedStep.DurationMs);
+        Assert.Equal("Validation reviewed safely.", executedStep.ResultSummary);
+        Assert.True(result.Execution.ProviderAttempted);
+        Assert.True(result.Execution.ProviderSucceeded);
+        Assert.Equal("gemini", result.Execution.ProviderName);
+        Assert.Equal("gemini-test", result.Execution.ModelName);
+        Assert.Equal(20, result.Execution.ProviderLatencyMs);
+        Assert.Equal(1, result.Execution.ProviderAttemptCount);
+        Assert.True(result.Execution.ToolSelectionProviderAttempted);
+        Assert.Equal(["summarize_validation"], result.Execution.SelectedToolNames);
+        Assert.Equal(["delete_booking"], result.Execution.RejectedToolNames);
+        Assert.True(result.Execution.ToolSelectionFallbackUsed);
+        Assert.Equal("provider requested an unknown tool", result.Execution.ToolSelectionFallbackReason);
+        Assert.Equal(1, result.Execution.SelectionAttemptCount);
+    }
+
+    [Fact]
     public async Task AnalyzeAsync_WhenResponseIsMalformed_ReturnsSafeFallback()
     {
         var validation = CreateValidation();
