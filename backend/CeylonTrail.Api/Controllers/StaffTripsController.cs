@@ -32,4 +32,18 @@ public sealed class StaffTripsController(ITripService tripService) : ControllerB
         var result = await tripService.GetStaffItineraryAsync(id, cancellationToken);
         return result.NotFound ? NotFound() : Ok(result.Value);
     }
+
+    [HttpGet("{id:guid}/itineraries")]
+    public async Task<ActionResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetItineraryHistory(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await tripService.GetStaffItineraryHistoryAsync(id, cancellationToken);
+        return result.NotFound ? NotFound() : Ok(result.Value);
+    }
+
+    [HttpGet("{id:guid}/itineraries/{itineraryId:guid}")]
+    public async Task<ActionResult<ItineraryResponse>> GetHistoricalItinerary(Guid id, Guid itineraryId, CancellationToken cancellationToken)
+    {
+        var result = await tripService.GetStaffItineraryAsync(id, itineraryId, cancellationToken);
+        return result.NotFound ? NotFound() : Ok(result.Value);
+    }
 }

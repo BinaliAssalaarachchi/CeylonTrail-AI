@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { getStaffTrip, getStaffTripItinerary } from '../api/trips'
+import { getStaffTrip, getStaffTripItinerary, getStaffTripItineraryHistory, getStaffTripItineraryVersion } from '../api/trips'
 import ItineraryReview from '../components/trip-planning/ItineraryReview'
 
 function formatDate(value) {
@@ -14,6 +14,7 @@ export default function ItineraryReviewPage() {
   const { id } = useParams()
   const [trip, setTrip] = useState(null)
   const [itinerary, setItinerary] = useState(null)
+  const [history, setHistory] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -30,6 +31,7 @@ export default function ItineraryReviewPage() {
           if (requestError.response?.status !== 404) throw requestError
           setItinerary(null)
         }
+        setHistory(await getStaffTripItineraryHistory(id))
       } catch {
         if (isCurrent) setError('This trip could not be loaded or is no longer available.')
       } finally {
@@ -53,7 +55,21 @@ export default function ItineraryReviewPage() {
       </div>
       {!itinerary ? (
         <div className="state-card state-empty"><strong>No generated itinerary is available for this trip yet.</strong><span>This screen will update when an itinerary is stored by the planning workflow.</span></div>
-      ) : <ItineraryReview itinerary={itinerary} />}
+      ) : (
+        <>
+          <ItineraryReview itinerary={itinerary} />
+          <section className="itinerary-history" aria-labelledby="history-title">
+            <h2 id="history-title">Previous versions</h2>
+            {history.length <= 1 ? <p className="muted">No previous itinerary versions are available.</p> : history.slice(1).map((version) => (
+              <button className="history-row" key={version.id} onClick={async () => setItinerary(await getStaffTripItineraryVersion(id, version.id))}>
+                <span>{formatDate(version.createdAt)}</span>
+                <span className="status-pill">{version.status}</span>
+                <span>Rs. {Number(version.totalEstimatedCost).toLocaleString('en-LK')}</span>
+              </button>
+            ))}
+          </section>
+        </>
+      )}
     </section>
   )
 }

@@ -5,6 +5,7 @@ import 'services/api_client.dart';
 import 'services/auth_api_service.dart';
 import 'services/auth_service.dart';
 import 'services/auth_storage.dart';
+import 'services/trip_api_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,5 +18,5 @@ Future<void> main() async {
   );
   await authService.restore();
 
-  runApp(CeylonTrailApp(authService: authService));
+  runApp(CeylonTrailApp(authService: authService, tripApiService: TripApiService(apiClient)));
 }

@@ -128,12 +128,47 @@ public sealed class TripsController(
         return result.NotFound ? NotFound() : Ok(result.Value);
     }
 
-    [HttpGet("{id:guid}/travel-intelligence/latest")]
-    [ProducesResponseType(typeof(TouristTravelIntelligenceOutcomeResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<TouristTravelIntelligenceOutcomeResponse>> GetLatestTravelIntelligence(
+    [HttpPost("{id:guid}/generate-itinerary")]
+    public async Task<ActionResult<ItineraryResponse>> GenerateItinerary(
         Guid id,
         CancellationToken cancellationToken)
+    {
+        if (!TryGetTouristId(out var touristId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await tripService.GenerateItineraryAsync(
+            touristId,
+            id,
+            cancellationToken);
+        if (result.NotFound)
+        {
+            return NotFound();
+        }
+
+        return result.ServiceUnavailable
+            ? StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new
+                {
+                    message =
+                        "Planner service is temporarily unavailable. Please try again."
+                })
+            : result.Error is not null
+                ? BadRequest(new { message = result.Error })
+                : Ok(result.Value);
+    }
+
+    [HttpGet("{id:guid}/travel-intelligence/latest")]
+    [ProducesResponseType(
+        typeof(TouristTravelIntelligenceOutcomeResponse),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TouristTravelIntelligenceOutcomeResponse>>
+        GetLatestTravelIntelligence(
+            Guid id,
+            CancellationToken cancellationToken)
     {
         if (!TryGetTouristId(out var touristId))
         {
@@ -144,9 +179,57 @@ public sealed class TripsController(
             touristId,
             id,
             cancellationToken);
+
         return result is null
-            ? NotFound(new { message = "No Travel Intelligence assessment was found for this trip." })
+            ? NotFound(new
+            {
+                message =
+                    "No Travel Intelligence assessment was found for this trip."
+            })
             : Ok(result);
+    }
+
+    [HttpGet("{id:guid}/itineraries")]
+    public async Task<ActionResult<IReadOnlyList<ItineraryHistoryItemResponse>>>
+        GetItineraryHistory(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        if (!TryGetTouristId(out var touristId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await tripService.GetItineraryHistoryAsync(
+            touristId,
+            id,
+            cancellationToken);
+
+        return result.NotFound
+            ? NotFound()
+            : Ok(result.Value);
+    }
+
+    [HttpGet("{id:guid}/itineraries/{itineraryId:guid}")]
+    public async Task<ActionResult<ItineraryResponse>> GetHistoricalItinerary(
+        Guid id,
+        Guid itineraryId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetTouristId(out var touristId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await tripService.GetItineraryAsync(
+            touristId,
+            id,
+            itineraryId,
+            cancellationToken);
+
+        return result.NotFound
+            ? NotFound()
+            : Ok(result.Value);
     }
 
     private bool TryGetTouristId(out Guid touristId) =>

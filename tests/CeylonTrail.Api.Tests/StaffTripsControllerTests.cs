@@ -65,6 +65,12 @@ public sealed class StaffTripsControllerTests
         public Task<TripServiceResult<ItineraryResponse>> GetStaffItineraryAsync(Guid tripId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new TripServiceResult<ItineraryResponse>(NotFound: true));
 
+        public Task<TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetStaffItineraryHistoryAsync(Guid tripId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>(NotFound: true));
+
+        public Task<TripServiceResult<ItineraryResponse>> GetStaffItineraryAsync(Guid tripId, Guid itineraryId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TripServiceResult<ItineraryResponse>(NotFound: true));
+
         public Task<TripServiceResult<TripResponse>> CreateTripAsync(Guid touristId, CreateTripRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new TripServiceResult<TripResponse>(Error: "Not used in this test."));
 
@@ -93,6 +99,15 @@ public sealed class StaffTripsControllerTests
         }
 
         public Task<TripServiceResult<ItineraryResponse>> GetLatestItineraryAsync(Guid touristId, Guid tripId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TripServiceResult<ItineraryResponse>(NotFound: true));
+
+        public Task<TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetItineraryHistoryAsync(Guid touristId, Guid tripId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>(NotFound: true));
+
+        public Task<TripServiceResult<ItineraryResponse>> GetItineraryAsync(Guid touristId, Guid tripId, Guid itineraryId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TripServiceResult<ItineraryResponse>(NotFound: true));
+
+        public Task<TripServiceResult<ItineraryResponse>> GenerateItineraryAsync(Guid touristId, Guid tripId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new TripServiceResult<ItineraryResponse>(NotFound: true));
     }
 }

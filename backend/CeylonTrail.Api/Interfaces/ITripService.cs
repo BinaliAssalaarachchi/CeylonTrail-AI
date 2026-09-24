@@ -5,7 +5,8 @@ namespace CeylonTrail.Api.Interfaces;
 public sealed record TripServiceResult<T>(
     T? Value = default,
     string? Error = null,
-    bool NotFound = false);
+    bool NotFound = false,
+    bool ServiceUnavailable = false);
 
 public interface ITripService
 {
@@ -45,6 +46,22 @@ public interface ITripService
         Guid tripId,
         CancellationToken cancellationToken = default);
 
+    Task<TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetItineraryHistoryAsync(
+        Guid touristId,
+        Guid tripId,
+        CancellationToken cancellationToken = default);
+
+    Task<TripServiceResult<ItineraryResponse>> GetItineraryAsync(
+        Guid touristId,
+        Guid tripId,
+        Guid itineraryId,
+        CancellationToken cancellationToken = default);
+
+    Task<TripServiceResult<ItineraryResponse>> GenerateItineraryAsync(
+        Guid touristId,
+        Guid tripId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<StaffTripResponse>> GetStaffTripsAsync(
         CancellationToken cancellationToken = default);
 
@@ -54,5 +71,14 @@ public interface ITripService
 
     Task<TripServiceResult<ItineraryResponse>> GetStaffItineraryAsync(
         Guid tripId,
+        CancellationToken cancellationToken = default);
+
+    Task<TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetStaffItineraryHistoryAsync(
+        Guid tripId,
+        CancellationToken cancellationToken = default);
+
+    Task<TripServiceResult<ItineraryResponse>> GetStaffItineraryAsync(
+        Guid tripId,
+        Guid itineraryId,
         CancellationToken cancellationToken = default);
 }

@@ -53,6 +53,8 @@ builder.Services.AddScoped<ITravelIntelligenceExecutionQueryService, TravelIntel
 builder.Services.AddScoped<ITouristTravelIntelligenceOutcomeService, TouristTravelIntelligenceOutcomeService>();
 builder.Services.Configure<TravelIntelligenceOptions>(
     builder.Configuration.GetSection(TravelIntelligenceOptions.SectionName));
+builder.Services.Configure<PlannerAgentOptions>(
+    builder.Configuration.GetSection(PlannerAgentOptions.SectionName));
 builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceService>((serviceProvider, client) =>
 {
     var options = serviceProvider
@@ -60,6 +62,14 @@ builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceSer
         .Value;
     client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 20);
+});
+builder.Services.AddHttpClient<IPlannerAgentService, PlannerAgentService>((serviceProvider, client) =>
+{
+    var options = serviceProvider
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<PlannerAgentOptions>>()
+        .Value;
+    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 15);
 });
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

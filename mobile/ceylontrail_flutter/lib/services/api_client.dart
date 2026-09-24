@@ -52,6 +52,14 @@ class ApiClient {
     }
   }
 
+  Future<Response<dynamic>> put(String path, {Object? data}) async {
+    try {
+      return await _dio.put(path, data: data);
+    } on DioException catch (error) {
+      throw ApiException(_messageFor(error), statusCode: error.response?.statusCode);
+    }
+  }
+
   Future<Response<dynamic>> delete(
     String path, {
     Object? data,
@@ -64,7 +72,7 @@ class ApiClient {
         queryParameters: queryParameters,
       );
     } on DioException catch (error) {
-      throw ApiException(_messageFor(error));
+      throw ApiException(_messageFor(error), statusCode: error.response?.statusCode);
     }
   }
 
@@ -75,6 +83,10 @@ class ApiClient {
       return responseMessage;
     }
     if (error.response?.statusCode == 401) return 'Invalid email or password.';
+    if (error.response?.statusCode == 403) return 'You do not have access to this feature.';
+    if (error.response?.statusCode == 404) return 'The requested item could not be found.';
+    if (error.response?.statusCode == 400) return 'Please check the information and try again.';
+    if (error.response?.statusCode == 503) return 'Planner service is temporarily unavailable. Please try again.';
     if (error.type == DioExceptionType.connectionError ||
         error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {

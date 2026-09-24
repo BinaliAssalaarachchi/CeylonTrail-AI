@@ -41,12 +41,14 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: CeylonSpacing.lg),
             _HeroDestination(),
             const SizedBox(height: CeylonSpacing.xl),
-            _SectionHeading(
-              title: 'Plan with intention',
-              actionLabel: 'Coming soon',
-            ),
-            const SizedBox(height: CeylonSpacing.md),
-            _PlannerCard(),
+            if (user.role == 'Tourist') ...[
+              _SectionHeading(
+                title: 'Plan with intention',
+                actionLabel: 'My trips',
+              ),
+              const SizedBox(height: CeylonSpacing.md),
+              _PlannerCard(),
+            ],
             const SizedBox(height: CeylonSpacing.md),
             const _BookingsEntry(),
             const SizedBox(height: CeylonSpacing.md),
@@ -175,7 +177,10 @@ class _HeroDestination extends StatelessWidget {
 
 class _PlannerCard extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => InkWell(
+    borderRadius: BorderRadius.circular(CeylonRadii.card),
+    onTap: () => context.go('/trips'),
+    child: Container(
     padding: const EdgeInsets.all(CeylonSpacing.lg),
     decoration: BoxDecoration(
       color: CeylonColors.forest,
@@ -205,7 +210,7 @@ class _PlannerCard extends StatelessWidget {
               ),
               const SizedBox(height: CeylonSpacing.md),
               Text(
-                'COMING IN A FUTURE FEATURE PHASE',
+                'OPEN MY TRIPS',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: CeylonColors.mint,
                   fontWeight: FontWeight.w800,
@@ -217,6 +222,7 @@ class _PlannerCard extends StatelessWidget {
         ),
       ],
     ),
+  ),
   );
 }
 

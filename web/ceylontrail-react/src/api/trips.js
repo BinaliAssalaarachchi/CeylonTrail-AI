@@ -1,10 +1,5 @@
 import apiClient from './client'
 
-export async function getTouristTrips() {
-  const response = await apiClient.get('/api/trips')
-  return response.data
-}
-
 export async function getStaffTrips() {
   const response = await apiClient.get('/api/staff/trips')
   return response.data
@@ -17,6 +12,16 @@ export async function getStaffTrip(id) {
 
 export async function getStaffTripItinerary(id) {
   const response = await apiClient.get(`/api/staff/trips/${id}/itinerary`)
+  return response.data
+}
+
+export async function getStaffTripItineraryHistory(id) {
+  const response = await apiClient.get(`/api/staff/trips/${id}/itineraries`)
+  return response.data
+}
+
+export async function getStaffTripItineraryVersion(id, itineraryId) {
+  const response = await apiClient.get(`/api/staff/trips/${id}/itineraries/${itineraryId}`)
   return response.data
 }
 

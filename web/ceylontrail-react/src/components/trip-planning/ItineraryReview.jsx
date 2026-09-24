@@ -9,11 +9,15 @@ function formatTime(value) {
   return value?.slice(0, 5) ?? '—'
 }
 
+function statusClass(status = '') {
+  return `status-pill status-${status.toLowerCase()}`
+}
+
 export default function ItineraryReview({ itinerary }) {
   return (
     <div className="itinerary-review">
       <div className="itinerary-summary-grid">
-        <div><span>Status</span><strong className="status-pill status-active">{itinerary.status}</strong></div>
+        <div><span>Status</span><strong className={statusClass(itinerary.status)}>{itinerary.status}</strong></div>
         <div><span>Estimated cost</span><strong>Rs. {Number(itinerary.totalEstimatedCost).toLocaleString('en-LK')}</strong></div>
         <div><span>Generated</span><strong>{formatDate(itinerary.createdAt)}</strong></div>
         <div><span>Last updated</span><strong>{formatDate(itinerary.updatedAt)}</strong></div>

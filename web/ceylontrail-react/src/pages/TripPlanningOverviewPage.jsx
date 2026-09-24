@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { getStaffTrips, getTouristTrips } from '../api/trips'
-import { useAuth } from '../context/useAuth'
+import { getStaffTrips } from '../api/trips'
 import TripPlanningStats from '../components/trip-planning/TripPlanningStats'
 
 function formatDate(value) {
@@ -17,17 +16,12 @@ function statusClass(status = 'Draft') {
 }
 
 export default function TripPlanningOverviewPage() {
-  const { user } = useAuth()
-  const isTourist = user?.role === 'Tourist'
-
   const [trips, setTrips] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     let isCurrent = true
-    const loader = isTourist ? getTouristTrips : getStaffTrips
-    loader()
+    getStaffTrips()
       .then((data) => {
         if (isCurrent) setTrips(Array.isArray(data) ? data : [])
       })
@@ -39,7 +33,7 @@ export default function TripPlanningOverviewPage() {
       })
 
     return () => { isCurrent = false }
-  }, [isTourist])
+  }, [])
 
   return (
     <section className="workspace-page trip-planning-page" aria-labelledby="trip-planning-title">
@@ -49,7 +43,6 @@ export default function TripPlanningOverviewPage() {
         <p className="lead">Monitor tourist journeys and review stored itineraries as they move from a draft plan to a completed experience.</p>
       </div>
 
-      {error && <div className="state-card state-error" role="alert">{error}</div>}
       {isLoading ? (
         <div className="state-card">Loading trip-planning data…</div>
       ) : (
