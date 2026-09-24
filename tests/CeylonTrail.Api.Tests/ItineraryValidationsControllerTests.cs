@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CeylonTrail.Api.Controllers;
 using CeylonTrail.Api.DTOs.ApprovalRequests;
 using CeylonTrail.Api.DTOs.ItineraryValidations;
+using CeylonTrail.Api.DTOs.TravelIntelligence;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using Microsoft.AspNetCore.Http;
@@ -56,15 +57,45 @@ public sealed class ItineraryValidationsControllerTests
         Assert.IsType<NotFoundObjectResult>(result.Result);
     }
 
+    [Fact]
+    public async Task AnalyzeWithTravelIntelligence_WhenPersistenceFails_ReturnsServerErrorWithoutRetryingAnalysis()
+    {
+        var userId = Guid.NewGuid();
+        var validation = new ItineraryValidationResponse
+        {
+            Id = Guid.NewGuid(),
+            OverallStatus = ValidationOverallStatus.Valid,
+            RiskLevel = ValidationRiskLevel.Low,
+            IsFeasible = true
+        };
+        var intelligenceService = new RecordingIntelligenceService();
+        var controller = CreateController(
+            new RecordingValidationService(validation),
+            intelligenceService,
+            userId,
+            new RecordingPersistenceService(
+                TravelIntelligenceExecutionPersistenceResult.Failure("persistence failed")));
+
+        var result = await controller.AnalyzeWithTravelIntelligence(
+            validation.Id,
+            CancellationToken.None);
+
+        var error = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status500InternalServerError, error.StatusCode);
+        Assert.Equal(1, intelligenceService.CallCount);
+    }
+
     private static ItineraryValidationsController CreateController(
         IItineraryValidationService validationService,
         ITravelIntelligenceService intelligenceService,
-        Guid userId)
+        Guid userId,
+        ITravelIntelligenceExecutionPersistenceService? persistenceService = null)
     {
         var controller = new ItineraryValidationsController(
             validationService,
             intelligenceService,
-            new RecordingApprovalService())
+            persistenceService ?? new RecordingPersistenceService(),
+            new RecordingExecutionQueryService())
         {
             ControllerContext = new ControllerContext
             {
@@ -104,10 +135,13 @@ public sealed class ItineraryValidationsControllerTests
     {
         public ItineraryValidationResponse? ReceivedValidation { get; private set; }
 
+        public int CallCount { get; private set; }
+
         public Task<TravelIntelligenceResponse> AnalyzeAsync(
             ItineraryValidationResponse validation,
             CancellationToken cancellationToken = default)
         {
+            CallCount++;
             ReceivedValidation = validation;
             return Task.FromResult(new TravelIntelligenceResponse
             {
@@ -120,31 +154,34 @@ public sealed class ItineraryValidationsControllerTests
         }
     }
 
-    private sealed class RecordingApprovalService : IApprovalRequestService
+    private sealed class RecordingPersistenceService(
+        TravelIntelligenceExecutionPersistenceResult? result = null)
+        : ITravelIntelligenceExecutionPersistenceService
     {
-        public Task<(bool Succeeded, string? Error, ApprovalRequestResponse? Response)> CreateOrReusePendingAsync(
-            Guid validationResultId,
+        public Task<TravelIntelligenceExecutionPersistenceResult> PersistAsync(
+            ItineraryValidationResponse validation,
             Guid requestedByUserId,
             TravelIntelligenceResponse recommendation,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<(bool, string?, ApprovalRequestResponse?)>((true, null, null));
+            Task.FromResult(result ?? new TravelIntelligenceExecutionPersistenceResult(
+                true,
+                null,
+                Guid.NewGuid(),
+                null));
+    }
 
-        public Task<IReadOnlyList<ApprovalRequestResponse>> ListAsync(
-            ApprovalRequestStatus? status,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ApprovalRequestResponse>>(Array.Empty<ApprovalRequestResponse>());
+    private sealed class RecordingExecutionQueryService : ITravelIntelligenceExecutionQueryService
+    {
+        public Task<TravelIntelligenceExecutionPageResponse?> ListForOwnerAsync(Guid validationResultId, Guid ownerUserId, TravelIntelligenceExecutionQuery query, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TravelIntelligenceExecutionPageResponse?>(null);
 
-        public Task<ApprovalRequestResponse?> GetByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<ApprovalRequestResponse?>(null);
+        public Task<TravelIntelligenceExecutionDetailResponse?> GetForOwnerAsync(Guid validationResultId, Guid executionId, Guid ownerUserId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TravelIntelligenceExecutionDetailResponse?>(null);
 
-        public Task<(bool Succeeded, string? Error, ApprovalRequestResponse? Response)> DecideAsync(
-            Guid id,
-            Guid decidedByUserId,
-            ApprovalDecisionType decision,
-            string? comment,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<(bool, string?, ApprovalRequestResponse?)>((false, "Not implemented.", null));
+        public Task<TravelIntelligenceExecutionPageResponse> ListForStaffAsync(TravelIntelligenceExecutionQuery query, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TravelIntelligenceExecutionPageResponse());
+
+        public Task<TravelIntelligenceExecutionDetailResponse?> GetForStaffAsync(Guid executionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TravelIntelligenceExecutionDetailResponse?>(null);
     }
 }

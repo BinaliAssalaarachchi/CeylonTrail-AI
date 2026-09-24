@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CeylonTrail.Api.DTOs.TravelIntelligence;
 using CeylonTrail.Api.DTOs.Trips;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
@@ -10,7 +11,9 @@ namespace CeylonTrail.Api.Controllers;
 [ApiController]
 [Route("api/trips")]
 [Authorize(Roles = nameof(UserRole.Tourist))]
-public sealed class TripsController(ITripService tripService) : ControllerBase
+public sealed class TripsController(
+    ITripService tripService,
+    ITouristTravelIntelligenceOutcomeService travelIntelligenceOutcomeService) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<TripResponse>> Create(
@@ -127,6 +130,10 @@ public sealed class TripsController(ITripService tripService) : ControllerBase
 
     [HttpPost("{id:guid}/generate-itinerary")]
     public async Task<ActionResult<ItineraryResponse>> GenerateItinerary(
+    [HttpGet("{id:guid}/travel-intelligence/latest")]
+    [ProducesResponseType(typeof(TouristTravelIntelligenceOutcomeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TouristTravelIntelligenceOutcomeResponse>> GetLatestTravelIntelligence(
         Guid id,
         CancellationToken cancellationToken)
     {
@@ -162,6 +169,13 @@ public sealed class TripsController(ITripService tripService) : ControllerBase
         if (!TryGetTouristId(out var touristId)) return Unauthorized();
         var result = await tripService.GetItineraryAsync(touristId, id, itineraryId, cancellationToken);
         return result.NotFound ? NotFound() : Ok(result.Value);
+        var result = await travelIntelligenceOutcomeService.GetLatestAsync(
+            touristId,
+            id,
+            cancellationToken);
+        return result is null
+            ? NotFound(new { message = "No Travel Intelligence assessment was found for this trip." })
+            : Ok(result);
     }
 
     private bool TryGetTouristId(out Guid touristId) =>

@@ -8,6 +8,10 @@ public class ApprovalRequest
 
     public ValidationResult? ValidationResult { get; set; }
 
+    public Guid? TravelIntelligenceExecutionId { get; set; }
+
+    public TravelIntelligenceExecution? TravelIntelligenceExecution { get; set; }
+
     public Guid RequestedByUserId { get; set; }
 
     public User? RequestedByUser { get; set; }

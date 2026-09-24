@@ -11,12 +11,21 @@ const _platformModules = [
   { label: 'Bookings', to: '/bookings', icon: '□' },
   { label: 'Trips & Itineraries', to: '/trip-planning', icon: '↗' },
   { label: 'Discover', to: '/discover', icon: '◉' },
-  { label: 'Travel Operations', to: '/travel-alerts', icon: '✣' },
-  { label: 'AI Operations', to: '/ai-operations', icon: '✦' },
 ]
 
 function BrandMark() {
-  return <div className="brand-lockup"><svg className="brand-mark" viewBox="0 0 80 80" aria-hidden="true"><path className="brand-leaf" d="M40 70C17 61 10 39 20 12c24 4 37 19 33 38-2 9-7 15-13 20Z" /><path className="brand-leaf-vein" d="M25 20c10 13 16 28 16 45" /></svg><span className="brand-copy"><span className="brand-name">CeylonTrail</span><span className="brand-subtitle">Intelligence platform</span></span></div>
+  return (
+    <div className="brand-lockup">
+      <svg className="brand-mark" viewBox="0 0 80 80" aria-hidden="true">
+        <path className="brand-leaf" d="M40 70C17 61 10 39 20 12c24 4 37 19 33 38-2 9-7 15-13 20Z" />
+        <path className="brand-leaf-vein" d="M25 20c10 13 16 28 16 45" />
+      </svg>
+      <span className="brand-copy">
+        <span className="brand-name">CeylonTrail</span>
+        <span className="brand-subtitle">Intelligence platform</span>
+      </span>
+    </div>
+  )
 }
 
 export default function AppShell() {

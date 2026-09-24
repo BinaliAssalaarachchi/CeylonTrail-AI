@@ -48,6 +48,9 @@ builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IItineraryValidationService, ItineraryValidationService>();
 builder.Services.AddScoped<IApprovalRequestService, ApprovalRequestService>();
+builder.Services.AddScoped<ITravelIntelligenceExecutionPersistenceService, TravelIntelligenceExecutionPersistenceService>();
+builder.Services.AddScoped<ITravelIntelligenceExecutionQueryService, TravelIntelligenceExecutionQueryService>();
+builder.Services.AddScoped<ITouristTravelIntelligenceOutcomeService, TouristTravelIntelligenceOutcomeService>();
 builder.Services.Configure<TravelIntelligenceOptions>(
     builder.Configuration.GetSection(TravelIntelligenceOptions.SectionName));
 builder.Services.Configure<PlannerAgentOptions>(
@@ -58,7 +61,7 @@ builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceSer
         .GetRequiredService<Microsoft.Extensions.Options.IOptions<TravelIntelligenceOptions>>()
         .Value;
     client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 10);
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 20);
 });
 builder.Services.AddHttpClient<IPlannerAgentService, PlannerAgentService>((serviceProvider, client) =>
 {
@@ -100,7 +103,7 @@ if (builder.Environment.IsDevelopment())
     {
         options.AddPolicy("ReactDevelopment", policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
+            policy.WithOrigins("http://localhost:5173", "http://localhost:5174")
                 .AllowAnyHeader()
                 .AllowAnyMethod();
         });
