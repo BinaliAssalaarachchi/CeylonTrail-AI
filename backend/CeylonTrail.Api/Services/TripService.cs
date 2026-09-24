@@ -1,4 +1,6 @@
 using CeylonTrail.Api.Data;
+using CeylonTrail.Api.DTOs.Attractions;
+using CeylonTrail.Api.DTOs.Planner;
 using CeylonTrail.Api.DTOs.Trips;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
@@ -6,7 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CeylonTrail.Api.Services;
 
-public sealed class TripService(ApplicationDbContext dbContext) : ITripService
+public sealed class TripService(
+    ApplicationDbContext dbContext,
+    IPlannerAgentService? plannerAgent = null,
+    IAttractionService? attractionService = null) : ITripService
 {
     public async Task<TripServiceResult<TripResponse>> CreateTripAsync(
         Guid touristId,
@@ -217,6 +222,156 @@ public sealed class TripService(ApplicationDbContext dbContext) : ITripService
             : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
     }
 
+    public async Task<TripServiceResult<ItineraryResponse>> GenerateItineraryAsync(
+        Guid touristId,
+        Guid tripId,
+        CancellationToken cancellationToken = default)
+    {
+        if (tripId == Guid.Empty)
+        {
+            return new TripServiceResult<ItineraryResponse>(Error: "Trip ID must not be empty.", NotFound: true);
+        }
+
+        var trip = await dbContext.Trips
+            .Include(candidate => candidate.Preferences)
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == tripId && candidate.TouristId == touristId,
+                cancellationToken);
+
+        if (trip is null)
+        {
+            return new TripServiceResult<ItineraryResponse>(NotFound: true);
+        }
+
+        if (trip.Status is TripStatus.Completed or TripStatus.Cancelled)
+        {
+            return new TripServiceResult<ItineraryResponse>(
+                Error: $"A {trip.Status} trip cannot generate a new itinerary.");
+        }
+
+        if (plannerAgent is null || attractionService is null)
+        {
+            return new TripServiceResult<ItineraryResponse>(Error: "Planner Agent integration is not configured.");
+        }
+
+        var candidates = await attractionService.SearchAsync(
+            new AttractionSearchRequest { Page = 1, PageSize = 100, Sort = "name_asc" },
+            touristId,
+            cancellationToken);
+        if (!candidates.Succeeded || candidates.Value is null)
+        {
+            return new TripServiceResult<ItineraryResponse>(
+                Error: candidates.Error ?? "Controlled attraction candidates could not be loaded.");
+        }
+
+        if (candidates.Value.Items.Count == 0)
+        {
+            return new TripServiceResult<ItineraryResponse>(
+                Error: "No approved attraction candidates are available for itinerary planning.");
+        }
+
+        var plannerRequest = new PlannerAgentRequest(
+            trip.Id.ToString(),
+            trip.StartDate,
+            trip.EndDate,
+            trip.EndDate.DayNumber - trip.StartDate.DayNumber + 1,
+            trip.Budget,
+            trip.Preferences
+                .Where(preference => string.Equals(preference.PreferenceType, "Interest", StringComparison.OrdinalIgnoreCase))
+                .Select(preference => preference.Value)
+                .ToList(),
+            trip.Preferences
+                .Where(preference => string.Equals(preference.PreferenceType, "Region", StringComparison.OrdinalIgnoreCase))
+                .Select(preference => preference.Value)
+                .ToList(),
+            trip.Preferences.Select(preference => new PlannerPreference(
+                preference.PreferenceType,
+                preference.Value)).ToList(),
+            candidates.Value.Items.Select(ToPlannerCandidate).ToList());
+
+        PlannerAgentServiceResult plannerResult;
+        try
+        {
+            plannerResult = await plannerAgent.GenerateAsync(plannerRequest, cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new TripServiceResult<ItineraryResponse>(Error: "Planner Agent request timed out.");
+        }
+        catch (Exception)
+        {
+            return new TripServiceResult<ItineraryResponse>(Error: "Planner Agent failed to generate an itinerary.");
+        }
+        if (!plannerResult.Succeeded)
+        {
+            return new TripServiceResult<ItineraryResponse>(
+                Error: plannerResult.Error ?? "Planner Agent failed to generate an itinerary.");
+        }
+
+        var plannerOutput = plannerResult.Value!;
+
+        var validationError = ValidatePlannerOutput(
+            plannerOutput,
+            trip,
+            candidates.Value.Items.ToDictionary(candidate => candidate.Id, candidate => candidate.Price));
+        if (validationError is not null)
+        {
+            return new TripServiceResult<ItineraryResponse>(Error: validationError);
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var previous in await dbContext.Itineraries
+                     .Where(itinerary => itinerary.TripId == trip.Id && itinerary.Status == ItineraryStatus.Active)
+                     .ToListAsync(cancellationToken))
+        {
+            previous.Status = ItineraryStatus.Superseded;
+            previous.UpdatedAt = now;
+        }
+
+        var itinerary = new Itinerary
+        {
+            Id = Guid.NewGuid(),
+            TripId = trip.Id,
+            Status = ItineraryStatus.Active,
+            TotalEstimatedCost = plannerOutput.EstimatedCost,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        foreach (var plannerDay in plannerOutput.Days)
+        {
+            var day = new ItineraryDay
+            {
+                Id = Guid.NewGuid(),
+                DayNumber = plannerDay.DayNumber,
+                Date = plannerDay.Date
+            };
+            foreach (var plannerItem in plannerDay.Items)
+            {
+                day.Items.Add(new ItineraryItem
+                {
+                    Id = Guid.NewGuid(),
+                    AttractionId = plannerItem.AttractionId,
+                    StartTime = plannerItem.StartTime,
+                    EndTime = plannerItem.EndTime,
+                    EstimatedCost = plannerItem.EstimatedCost,
+                    Notes = plannerItem.Notes
+                });
+            }
+            itinerary.Days.Add(day);
+        }
+
+        dbContext.Itineraries.Add(itinerary);
+        if (trip.Status == TripStatus.Draft)
+        {
+            trip.Status = TripStatus.Planned;
+        }
+        trip.UpdatedAt = now;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+    }
+
     public async Task<IReadOnlyList<StaffTripResponse>> GetStaffTripsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -288,6 +443,79 @@ public sealed class TripService(ApplicationDbContext dbContext) : ITripService
         }
 
         return budget < 0 ? "Budget must be greater than or equal to zero." : null;
+    }
+
+    private static PlannerCandidateAttraction ToPlannerCandidate(AttractionResponse attraction) => new(
+        attraction.Id.ToString(),
+        attraction.Name,
+        attraction.Category?.Name,
+        attraction.District,
+        attraction.Price,
+        attraction.Description,
+        null);
+
+    private static string? ValidatePlannerOutput(
+        PlannerAgentResponse output,
+        Trip trip,
+        IReadOnlyDictionary<Guid, decimal> candidatePrices)
+    {
+        if (!string.Equals(output.Status, "Generated", StringComparison.OrdinalIgnoreCase))
+        {
+            return output.Message ?? "Planner Agent did not produce an itinerary.";
+        }
+
+        if (output.Days.Count == 0)
+        {
+            return "Planner Agent returned an empty itinerary.";
+        }
+
+        var dayNumbers = new HashSet<int>();
+        var attractionIds = new HashSet<Guid>();
+        decimal total = 0m;
+        foreach (var day in output.Days)
+        {
+            if (day.DayNumber <= 0 || !dayNumbers.Add(day.DayNumber))
+            {
+                return "Planner Agent returned invalid or duplicate day numbers.";
+            }
+            if (day.Date < trip.StartDate || day.Date > trip.EndDate)
+            {
+                return "Planner Agent returned a day outside the trip dates.";
+            }
+
+            TimeOnly? previousEnd = null;
+            foreach (var item in day.Items.OrderBy(item => item.StartTime))
+            {
+                if (!candidatePrices.TryGetValue(item.AttractionId, out var candidatePrice))
+                {
+                    return "Planner Agent returned an unknown attraction.";
+                }
+                if (item.EstimatedCost != candidatePrice)
+                {
+                    return "Planner Agent returned a cost different from the supplied attraction.";
+                }
+                if (!attractionIds.Add(item.AttractionId))
+                {
+                    return "Planner Agent scheduled an attraction more than once.";
+                }
+                if (item.EndTime <= item.StartTime || (previousEnd.HasValue && item.StartTime < previousEnd.Value))
+                {
+                    return "Planner Agent returned an invalid or overlapping time range.";
+                }
+                if (item.EstimatedCost < 0)
+                {
+                    return "Planner Agent returned a negative item cost.";
+                }
+                previousEnd = item.EndTime;
+                total += item.EstimatedCost;
+            }
+        }
+
+        if (output.EstimatedCost < 0 || output.EstimatedCost != total)
+        {
+            return "Planner Agent returned an invalid total estimated cost.";
+        }
+        return total > trip.Budget ? "Planner Agent returned an itinerary over budget." : null;
     }
 
     private static bool IsAllowedStatusTransition(TripStatus current, TripStatus requested) =>

@@ -61,6 +61,11 @@ class TripApiService {
       rethrow;
     }
   }
+
+  Future<Itinerary> generateItinerary(String tripId) async {
+    final response = await _client.post('/api/trips/$tripId/generate-itinerary');
+    return Itinerary.fromJson(response.data as Map<String, dynamic>);
+  }
 }
 
 String dateValue(DateTime date) => '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';

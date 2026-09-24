@@ -45,6 +45,11 @@ public interface ITripService
         Guid tripId,
         CancellationToken cancellationToken = default);
 
+    Task<TripServiceResult<ItineraryResponse>> GenerateItineraryAsync(
+        Guid touristId,
+        Guid tripId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<StaffTripResponse>> GetStaffTripsAsync(
         CancellationToken cancellationToken = default);
 

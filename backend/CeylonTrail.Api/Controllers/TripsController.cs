@@ -125,6 +125,27 @@ public sealed class TripsController(ITripService tripService) : ControllerBase
         return result.NotFound ? NotFound() : Ok(result.Value);
     }
 
+    [HttpPost("{id:guid}/generate-itinerary")]
+    public async Task<ActionResult<ItineraryResponse>> GenerateItinerary(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetTouristId(out var touristId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await tripService.GenerateItineraryAsync(touristId, id, cancellationToken);
+        if (result.NotFound)
+        {
+            return NotFound();
+        }
+
+        return result.Error is not null
+            ? BadRequest(new { message = result.Error })
+            : Ok(result.Value);
+    }
+
     private bool TryGetTouristId(out Guid touristId) =>
         Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out touristId) &&
         touristId != Guid.Empty;

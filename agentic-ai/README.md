@@ -53,6 +53,33 @@ TravelIntelligence:TimeoutSeconds configuration. The intended flow is:
 Clients must never call the Python service directly. The Python service uses
 the deterministic fallback without an LLM key or external provider.
 
+### Member 1: Planner Agent (`planner/`)
+
+The Planner Agent generates structured tourist itineraries from trusted trip
+dates, budget, preferences, and ASP.NET-supplied candidate attractions.
+ASP.NET remains authoritative for ownership, validation, status transitions,
+and persistence. The Planner Agent has no database access and never receives
+direct client traffic.
+
+Endpoints:
+
+    GET  /health
+    POST /planner/generate
+
+Start it independently on port 8002:
+
+    cd agentic-ai
+    uvicorn planner.api:app --host 127.0.0.1 --port 8002
+
+Configuration variables:
+
+    GEMINI_API_KEY   Required for actual generation
+    PLANNER_MODEL    Optional Gemini model name; defaults to gemini-2.5-flash
+
+The Planner uses Gemini structured JSON output followed by deterministic
+schema and trusted-context validation. ASP.NET calls it through
+`PlannerAgent:BaseUrl`, configured as `http://localhost:8002`.
+
 ### Human approval workflow
 
 When ASP.NET receives a recommendation whose `RequiresHumanApproval` flag is

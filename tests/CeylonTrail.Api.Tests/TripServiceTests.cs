@@ -1,5 +1,7 @@
 using CeylonTrail.Api.Data;
+using CeylonTrail.Api.DTOs.Planner;
 using CeylonTrail.Api.DTOs.Trips;
+using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using CeylonTrail.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -335,6 +337,7 @@ public sealed class TripServiceTests
             missingId,
             new AddTripPreferenceRequest { PreferenceType = "Interest", Value = "Wildlife" })).NotFound);
         Assert.True((await service.GetLatestItineraryAsync(touristId, missingId)).NotFound);
+        Assert.True((await service.GenerateItineraryAsync(touristId, Guid.Empty)).NotFound);
     }
 
     [Fact]
@@ -387,6 +390,106 @@ public sealed class TripServiceTests
         Assert.Equal(itinerary.Id, result.Value!.Id);
     }
 
+    [Fact]
+    public async Task GenerateItinerary_ByOwner_PersistsHierarchyAndPlansDraftTrip()
+    {
+        await using var dbContext = CreateDbContext();
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Planner trip");
+        var attraction = await SeedApprovedAttractionAsync(dbContext, "Temple", 2500m);
+        var planner = new StubPlannerAgent(_ => GeneratedPlan(attraction.Id, trip.StartDate));
+        var service = new TripService(dbContext, planner, new AttractionService(dbContext));
+
+        var result = await service.GenerateItineraryAsync(touristId, trip.Id);
+
+        Assert.Null(result.Error);
+        Assert.Equal(TripStatus.Planned, (await dbContext.Trips.FindAsync(trip.Id))!.Status);
+        var saved = Assert.Single(dbContext.Itineraries.Include(item => item.Days).ThenInclude(day => day.Items));
+        Assert.Equal(ItineraryStatus.Active, saved.Status);
+        Assert.Equal(2500m, saved.TotalEstimatedCost);
+        Assert.Equal(attraction.Id, Assert.Single(Assert.Single(saved.Days).Items).AttractionId);
+    }
+
+    [Fact]
+    public async Task GenerateItinerary_ByAnotherTourist_ReturnsNotFoundWithoutPersistence()
+    {
+        await using var dbContext = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, ownerId, "Private planner trip");
+        var service = new TripService(dbContext, new StubPlannerAgent(_ => throw new InvalidOperationException()));
+
+        var result = await service.GenerateItineraryAsync(Guid.NewGuid(), trip.Id);
+
+        Assert.True(result.NotFound);
+        Assert.Empty(dbContext.Itineraries);
+    }
+
+    [Theory]
+    [InlineData(TripStatus.Completed)]
+    [InlineData(TripStatus.Cancelled)]
+    public async Task GenerateItinerary_TerminalTrip_IsRejected(TripStatus status)
+    {
+        await using var dbContext = CreateDbContext();
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Terminal planner trip", status);
+        var service = new TripService(dbContext, new StubPlannerAgent(_ => throw new InvalidOperationException()));
+
+        var result = await service.GenerateItineraryAsync(touristId, trip.Id);
+
+        Assert.Contains($"{status} trip cannot", result.Error);
+        Assert.Empty(dbContext.Itineraries);
+    }
+
+    [Fact]
+    public async Task GenerateItinerary_WhenAgentFails_DoesNotPersistOrChangeTrip()
+    {
+        await using var dbContext = CreateDbContext();
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Failed planner trip");
+        await SeedApprovedAttractionAsync(dbContext, "Museum", 1000m);
+        var service = new TripService(dbContext, new StubPlannerAgent(_ => throw new InvalidOperationException("agent failure")), new AttractionService(dbContext));
+
+        var result = await service.GenerateItineraryAsync(touristId, trip.Id);
+
+        Assert.Contains("Planner Agent failed", result.Error);
+        Assert.Empty(dbContext.Itineraries);
+        Assert.Equal(TripStatus.Draft, (await dbContext.Trips.FindAsync(trip.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task GenerateItinerary_RegenerationSupersedesPreviousActiveItinerary()
+    {
+        await using var dbContext = CreateDbContext();
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Regeneration trip");
+        var attraction = await SeedApprovedAttractionAsync(dbContext, "Fort", 1500m);
+        var previous = new Itinerary { Id = Guid.NewGuid(), TripId = trip.Id, Status = ItineraryStatus.Active, TotalEstimatedCost = 1500m, CreatedAt = DateTime.UtcNow.AddMinutes(-1), UpdatedAt = DateTime.UtcNow.AddMinutes(-1) };
+        dbContext.Itineraries.Add(previous);
+        await dbContext.SaveChangesAsync();
+        var service = new TripService(dbContext, new StubPlannerAgent(_ => GeneratedPlan(attraction.Id, trip.StartDate, 1500m)), new AttractionService(dbContext));
+
+        var result = await service.GenerateItineraryAsync(touristId, trip.Id);
+
+        Assert.Null(result.Error);
+        Assert.Equal(ItineraryStatus.Superseded, (await dbContext.Itineraries.FindAsync(previous.Id))!.Status);
+        Assert.Equal(ItineraryStatus.Active, (await dbContext.Itineraries.SingleAsync(item => item.Id != previous.Id)).Status);
+    }
+
+    [Fact]
+    public async Task GenerateItinerary_InvalidPlannerAttraction_IsRejectedWithoutPersistence()
+    {
+        await using var dbContext = CreateDbContext();
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Invalid planner trip");
+        await SeedApprovedAttractionAsync(dbContext, "Gallery", 1000m);
+        var service = new TripService(dbContext, new StubPlannerAgent(_ => GeneratedPlan(Guid.NewGuid(), trip.StartDate)), new AttractionService(dbContext));
+
+        var result = await service.GenerateItineraryAsync(touristId, trip.Id);
+
+        Assert.Contains("unknown attraction", result.Error);
+        Assert.Empty(dbContext.Itineraries);
+    }
+
     private static ApplicationDbContext CreateDbContext() => new(
         new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -414,6 +517,36 @@ public sealed class TripServiceTests
         dbContext.Trips.Add(trip);
         await dbContext.SaveChangesAsync();
         return trip;
+    }
+
+    private static async Task<Attraction> SeedApprovedAttractionAsync(
+        ApplicationDbContext dbContext,
+        string name,
+        decimal price)
+    {
+        var category = new Category { Id = Guid.NewGuid(), Name = "Culture" };
+        var attraction = new Attraction
+        {
+            Id = Guid.NewGuid(), ProviderId = Guid.NewGuid(), CategoryId = category.Id,
+            Category = category, Name = name, Description = "A supplied candidate.",
+            District = "Kandy", Address = "Central Sri Lanka", Price = price,
+            Status = "Approved", IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.Attractions.Add(attraction);
+        await dbContext.SaveChangesAsync();
+        return attraction;
+    }
+
+    private static PlannerAgentResponse GeneratedPlan(Guid attractionId, DateOnly date, decimal cost = 2500m) => new(
+        new[] { new PlannerDay(1, date, new[] { new PlannerItem(attractionId, new TimeOnly(9), new TimeOnly(11), cost, "Supplied candidate") }) },
+        cost,
+        "Generated",
+        null);
+
+    private sealed class StubPlannerAgent(Func<PlannerAgentRequest, PlannerAgentResponse> generate) : IPlannerAgentService
+    {
+        public Task<PlannerAgentServiceResult> GenerateAsync(PlannerAgentRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PlannerAgentServiceResult(Value: generate(request)));
     }
 
     private static CreateTripRequest ValidCreateRequest() => new()

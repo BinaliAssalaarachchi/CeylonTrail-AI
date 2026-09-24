@@ -94,5 +94,8 @@ public sealed class StaffTripsControllerTests
 
         public Task<TripServiceResult<ItineraryResponse>> GetLatestItineraryAsync(Guid touristId, Guid tripId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new TripServiceResult<ItineraryResponse>(NotFound: true));
+
+        public Task<TripServiceResult<ItineraryResponse>> GenerateItineraryAsync(Guid touristId, Guid tripId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TripServiceResult<ItineraryResponse>(NotFound: true));
     }
 }
