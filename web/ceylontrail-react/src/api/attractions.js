@@ -39,6 +39,11 @@ export async function deleteAttraction(id) {
   await apiClient.delete(`/api/attractions/${id}`)
 }
 
+export async function activateAttraction(id) {
+  const response = await apiClient.patch(`/api/attractions/${id}/activate`)
+  return response.data
+}
+
 export async function createSchedule(attractionId, data) {
   const response = await apiClient.post(`/api/attractions/${attractionId}/schedules`, data)
   return response.data
@@ -71,5 +76,19 @@ export async function getAvailability(attractionId, date) {
   const response = await apiClient.get(`/api/attractions/${attractionId}/availability`, {
     params: date ? { date } : undefined,
   })
+  return response.data
+}
+
+export async function addAttractionImage(attractionId, data) {
+  const response = await apiClient.post(`/api/attractions/${attractionId}/images`, data)
+  return response.data
+}
+
+export async function deleteAttractionImage(attractionId, imageId) {
+  await apiClient.delete(`/api/attractions/${attractionId}/images/${imageId}`)
+}
+
+export async function setPrimaryAttractionImage(attractionId, imageId) {
+  const response = await apiClient.patch(`/api/attractions/${attractionId}/images/${imageId}/primary`)
   return response.data
 }

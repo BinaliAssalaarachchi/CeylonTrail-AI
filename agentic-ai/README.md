@@ -90,26 +90,15 @@ The Planner uses Gemini structured JSON output followed by deterministic
 schema and trusted-context validation. ASP.NET calls it through
 `PlannerAgent:BaseUrl`, configured as `http://localhost:8002`.
 
-### Destination Agent (`destination/`)
+### Member 2: Destination Agent (`destination/`)
 
-The Destination Agent matches structured activity requirements to approved
-attraction snapshots supplied by ASP.NET. It has no database, filesystem,
-shell, arbitrary network, booking, or approval capabilities. Selection is
-deterministic and supplied attraction IDs form a closed allow-list.
-
-Endpoints:
-
-    GET  /health
-    POST /destination/select
-
-Start it independently on port 8003:
-
-    cd agentic-ai
-    uvicorn destination.api:app --host 127.0.0.1 --port 8003
-
-ASP.NET calls it through `DestinationAgent:BaseUrl` and
-`DestinationAgent:TimeoutSeconds`. The current TripService itinerary flow
-does not call Destination; the future orchestrator will connect that boundary.
+The Destination Agent recommends only approved, active attractions supplied by
+ASP.NET's authoritative `IAttractionService`. It exposes `GET /health` and
+`POST /destination/recommend` on port 8003. Its controlled tools perform
+district, category, budget, and date/availability filtering and its final
+output is checked against the trusted source records. ASP.NET exposes the
+client-facing `POST /api/attractions/recommendations`; React and Flutter never
+call the Python service directly.
 
 ### Human approval workflow
 

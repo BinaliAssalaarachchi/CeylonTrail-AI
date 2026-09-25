@@ -8,9 +8,23 @@ namespace CeylonTrail.Api.Controllers;
 
 [ApiController]
 [Route("api/attractions")]
-public sealed class AttractionsController(IAttractionService attractionService) : ControllerBase
+public sealed class AttractionsController(IAttractionService attractionService, IDestinationAgentService destinationAgentService) : ControllerBase
 {
     private const string ProviderOrAdministrator = "TourismProvider,Administrator";
+
+    [HttpPost("recommendations")]
+    [Authorize(Roles = "Tourist")]
+    public async Task<IActionResult> Recommend(
+        DestinationRecommendationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await destinationAgentService.RecommendAsync(request, cancellationToken);
+        return result.ServiceUnavailable
+            ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = result.Error })
+            : result.Error is not null
+                ? BadRequest(new { message = result.Error })
+                : Ok(result.Value);
+    }
 
     [HttpPost]
     [Authorize(Roles = ProviderOrAdministrator)]
@@ -300,6 +314,31 @@ public sealed class AttractionsController(IAttractionService attractionService) 
 
         var result = await attractionService.RemoveImageAsync(id, imageId, actorId, cancellationToken);
         return ToActionResult(result, _ => NoContent());
+    }
+
+    [HttpPatch("{id:guid}/activate")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> Activate(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var actorId))
+            return Unauthorized();
+
+        var result = await attractionService.ActivateAsync(id, actorId, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
+    [HttpPatch("{id:guid}/images/{imageId:guid}/primary")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> SetPrimaryImage(
+        Guid id,
+        Guid imageId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var actorId))
+            return Unauthorized();
+
+        var result = await attractionService.SetPrimaryImageAsync(id, imageId, actorId, cancellationToken);
+        return ToActionResult(result, Ok);
     }
 
     private async Task<IActionResult> SearchCore(

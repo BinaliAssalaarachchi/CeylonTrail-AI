@@ -51,6 +51,11 @@ public interface IAttractionService
         Guid actorId,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<AttractionResponse>> ActivateAsync(
+        Guid attractionId,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<AttractionScheduleResponse>> AddScheduleAsync(
         Guid attractionId,
         CreateScheduleRequest request,
@@ -111,6 +116,12 @@ public interface IAttractionService
         CancellationToken cancellationToken = default);
 
     Task<ServiceResult<bool>> RemoveImageAsync(
+        Guid attractionId,
+        Guid imageId,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<AttractionImageResponse>> SetPrimaryImageAsync(
         Guid attractionId,
         Guid imageId,
         Guid actorId,

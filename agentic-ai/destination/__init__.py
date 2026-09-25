@@ -1,1 +1,1 @@
-"""Bounded Destination Agent for matching planner requirements to approved attractions."""
+"""Grounded Destination Agent for stored CeylonTrail attractions."""

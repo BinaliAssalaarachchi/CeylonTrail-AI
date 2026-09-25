@@ -3,6 +3,7 @@ using System;
 using CeylonTrail.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CeylonTrail.Api.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260925180152_AddPrimaryAttractionImage")]
+    partial class AddPrimaryAttractionImage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,134 +24,6 @@ namespace CeylonTrail.Api.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.AgentWorkflow", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CurrentStage")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("FailureCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("FailureSummary")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid>("RequestedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("TripId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("WorkflowId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowId")
-                        .IsUnique();
-
-                    b.HasIndex("RequestedByUserId", "UpdatedAt");
-
-                    b.HasIndex("TripId", "StartedAt");
-
-                    b.HasIndex("Status", "UpdatedAt");
-
-                    b.ToTable("AgentWorkflows");
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.AgentWorkflowStage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AgentRole")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("AgentWorkflowId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ApprovalRequestId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AttemptNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ErrorCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ErrorSummary")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("InputSnapshotJson")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("OutputSnapshotJson")
-                        .HasColumnType("jsonb");
-
-                    b.Property<int>("Sequence")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid?>("TravelIntelligenceExecutionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ValidationResultId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApprovalRequestId");
-
-                    b.HasIndex("TravelIntelligenceExecutionId");
-
-                    b.HasIndex("ValidationResultId");
-
-                    b.HasIndex("AgentWorkflowId", "AgentRole", "AttemptNumber")
-                        .IsUnique();
-
-                    b.HasIndex("AgentWorkflowId", "Sequence", "AttemptNumber");
-
-                    b.ToTable("AgentWorkflowStages");
-                });
 
             modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalDecision", b =>
                 {
@@ -1298,36 +1173,6 @@ namespace CeylonTrail.Api.Data.Migrations
                     b.ToTable("ValidationResults");
                 });
 
-            modelBuilder.Entity("CeylonTrail.Api.Models.AgentWorkflow", b =>
-                {
-                    b.HasOne("CeylonTrail.Api.Models.User", "RequestedByUser")
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeylonTrail.Api.Models.Trip", "Trip")
-                        .WithMany()
-                        .HasForeignKey("TripId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("RequestedByUser");
-
-                    b.Navigation("Trip");
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.AgentWorkflowStage", b =>
-                {
-                    b.HasOne("CeylonTrail.Api.Models.AgentWorkflow", "AgentWorkflow")
-                        .WithMany("Stages")
-                        .HasForeignKey("AgentWorkflowId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("AgentWorkflow");
-                });
-
             modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalDecision", b =>
                 {
                     b.HasOne("CeylonTrail.Api.Models.ApprovalRequest", "ApprovalRequest")
@@ -1642,11 +1487,6 @@ namespace CeylonTrail.Api.Data.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("CeylonTrail.Api.Models.AgentWorkflow", b =>
-                {
-                    b.Navigation("Stages");
                 });
 
             modelBuilder.Entity("CeylonTrail.Api.Models.ApprovalRequest", b =>

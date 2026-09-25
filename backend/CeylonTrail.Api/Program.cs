@@ -45,6 +45,7 @@ builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<ITripService, TripService>();
 builder.Services.AddScoped<IItineraryTravelIntelligenceWorkflowService, ItineraryTravelIntelligenceWorkflowService>();
 builder.Services.AddScoped<IAttractionService, AttractionService>();
+builder.Services.AddScoped<IDestinationAgentService, DestinationAgentService>();
 builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IItineraryValidationService, ItineraryValidationService>();
@@ -77,9 +78,7 @@ builder.Services.AddHttpClient<IPlannerAgentService, PlannerAgentService>((servi
 });
 builder.Services.AddHttpClient<IDestinationAgentService, DestinationAgentService>((serviceProvider, client) =>
 {
-    var options = serviceProvider
-        .GetRequiredService<Microsoft.Extensions.Options.IOptions<DestinationAgentOptions>>()
-        .Value;
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DestinationAgentOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 15);
 });

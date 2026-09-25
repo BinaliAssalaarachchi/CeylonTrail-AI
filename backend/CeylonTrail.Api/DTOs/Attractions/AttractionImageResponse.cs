@@ -6,4 +6,5 @@ public sealed record AttractionImageResponse(
     string ImageUrl,
     string? AltText,
     int SortOrder,
+    bool IsPrimary,
     DateTime CreatedAt);

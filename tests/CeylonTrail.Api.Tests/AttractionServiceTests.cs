@@ -162,6 +162,67 @@ public sealed class AttractionServiceTests
         Assert.Equal(secondPending.Value!.Id, result.Value.Items[0].Id);
     }
 
+    [Fact]
+    public async Task ProviderCanSelectOnePrimaryImageAndDeletingItPromotesFallback()
+    {
+        await using var dbContext = CreateDbContext();
+        var provider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        await dbContext.SaveChangesAsync();
+        var service = new AttractionService(dbContext);
+        var created = await service.CreateAsync(CreateRequest(category.Id), provider.Id);
+
+        var first = await service.AddImageAsync(created.Value!.Id, new AttractionImageRequest
+        {
+            ImageUrl = "https://example.com/first.jpg",
+            SortOrder = 0
+        }, provider.Id);
+        var second = await service.AddImageAsync(created.Value.Id, new AttractionImageRequest
+        {
+            ImageUrl = "https://example.com/second.jpg",
+            SortOrder = 1
+        }, provider.Id);
+
+        Assert.True(first.Succeeded);
+        Assert.True(first.Value!.IsPrimary);
+        Assert.False(second.Value!.IsPrimary);
+
+        var selected = await service.SetPrimaryImageAsync(created.Value.Id, second.Value.Id, provider.Id);
+        var afterSelection = await service.GetByIdAsync(created.Value.Id, provider.Id);
+
+        Assert.True(selected.Succeeded);
+        Assert.False(afterSelection.Value!.Images.Single(image => image.Id == first.Value.Id).IsPrimary);
+        Assert.True(afterSelection.Value.Images.Single(image => image.Id == second.Value.Id).IsPrimary);
+
+        var removed = await service.RemoveImageAsync(created.Value.Id, second.Value.Id, provider.Id);
+        var afterRemoval = await service.GetByIdAsync(created.Value.Id, provider.Id);
+
+        Assert.True(removed.Succeeded);
+        Assert.True(afterRemoval.Value!.Images.Single().IsPrimary);
+    }
+
+    [Fact]
+    public async Task ProviderCannotSelectAnImageOnAnotherProvidersAttraction()
+    {
+        await using var dbContext = CreateDbContext();
+        var owner = AddUser(dbContext, UserRole.TourismProvider);
+        var otherProvider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        await dbContext.SaveChangesAsync();
+        var service = new AttractionService(dbContext);
+        var created = await service.CreateAsync(CreateRequest(category.Id), owner.Id);
+        var image = await service.AddImageAsync(created.Value!.Id, new AttractionImageRequest
+        {
+            ImageUrl = "https://example.com/owned.jpg",
+            SortOrder = 0
+        }, owner.Id);
+
+        var result = await service.SetPrimaryImageAsync(created.Value.Id, image.Value!.Id, otherProvider.Id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(ServiceErrorCode.Forbidden, result.ErrorCode);
+    }
+
     private static CreateAttractionRequest CreateRequest(Guid categoryId) => new()
     {
         CategoryId = categoryId,
