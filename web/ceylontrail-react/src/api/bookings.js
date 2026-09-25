@@ -5,6 +5,16 @@ export async function getProviderBookings() {
     return response.data
 }
 
+export async function getMyBookings() {
+    const response = await apiClient.get('/api/bookings')
+    return response.data
+}
+
+export async function createBooking(data) {
+    const response = await apiClient.post('/api/bookings', data)
+    return response.data
+}
+
 export async function acceptBooking(bookingId) {
     const response = await apiClient.post(`/api/bookings/${bookingId}/accept`)
     return response.data
@@ -15,7 +25,13 @@ export async function rejectBooking(bookingId, reason) {
     return response.data
 }
 
+export async function cancelBooking(bookingId, reason) {
+    const response = await apiClient.post(`/api/bookings/${bookingId}/cancel`, { reason })
+    return response.data
+}
+
 export async function getBookingHistory(bookingId) {
     const response = await apiClient.get(`/api/bookings/${bookingId}/history`)
     return response.data
 }
+

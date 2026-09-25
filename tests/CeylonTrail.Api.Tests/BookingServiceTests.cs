@@ -13,6 +13,11 @@ public sealed class BookingServiceTests
     public async Task CreateBooking_CalculatesTotalAndCreatesStatusHistory()
     {
         await using var dbContext = CreateDbContext();
+        var slot1 = CreateSlot(10, 50.00m);
+        var slot2 = CreateSlot(10, 30.00m);
+        dbContext.AvailabilitySlots.AddRange(slot1, slot2);
+        await dbContext.SaveChangesAsync();
+
         var service = new BookingService(dbContext);
         var touristId = Guid.NewGuid();
 
@@ -20,8 +25,8 @@ public sealed class BookingServiceTests
         {
             Items = new List<BookingItemRequest>
             {
-                new() { AttractionId = Guid.NewGuid(), Quantity = 2, UnitPrice = 50.00m },
-                new() { AttractionId = Guid.NewGuid(), Quantity = 1, UnitPrice = 30.00m }
+                new() { AvailabilitySlotId = slot1.Id, NumberOfGuests = 2, UnitPrice = 50.00m },
+                new() { AvailabilitySlotId = slot2.Id, NumberOfGuests = 1, UnitPrice = 30.00m }
             }
         };
 
@@ -30,10 +35,10 @@ public sealed class BookingServiceTests
         Assert.True(result.Succeeded);
         Assert.NotNull(result.Response);
         Assert.Equal(130.00m, result.Response!.TotalAmount);
-        Assert.Equal("Pending", result.Response.Status);
+        Assert.Equal("Draft", result.Response.CurrentStatus);
         Assert.Equal(2, result.Response.Items.Count);
         Assert.Single(result.Response.StatusHistory!);
-        Assert.Equal("Pending", result.Response.StatusHistory![0].NewStatus);
+        Assert.Equal("Draft", result.Response.StatusHistory![0].NewStatus);
     }
 
     [Fact]
@@ -49,9 +54,13 @@ public sealed class BookingServiceTests
     }
 
     [Fact]
-    public async Task AcceptBooking_WhenPending_TransitionsToConfirmed()
+    public async Task AcceptBooking_WhenDraftOrPending_TransitionsToConfirmed()
     {
         await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 100m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
         var service = new BookingService(dbContext);
         var touristId = Guid.NewGuid();
         var providerId = Guid.NewGuid();
@@ -60,7 +69,7 @@ public sealed class BookingServiceTests
         {
             Items = new List<BookingItemRequest>
             {
-                new() { AttractionId = Guid.NewGuid(), Quantity = 1, UnitPrice = 100m }
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 100m }
             }
         });
 
@@ -69,7 +78,7 @@ public sealed class BookingServiceTests
         var acceptResult = await service.AcceptBookingAsync(bookingId, providerId);
 
         Assert.True(acceptResult.Succeeded);
-        Assert.Equal("Confirmed", acceptResult.Response!.Status);
+        Assert.Equal("Confirmed", acceptResult.Response!.CurrentStatus);
         Assert.Equal(2, acceptResult.Response.StatusHistory!.Count);
         Assert.Equal("Confirmed", acceptResult.Response.StatusHistory[1].NewStatus);
     }
@@ -78,6 +87,10 @@ public sealed class BookingServiceTests
     public async Task AcceptBooking_WhenAlreadyConfirmed_PreventsInvalidStatusTransition()
     {
         await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 100m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
         var service = new BookingService(dbContext);
         var touristId = Guid.NewGuid();
         var providerId = Guid.NewGuid();
@@ -86,7 +99,7 @@ public sealed class BookingServiceTests
         {
             Items = new List<BookingItemRequest>
             {
-                new() { AttractionId = Guid.NewGuid(), Quantity = 1, UnitPrice = 100m }
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 100m }
             }
         });
 
@@ -103,9 +116,13 @@ public sealed class BookingServiceTests
     }
 
     [Fact]
-    public async Task RejectBooking_WhenPending_TransitionsToRejectedWithReason()
+    public async Task RejectBooking_TransitionsToRejectedWithReason()
     {
         await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
         var service = new BookingService(dbContext);
         var touristId = Guid.NewGuid();
         var providerId = Guid.NewGuid();
@@ -114,7 +131,7 @@ public sealed class BookingServiceTests
         {
             Items = new List<BookingItemRequest>
             {
-                new() { AttractionId = Guid.NewGuid(), Quantity = 1, UnitPrice = 50m }
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 50m }
             }
         });
 
@@ -124,7 +141,7 @@ public sealed class BookingServiceTests
         var rejectResult = await service.RejectBookingAsync(bookingId, providerId, new RejectBookingRequest { Reason = reason });
 
         Assert.True(rejectResult.Succeeded);
-        Assert.Equal("Rejected", rejectResult.Response!.Status);
+        Assert.Equal("Rejected", rejectResult.Response!.CurrentStatus);
         Assert.Equal(reason, rejectResult.Response.StatusHistory![1].Reason);
     }
 
@@ -132,6 +149,10 @@ public sealed class BookingServiceTests
     public async Task CancelBooking_ByOwnerTourist_SucceedsAndCreatesCancellationRecord()
     {
         await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 75m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
         var service = new BookingService(dbContext);
         var touristId = Guid.NewGuid();
 
@@ -139,7 +160,7 @@ public sealed class BookingServiceTests
         {
             Items = new List<BookingItemRequest>
             {
-                new() { AttractionId = Guid.NewGuid(), Quantity = 1, UnitPrice = 75m }
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 75m }
             }
         });
 
@@ -153,16 +174,20 @@ public sealed class BookingServiceTests
             new CancelBookingRequest { Reason = reason });
 
         Assert.True(cancelResult.Succeeded);
-        Assert.Equal("Cancelled", cancelResult.Response!.Status);
-        Assert.NotNull(cancelResult.Response.Cancellation);
-        Assert.Equal(reason, cancelResult.Response.Cancellation!.Reason);
-        Assert.Equal(touristId, cancelResult.Response.Cancellation.CancelledBy);
+        Assert.Equal("Cancelled", cancelResult.Response!.CurrentStatus);
+        Assert.NotNull(cancelResult.Response.CancellationRequests);
+        Assert.Single(cancelResult.Response.CancellationRequests!);
+        Assert.Equal(reason, cancelResult.Response.CancellationRequests![0].Reason);
     }
 
     [Fact]
     public async Task CancelBooking_ByAnotherTourist_FailsWithOwnershipError()
     {
         await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 100m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
         var service = new BookingService(dbContext);
         var touristA = Guid.NewGuid();
         var touristB = Guid.NewGuid();
@@ -171,13 +196,12 @@ public sealed class BookingServiceTests
         {
             Items = new List<BookingItemRequest>
             {
-                new() { AttractionId = Guid.NewGuid(), Quantity = 1, UnitPrice = 100m }
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 100m }
             }
         });
 
         var bookingId = createResult.Response!.Id;
 
-        // Tourist B tries to cancel Tourist A's booking
         var cancelResult = await service.CancelBookingAsync(
             bookingId,
             touristB,
@@ -187,6 +211,19 @@ public sealed class BookingServiceTests
         Assert.False(cancelResult.Succeeded);
         Assert.Equal("You cannot cancel another user's booking.", cancelResult.Error);
     }
+
+    private static AvailabilitySlot CreateSlot(int capacity, decimal price) => new()
+    {
+        Id = Guid.NewGuid(),
+        AttractionId = Guid.NewGuid(),
+        StartTime = DateTime.UtcNow.AddHours(1),
+        EndTime = DateTime.UtcNow.AddHours(3),
+        MaxCapacity = capacity,
+        BookedCapacity = 0,
+        PricePerPerson = price,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
 
     private static ApplicationDbContext CreateDbContext() => new(
         new DbContextOptionsBuilder<ApplicationDbContext>()

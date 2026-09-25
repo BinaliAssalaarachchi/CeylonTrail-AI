@@ -45,4 +45,12 @@ public interface IBookingService
         Guid requestingUserId,
         string requestingRole,
         CancellationToken cancellationToken = default);
+
+    Task<List<AvailabilitySlotResponse>> GetAvailabilitySlotsAsync(
+        Guid? attractionId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<(bool Succeeded, string? Error, AvailabilitySlotResponse? Response)> CreateAvailabilitySlotAsync(
+        CreateAvailabilitySlotRequest request,
+        CancellationToken cancellationToken = default);
 }

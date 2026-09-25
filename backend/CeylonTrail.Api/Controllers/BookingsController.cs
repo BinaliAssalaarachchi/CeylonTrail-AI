@@ -149,6 +149,36 @@ public sealed class BookingsController(IBookingService bookingService) : Control
         return Ok(result.Response);
     }
 
+    // 9. GET /api/bookings/availability-slots (Get available slots for booking)
+    [HttpGet("availability-slots")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(List<AvailabilitySlotResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<AvailabilitySlotResponse>>> GetAvailabilitySlots(
+        [FromQuery] Guid? attractionId,
+        CancellationToken cancellationToken)
+    {
+        var slots = await bookingService.GetAvailabilitySlotsAsync(attractionId, cancellationToken);
+        return Ok(slots);
+    }
+
+    // 10. POST /api/bookings/availability-slots (Create availability slot - Provider/Staff only)
+    [HttpPost("availability-slots")]
+    [Authorize(Roles = $"{nameof(UserRole.TourismProvider)},{nameof(UserRole.TravelCoordinator)},{nameof(UserRole.Administrator)}")]
+    [ProducesResponseType(typeof(AvailabilitySlotResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<AvailabilitySlotResponse>> CreateAvailabilitySlot(
+        [FromBody] CreateAvailabilitySlotRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await bookingService.CreateAvailabilitySlotAsync(request, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return BadRequest(new { message = result.Error });
+        }
+
+        return CreatedAtAction(nameof(GetAvailabilitySlots), new { attractionId = result.Response!.AttractionId }, result.Response);
+    }
+
     private Guid GetCurrentUserId()
     {
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
