@@ -28,6 +28,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<TravelIntelligenceExecutionStep> TravelIntelligenceExecutionSteps => Set<TravelIntelligenceExecutionStep>();
 
+    public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
+
+    public DbSet<AgentWorkflowStage> AgentWorkflowStages => Set<AgentWorkflowStage>();
+
     public DbSet<Trip> Trips => Set<Trip>();
 
     public DbSet<TripPreference> TripPreferences => Set<TripPreference>();
@@ -374,6 +378,61 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .IsRequired();
 
             entity.ToTable(table => table.HasCheckConstraint("CK_Trips_Budget_NonNegative", "\"Budget\" >= 0"));
+        });
+
+        modelBuilder.Entity<AgentWorkflow>(entity =>
+        {
+            entity.HasKey(workflow => workflow.Id);
+            entity.Property(workflow => workflow.Id).ValueGeneratedOnAdd();
+            entity.Property(workflow => workflow.WorkflowId).IsRequired();
+            entity.Property(workflow => workflow.TripId).IsRequired();
+            entity.Property(workflow => workflow.RequestedByUserId).IsRequired();
+            entity.Property(workflow => workflow.Status).HasConversion<string>().IsRequired().HasMaxLength(30);
+            entity.Property(workflow => workflow.CurrentStage).HasConversion<string>().HasMaxLength(30);
+            entity.Property(workflow => workflow.StartedAt).IsRequired();
+            entity.Property(workflow => workflow.UpdatedAt).IsRequired();
+            entity.Property(workflow => workflow.FailureCode).HasMaxLength(100);
+            entity.Property(workflow => workflow.FailureSummary).HasMaxLength(1000);
+            entity.Property(workflow => workflow.RetryCount).IsRequired();
+
+            entity.HasIndex(workflow => workflow.WorkflowId).IsUnique();
+            entity.HasIndex(workflow => new { workflow.TripId, workflow.StartedAt });
+            entity.HasIndex(workflow => new { workflow.RequestedByUserId, workflow.UpdatedAt });
+            entity.HasIndex(workflow => new { workflow.Status, workflow.UpdatedAt });
+
+            entity.HasOne(workflow => workflow.Trip)
+                .WithMany()
+                .HasForeignKey(workflow => workflow.TripId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(workflow => workflow.RequestedByUser)
+                .WithMany()
+                .HasForeignKey(workflow => workflow.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(workflow => workflow.Stages)
+                .WithOne(stage => stage.AgentWorkflow)
+                .HasForeignKey(stage => stage.AgentWorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AgentWorkflowStage>(entity =>
+        {
+            entity.HasKey(stage => stage.Id);
+            entity.Property(stage => stage.Id).ValueGeneratedOnAdd();
+            entity.Property(stage => stage.AgentWorkflowId).IsRequired();
+            entity.Property(stage => stage.AgentRole).HasConversion<string>().IsRequired().HasMaxLength(30);
+            entity.Property(stage => stage.Sequence).IsRequired();
+            entity.Property(stage => stage.Status).HasConversion<string>().IsRequired().HasMaxLength(20);
+            entity.Property(stage => stage.AttemptNumber).IsRequired();
+            entity.Property(stage => stage.InputSnapshotJson).HasColumnType("jsonb");
+            entity.Property(stage => stage.OutputSnapshotJson).HasColumnType("jsonb");
+            entity.Property(stage => stage.ErrorCode).HasMaxLength(100);
+            entity.Property(stage => stage.ErrorSummary).HasMaxLength(1000);
+
+            entity.HasIndex(stage => new { stage.AgentWorkflowId, stage.AgentRole, stage.AttemptNumber }).IsUnique();
+            entity.HasIndex(stage => new { stage.AgentWorkflowId, stage.Sequence, stage.AttemptNumber });
+            entity.HasIndex(stage => stage.ValidationResultId);
+            entity.HasIndex(stage => stage.TravelIntelligenceExecutionId);
+            entity.HasIndex(stage => stage.ApprovalRequestId);
         });
 
         modelBuilder.Entity<TripPreference>(entity =>
