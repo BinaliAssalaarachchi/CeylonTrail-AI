@@ -42,6 +42,164 @@ public sealed class BookingServiceTests
     }
 
     [Fact]
+    public async Task CreateBooking_WithOwnTrip_SucceedsAndPersistsTripOwnership()
+    {
+        await using var dbContext = CreateDbContext();
+        var touristId = Guid.NewGuid();
+        var trip = CreateTrip(touristId);
+        var slot = CreateSlot(10, 50m);
+        dbContext.Trips.Add(trip);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateBookingAsync(touristId, new CreateBookingRequest
+        {
+            TripId = trip.Id,
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 0.01m }
+            }
+        });
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(trip.Id, result.Response!.TripId);
+        Assert.Equal(50m, result.Response.TotalAmount);
+    }
+
+    [Fact]
+    public async Task CreateBooking_WithAnotherTouristsTrip_ReturnsSafeNotFound()
+    {
+        await using var dbContext = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var requesterId = Guid.NewGuid();
+        var trip = CreateTrip(ownerId);
+        var slot = CreateSlot(10, 50m);
+        dbContext.Trips.Add(trip);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateBookingAsync(requesterId, new CreateBookingRequest
+        {
+            TripId = trip.Id,
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 50m }
+            }
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Trip not found.", result.Error);
+        Assert.Empty(dbContext.Bookings);
+    }
+
+    [Fact]
+    public async Task CreateBooking_WithNonexistentTrip_ReturnsSafeNotFound()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateBookingAsync(Guid.NewGuid(), new CreateBookingRequest
+        {
+            TripId = Guid.NewGuid(),
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 50m }
+            }
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Trip not found.", result.Error);
+    }
+
+    [Fact]
+    public async Task CreateBooking_WithInvalidGuestCount_ReturnsError()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateBookingAsync(Guid.NewGuid(), new CreateBookingRequest
+        {
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 0, UnitPrice = 50m }
+            }
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("NumberOfGuests must be greater than zero.", result.Error);
+    }
+
+    [Fact]
+    public async Task CreateBooking_WithUnbookableAttraction_ReturnsError()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50m);
+        slot.Attraction!.Status = "PendingApproval";
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateBookingAsync(Guid.NewGuid(), new CreateBookingRequest
+        {
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 50m }
+            }
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("The attraction is not available for booking.", result.Error);
+    }
+
+    [Fact]
+    public async Task CreateBooking_WhenCapacityIsInsufficient_ReturnsErrorWithoutBooking()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(1, 50m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateBookingAsync(Guid.NewGuid(), new CreateBookingRequest
+        {
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 2, UnitPrice = 50m }
+            }
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("insufficient capacity", result.Error);
+        Assert.Empty(dbContext.Bookings);
+        Assert.Equal(0, slot.BookedCapacity);
+    }
+
+    [Fact]
+    public async Task GetAvailabilitySlots_ReturnsOnlyBookableSlots()
+    {
+        await using var dbContext = CreateDbContext();
+        var bookable = CreateSlot(10, 50m);
+        var full = CreateSlot(10, 50m);
+        full.BookedCapacity = full.MaxCapacity;
+        var expired = CreateSlot(10, 50m);
+        expired.EndTime = DateTime.UtcNow.AddMinutes(-1);
+        var pending = CreateSlot(10, 50m);
+        pending.Attraction!.Status = "PendingApproval";
+        dbContext.AvailabilitySlots.AddRange(bookable, full, expired, pending);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).GetAvailabilitySlotsAsync();
+
+        var returnedIds = result.Select(slot => slot.Id).ToList();
+        Assert.Contains(bookable.Id, returnedIds);
+        Assert.DoesNotContain(full.Id, returnedIds);
+        Assert.DoesNotContain(expired.Id, returnedIds);
+        Assert.DoesNotContain(pending.Id, returnedIds);
+    }
+
+    [Fact]
     public async Task CreateBooking_WithEmptyItems_ReturnsError()
     {
         await using var dbContext = CreateDbContext();
@@ -212,15 +370,46 @@ public sealed class BookingServiceTests
         Assert.Equal("You cannot cancel another user's booking.", cancelResult.Error);
     }
 
-    private static AvailabilitySlot CreateSlot(int capacity, decimal price) => new()
+    private static AvailabilitySlot CreateSlot(int capacity, decimal price)
+    {
+        var attractionId = Guid.NewGuid();
+        return new AvailabilitySlot
+        {
+            Id = Guid.NewGuid(),
+            AttractionId = attractionId,
+            Attraction = new Attraction
+            {
+                Id = attractionId,
+                ProviderId = Guid.NewGuid(),
+                CategoryId = Guid.NewGuid(),
+                Name = "Test attraction",
+                Description = "Test attraction",
+                District = "Kandy",
+                Address = "Test address",
+                Status = "Approved",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            },
+            StartTime = DateTime.UtcNow.AddHours(1),
+            EndTime = DateTime.UtcNow.AddHours(3),
+            MaxCapacity = capacity,
+            BookedCapacity = 0,
+            PricePerPerson = price,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    private static Trip CreateTrip(Guid touristId) => new()
     {
         Id = Guid.NewGuid(),
-        AttractionId = Guid.NewGuid(),
-        StartTime = DateTime.UtcNow.AddHours(1),
-        EndTime = DateTime.UtcNow.AddHours(3),
-        MaxCapacity = capacity,
-        BookedCapacity = 0,
-        PricePerPerson = price,
+        TouristId = touristId,
+        Name = "Test trip",
+        StartDate = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(1)),
+        EndDate = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(3)),
+        Budget = 1000m,
+        Status = TripStatus.Draft,
         CreatedAt = DateTime.UtcNow,
         UpdatedAt = DateTime.UtcNow
     };
