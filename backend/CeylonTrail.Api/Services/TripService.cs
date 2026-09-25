@@ -11,7 +11,9 @@ namespace CeylonTrail.Api.Services;
 public sealed class TripService(
     ApplicationDbContext dbContext,
     IPlannerAgentService? plannerAgent = null,
-    IAttractionService? attractionService = null) : ITripService
+    IAttractionService? attractionService = null,
+    IItineraryTravelIntelligenceWorkflowService? travelIntelligenceWorkflow = null,
+    ILogger<TripService>? logger = null) : ITripService
 {
     public async Task<TripServiceResult<TripResponse>> CreateTripAsync(
         Guid touristId,
@@ -393,6 +395,37 @@ public sealed class TripService(
         }
         trip.UpdatedAt = now;
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (travelIntelligenceWorkflow is not null)
+        {
+            try
+            {
+                var workflow = await travelIntelligenceWorkflow.ProcessAsync(
+                    trip.Id,
+                    touristId,
+                    cancellationToken);
+                if (!workflow.Succeeded)
+                {
+                    logger?.LogWarning(
+                        "Itinerary {ItineraryId} was persisted, but the Travel Intelligence workflow did not complete: {Error}",
+                        itinerary.Id,
+                        workflow.Error);
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                logger?.LogWarning(
+                    "Travel Intelligence workflow timed out after itinerary {ItineraryId} was persisted.",
+                    itinerary.Id);
+            }
+            catch (Exception exception)
+            {
+                logger?.LogError(
+                    exception,
+                    "Travel Intelligence workflow failed after itinerary {ItineraryId} was persisted.",
+                    itinerary.Id);
+            }
+        }
 
         return new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
     }
