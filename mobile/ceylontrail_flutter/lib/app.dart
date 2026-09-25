@@ -15,6 +15,7 @@ import 'views/favorites_page.dart';
 import 'views/travel_alerts_page.dart';
 import 'views/my_trips_page.dart';
 import 'views/trip_details_page.dart';
+import 'views/travel_safety_page.dart';
 import 'views/trip_form_page.dart';
 import 'views/trip_preferences_page.dart';
 import 'views/itinerary_page.dart';
@@ -91,7 +92,10 @@ class CeylonTrailApp extends StatelessWidget {
   final TripApiService? tripApiService;
   final GoRouter _router;
 
-  static GoRouter _createRouter(AuthService authService, TripApiService? tripApiService) => GoRouter(
+  static GoRouter _createRouter(
+    AuthService authService,
+    TripApiService? tripApiService,
+  ) => GoRouter(
     initialLocation: '/login',
     refreshListenable: authService,
     redirect: (context, state) {
@@ -99,7 +103,9 @@ class CeylonTrailApp extends StatelessWidget {
       if (authService.status == AuthStatus.restoring) return null;
       if (!authService.isAuthenticated && !isLogin) return '/login';
       if (authService.isAuthenticated && isLogin) return '/';
-      if (state.matchedLocation.startsWith('/trips') && authService.user?.role != 'Tourist') return '/';
+      if (state.matchedLocation.startsWith('/trips') &&
+          authService.user?.role != 'Tourist')
+        return '/';
       return null;
     },
     routes: [
@@ -121,9 +127,8 @@ class CeylonTrailApp extends StatelessWidget {
                 routes: [
                   GoRoute(
                     path: ':id',
-                    builder: (context, state) => TravelAlertDetailPage(
-                      id: state.pathParameters['id']!,
-                    ),
+                    builder: (context, state) =>
+                        TravelAlertDetailPage(id: state.pathParameters['id']!),
                   ),
                 ],
               ),
@@ -137,9 +142,8 @@ class CeylonTrailApp extends StatelessWidget {
                 routes: [
                   GoRoute(
                     path: ':id',
-                    builder: (context, state) => AttractionDetailPage(
-                      id: state.pathParameters['id']!,
-                    ),
+                    builder: (context, state) =>
+                        AttractionDetailPage(id: state.pathParameters['id']!),
                     routes: [
                       GoRoute(
                         path: 'book',
@@ -160,18 +164,51 @@ class CeylonTrailApp extends StatelessWidget {
                 path: '/trips',
                 builder: (context, state) => MyTripsPage(api: tripApiService!),
                 routes: [
-                  GoRoute(path: 'create', builder: (context, state) => TripFormPage(api: tripApiService!)),
+                  GoRoute(
+                    path: 'create',
+                    builder: (context, state) =>
+                        TripFormPage(api: tripApiService!),
+                  ),
                   GoRoute(
                     path: ':id',
-                    builder: (context, state) => TripDetailsPage(api: tripApiService!, id: state.pathParameters['id']!),
+                    builder: (context, state) => TripDetailsPage(
+                      api: tripApiService!,
+                      id: state.pathParameters['id']!,
+                    ),
                     routes: [
-                      GoRoute(path: 'edit', builder: (context, state) => TripFormPage(api: tripApiService!, trip: state.extra as Trip?)),
-                      GoRoute(path: 'preferences', builder: (context, state) => TripPreferencesPage(api: tripApiService!, tripId: state.pathParameters['id']!)),
+                      GoRoute(
+                        path: 'edit',
+                        builder: (context, state) => TripFormPage(
+                          api: tripApiService!,
+                          trip: state.extra as Trip?,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'preferences',
+                        builder: (context, state) => TripPreferencesPage(
+                          api: tripApiService!,
+                          tripId: state.pathParameters['id']!,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'travel-safety',
+                        builder: (context, state) => TravelSafetyPage(
+                          tripId: state.pathParameters['id']!,
+                        ),
+                      ),
                       GoRoute(
                         path: 'itinerary',
-                        builder: (context, state) => ItineraryPage(api: tripApiService!, tripId: state.pathParameters['id']!),
+                        builder: (context, state) => ItineraryPage(
+                          api: tripApiService!,
+                          tripId: state.pathParameters['id']!,
+                        ),
                         routes: [
-                          GoRoute(path: 'day/:dayNumber', builder: (context, state) => ItineraryDayPage(day: state.extra! as ItineraryDay)),
+                          GoRoute(
+                            path: 'day/:dayNumber',
+                            builder: (context, state) => ItineraryDayPage(
+                              day: state.extra! as ItineraryDay,
+                            ),
+                          ),
                         ],
                       ),
                     ],
