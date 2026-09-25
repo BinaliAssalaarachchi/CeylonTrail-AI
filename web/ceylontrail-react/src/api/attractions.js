@@ -39,6 +39,11 @@ export async function deleteAttraction(id) {
   await apiClient.delete(`/api/attractions/${id}`)
 }
 
+export async function activateAttraction(id) {
+  const response = await apiClient.patch(`/api/attractions/${id}/activate`)
+  return response.data
+}
+
 export async function createSchedule(attractionId, data) {
   const response = await apiClient.post(`/api/attractions/${attractionId}/schedules`, data)
   return response.data

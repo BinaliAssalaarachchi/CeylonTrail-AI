@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { deleteAttraction, getMyAttractions } from '../../api/attractions'
+import { activateAttraction, deleteAttraction, getMyAttractions } from '../../api/attractions'
 import AttractionCard from '../../components/attractions/AttractionCard'
 import { apiErrorMessage } from './attractionUtils'
 import ConfirmationModal from '../../components/ConfirmationModal'
@@ -53,6 +53,16 @@ export default function MyAttractionsPage() {
     } finally { setDeactivating(false) }
   }
 
+  async function activate(attraction) {
+    try {
+      await activateAttraction(attraction.id)
+      setMessage('Attraction activated successfully.')
+      await load()
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, 'Unable to activate the attraction.'))
+    }
+  }
+
   const attractions = result?.items ?? emptyAttractions
   const categories = useMemo(() => [...new Set(attractions.map((item) => item.category?.name).filter(Boolean))].sort(), [attractions])
   const districts = useMemo(() => [...new Set(attractions.map((item) => item.district).filter(Boolean))].sort(), [attractions])
@@ -63,16 +73,18 @@ export default function MyAttractionsPage() {
     pending: attractions.filter((item) => item.isActive && item.status === 'PendingApproval').length,
     inactive: attractions.filter((item) => !item.isActive).length,
   }), [attractions])
+  const activeAttractions = useMemo(() => attractions.filter((attraction) => attraction.isActive), [attractions])
+  const deactivatedAttractions = useMemo(() => attractions.filter((attraction) => !attraction.isActive), [attractions])
   const filteredAttractions = useMemo(() => {
     const search = filters.search.trim().toLowerCase()
-    return attractions.filter((attraction) => {
+    return activeAttractions.filter((attraction) => {
       const searchable = [attraction.name, attraction.district, attraction.category?.name].filter(Boolean).join(' ').toLowerCase()
       return (!search || searchable.includes(search)) &&
         (!filters.status || managementStatus(attraction) === filters.status) &&
         (!filters.category || attraction.category?.name === filters.category) &&
         (!filters.district || attraction.district === filters.district)
     })
-  }, [attractions, filters])
+  }, [activeAttractions, filters])
   const hasFilters = Object.values(filters).some(Boolean)
 
   function updateFilter(event) {
@@ -100,16 +112,16 @@ export default function MyAttractionsPage() {
 
       {!loading && !error && attractions.length > 0 && <>
         <div className="provider-attraction-stats" aria-label="Attraction summary">
-          <div className="provider-stat"><span>Total attractions</span><strong>{stats.total}</strong><small>Across your workspace</small></div>
-          <div className="provider-stat"><span>Approved</span><strong>{stats.approved}</strong><small>Publicly available</small></div>
-          <div className="provider-stat"><span>Pending approval</span><strong>{stats.pending}</strong><small>Awaiting review</small></div>
-          <div className="provider-stat"><span>Inactive</span><strong>{stats.inactive}</strong><small>Soft deactivated</small></div>
+          <button className={`provider-stat ${!hasFilters ? 'provider-stat-selected' : ''}`} type="button" onClick={clearFilters}><span>Total attractions</span><strong>{stats.total}</strong><small>Across your workspace</small></button>
+          <button className={`provider-stat ${filters.status === 'Approved' ? 'provider-stat-selected' : ''}`} type="button" onClick={() => setFilters((current) => ({ ...current, status: 'Approved' }))}><span>Approved</span><strong>{stats.approved}</strong><small>Publicly available</small></button>
+          <button className={`provider-stat ${filters.status === 'PendingApproval' ? 'provider-stat-selected' : ''}`} type="button" onClick={() => setFilters((current) => ({ ...current, status: 'PendingApproval' }))}><span>Pending approval</span><strong>{stats.pending}</strong><small>Awaiting review</small></button>
+          <button className="provider-stat" type="button" onClick={() => document.getElementById('deactivated-attractions')?.scrollIntoView({ behavior: 'smooth' })}><span>Inactive</span><strong>{stats.inactive}</strong><small>View deactivated</small></button>
         </div>
 
         <div className="provider-attraction-toolbar" aria-label="Filter attractions">
           <div className="provider-toolbar-heading">
             <div><p className="eyebrow">Your catalogue</p><h2>Find an attraction</h2></div>
-            <span className="provider-result-count">{filteredAttractions.length} of {attractions.length} shown</span>
+            <span className="provider-result-count">{filteredAttractions.length} of {activeAttractions.length} active shown</span>
           </div>
           <div className="provider-filter-grid">
             <label className="provider-filter-search">Search attractions
@@ -142,6 +154,11 @@ export default function MyAttractionsPage() {
         </div>}
         {filteredAttractions.length === 0 && <div className="empty-state provider-filter-empty"><h2>No attractions match your filters.</h2><p>Try changing your search or clearing the active filters.</p><button className="button button-secondary-light" type="button" onClick={clearFilters}>Clear filters</button></div>}
       </>}
+
+      {!loading && !error && deactivatedAttractions.length > 0 && <section id="deactivated-attractions" className="deactivated-attractions" aria-labelledby="deactivated-attractions-title">
+        <div className="deactivated-attractions-heading"><div><p className="eyebrow">Archived from public view</p><h2 id="deactivated-attractions-title">Deactivated Attractions</h2></div><span>{deactivatedAttractions.length} attraction{deactivatedAttractions.length === 1 ? '' : 's'}</span></div>
+        <div className="provider-attraction-grid">{deactivatedAttractions.map((attraction) => <AttractionCard key={attraction.id} attraction={attraction} onActivate={activate} />)}</div>
+      </section>}
 
       {!loading && !error && attractions.length === 0 && <div className="empty-state"><h2>No attractions yet</h2><p>Create your first attraction to begin managing schedules and experience slots.</p><Link className="button button-primary" to="/provider/attractions/create">Create your first attraction</Link></div>}
       {confirming && <ConfirmationModal title="Deactivate attraction?" message="This attraction will no longer be visible to tourists. Its existing database record will be preserved." confirmLabel="Deactivate attraction" isLoading={deactivating} onConfirm={() => deactivate(confirming)} onClose={() => setConfirming(null)} />}

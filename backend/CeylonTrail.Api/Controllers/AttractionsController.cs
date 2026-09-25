@@ -316,6 +316,17 @@ public sealed class AttractionsController(IAttractionService attractionService, 
         return ToActionResult(result, _ => NoContent());
     }
 
+    [HttpPatch("{id:guid}/activate")]
+    [Authorize(Roles = ProviderOrAdministrator)]
+    public async Task<IActionResult> Activate(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var actorId))
+            return Unauthorized();
+
+        var result = await attractionService.ActivateAsync(id, actorId, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
     [HttpPatch("{id:guid}/images/{imageId:guid}/primary")]
     [Authorize(Roles = ProviderOrAdministrator)]
     public async Task<IActionResult> SetPrimaryImage(

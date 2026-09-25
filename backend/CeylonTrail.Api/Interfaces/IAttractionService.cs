@@ -51,6 +51,11 @@ public interface IAttractionService
         Guid actorId,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<AttractionResponse>> ActivateAsync(
+        Guid attractionId,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<AttractionScheduleResponse>> AddScheduleAsync(
         Guid attractionId,
         CreateScheduleRequest request,

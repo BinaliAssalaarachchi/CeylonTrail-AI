@@ -11,7 +11,7 @@ function formatUpdatedDate(value) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
 
-export default function AttractionCard({ attraction, onDeactivate }) {
+export default function AttractionCard({ attraction, onDeactivate, onActivate }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const image = attraction.images?.find((item) => item?.isPrimary && item?.imageUrl) || attraction.images?.find((item) => item?.imageUrl)
@@ -34,10 +34,8 @@ export default function AttractionCard({ attraction, onDeactivate }) {
         </div>
       </div>
       <div className="provider-card-actions">
-        <Link className="button button-primary provider-edit-action" to={`/provider/attractions/${attraction.id}/edit`}>Edit</Link>
-        <Link className="provider-text-action" to={`/provider/attractions/${attraction.id}/schedules`}>Schedules</Link>
-        <Link className="provider-text-action" to={`/provider/attractions/${attraction.id}/slots`}>Slots</Link>
-        <Link className="provider-text-action" to={`/provider/attractions/${attraction.id}/availability`}>Availability</Link>
+        {attraction.isActive ? <Link className="button button-primary provider-edit-action" to={`/provider/attractions/${attraction.id}/edit`}>Edit</Link> : <button className="button button-primary provider-edit-action" type="button" onClick={() => onActivate(attraction)}>Activate</button>}
+        {attraction.isActive && <><Link className="provider-text-action" to={`/provider/attractions/${attraction.id}/schedules`}>Schedules</Link><Link className="provider-text-action" to={`/provider/attractions/${attraction.id}/slots`}>Slots</Link><Link className="provider-text-action" to={`/provider/attractions/${attraction.id}/availability`}>Availability</Link></>}
         {attraction.isActive && <div className="provider-card-menu">
           <button className="provider-overflow-button" type="button" aria-label={`More actions for ${attraction.name}`} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>⋯</button>
           {menuOpen && <div className="provider-overflow-menu">

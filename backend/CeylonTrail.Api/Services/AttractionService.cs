@@ -77,7 +77,7 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         }
 
         var query = GetAttractionQuery()
-            .Where(attraction => attraction.ProviderId == providerId && attraction.IsActive);
+            .Where(attraction => attraction.ProviderId == providerId);
 
         return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, providerId, cancellationToken);
     }
@@ -644,6 +644,29 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         }
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<bool>.Success(true);
+    }
+
+    public async Task<ServiceResult<AttractionResponse>> ActivateAsync(
+        Guid attractionId,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        var attraction = await dbContext.Attractions.SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        if (attraction is null)
+            return ServiceResult<AttractionResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+
+        var actor = await dbContext.Users.SingleOrDefaultAsync(candidate => candidate.Id == actorId, cancellationToken);
+        if (actor is null || !actor.IsActive)
+            return ServiceResult<AttractionResponse>.Failure("User account not found or inactive.", ServiceErrorCode.Forbidden);
+
+        if (actor.Role != UserRole.Administrator && (actor.Role != UserRole.TourismProvider || attraction.ProviderId != actorId))
+            return ServiceResult<AttractionResponse>.Failure("You are not allowed to manage this attraction.", ServiceErrorCode.Forbidden);
+
+        attraction.IsActive = true;
+        attraction.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        var saved = await GetAttractionQuery().SingleAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        return ServiceResult<AttractionResponse>.Success(ToResponse(saved, false));
     }
 
     public async Task<ServiceResult<AttractionImageResponse>> SetPrimaryImageAsync(
