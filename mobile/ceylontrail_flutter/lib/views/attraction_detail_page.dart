@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/attraction_model.dart';
 import '../services/attraction_api_service.dart';
@@ -81,6 +82,10 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
             Text(attraction.price == 0 ? 'Free entry' : 'From ${attraction.price.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 18),
             Text(attraction.description, style: Theme.of(context).textTheme.bodyLarge),
+            if (isTourist) ...[
+              const SizedBox(height: 18),
+              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => context.push('/discover/${attraction.id}/book'), icon: const Icon(Icons.event_available_outlined), label: const Text('Book Experience'))),
+            ],
             const SizedBox(height: 18),
             _InfoSection(title: 'Address', child: Text(attraction.address)),
             _InfoSection(title: 'Opening schedule', child: attraction.schedules.isEmpty ? const Text('No schedule information available.') : Column(children: attraction.schedules.map((schedule) => ListTile(contentPadding: EdgeInsets.zero, title: Text(schedule.dayOfWeek), trailing: Text(schedule.isClosed ? 'Closed' : '${_time(schedule.openingTime)} – ${_time(schedule.closingTime)}'))).toList())),
