@@ -32,6 +32,7 @@ export default function AppShell() {
   const { user, logout } = useAuth()
   const roleLink = roleLinks[user.role]
   const canManageOperations = ['TravelCoordinator', 'Administrator'].includes(user.role)
+  const canViewAdvisories = ['Tourist', 'TourismProvider'].includes(user.role)
   const attractionRoute = user.role === 'TourismProvider' ? '/provider/attractions' : user.role === 'Administrator' ? '/admin/attractions' : null
   return (
     <div className="app-shell">
@@ -47,6 +48,7 @@ export default function AppShell() {
           {canManageOperations && <NavLink className="nav-link" to="/trip-planning"><span className="nav-icon">TR</span><span>Trip planning</span></NavLink>}
           <div className="nav-divider" /><p className="nav-section-label">Platform modules</p>
           <NavLink className="nav-link" to="/bookings"><span className="nav-icon">BK</span><span>Bookings</span></NavLink>
+          {canViewAdvisories && <NavLink className="nav-link" to="/travel-advisories"><span className="nav-icon">TA</span><span>Travel Advisories</span></NavLink>}
           {canManageOperations && <><NavLink className="nav-link" to="/travel-alerts"><span className="nav-icon">OP</span><span>Travel Operations</span></NavLink><NavLink className="nav-link" to="/ai-operations"><span className="nav-icon">AI</span><span>AI Operations</span></NavLink></>}
           {attractionRoute ? <NavLink className="nav-link" to={attractionRoute}><span className="nav-icon">AT</span><span>Discover / Attractions</span></NavLink> : <span className="nav-link nav-link-disabled" aria-disabled="true"><span className="nav-icon">AT</span><span>Discover</span></span>}
         </nav>

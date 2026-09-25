@@ -43,6 +43,7 @@ builder.Services.AddSingleton(jwtOptions);
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<ITripService, TripService>();
+builder.Services.AddScoped<IItineraryTravelIntelligenceWorkflowService, ItineraryTravelIntelligenceWorkflowService>();
 builder.Services.AddScoped<IAttractionService, AttractionService>();
 builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
@@ -51,10 +52,13 @@ builder.Services.AddScoped<IApprovalRequestService, ApprovalRequestService>();
 builder.Services.AddScoped<ITravelIntelligenceExecutionPersistenceService, TravelIntelligenceExecutionPersistenceService>();
 builder.Services.AddScoped<ITravelIntelligenceExecutionQueryService, TravelIntelligenceExecutionQueryService>();
 builder.Services.AddScoped<ITouristTravelIntelligenceOutcomeService, TouristTravelIntelligenceOutcomeService>();
+builder.Services.AddScoped<IAgentWorkflowPersistenceService, AgentWorkflowPersistenceService>();
 builder.Services.Configure<TravelIntelligenceOptions>(
     builder.Configuration.GetSection(TravelIntelligenceOptions.SectionName));
 builder.Services.Configure<PlannerAgentOptions>(
     builder.Configuration.GetSection(PlannerAgentOptions.SectionName));
+builder.Services.Configure<DestinationAgentOptions>(
+    builder.Configuration.GetSection(DestinationAgentOptions.SectionName));
 builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceService>((serviceProvider, client) =>
 {
     var options = serviceProvider
@@ -67,6 +71,14 @@ builder.Services.AddHttpClient<IPlannerAgentService, PlannerAgentService>((servi
 {
     var options = serviceProvider
         .GetRequiredService<Microsoft.Extensions.Options.IOptions<PlannerAgentOptions>>()
+        .Value;
+    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 15);
+});
+builder.Services.AddHttpClient<IDestinationAgentService, DestinationAgentService>((serviceProvider, client) =>
+{
+    var options = serviceProvider
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<DestinationAgentOptions>>()
         .Value;
     client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 15);
