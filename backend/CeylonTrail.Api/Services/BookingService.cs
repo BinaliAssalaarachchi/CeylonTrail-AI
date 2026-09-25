@@ -18,15 +18,22 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "A booking must contain at least one item.", null);
         }
 
-        // Validate Trip if provided
+        // A supplied trip must exist and belong to the authenticated tourist.
+        // Return the same safe not-found result for both cases so ownership is not disclosed.
         Guid? tripId = null;
         if (request.TripId.HasValue && request.TripId.Value != Guid.Empty)
         {
-            var tripExists = await dbContext.Trips.AnyAsync(t => t.Id == request.TripId.Value, cancellationToken);
-            if (tripExists)
+            var ownedTrip = await dbContext.Trips
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    trip => trip.Id == request.TripId.Value && trip.TouristId == touristId,
+                    cancellationToken);
+            if (ownedTrip is null)
             {
-                tripId = request.TripId.Value;
+                return (false, "Trip not found.", null);
             }
+
+            tripId = ownedTrip.Id;
         }
 
         var booking = new Booking
@@ -42,7 +49,18 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         decimal total = 0;
         foreach (var item in request.Items)
         {
+            if (item.NumberOfGuests <= 0)
+            {
+                return (false, "NumberOfGuests must be greater than zero.", null);
+            }
+
+            if (item.UnitPrice.HasValue && item.UnitPrice.Value < 0)
+            {
+                return (false, "UnitPrice must be non-negative when supplied.", null);
+            }
+
             var slot = await dbContext.AvailabilitySlots
+                .Include(availabilitySlot => availabilitySlot.Attraction)
                 .FirstOrDefaultAsync(s => s.Id == item.AvailabilitySlotId, cancellationToken);
 
             if (slot == null)
@@ -50,7 +68,22 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 return (false, $"Availability slot '{item.AvailabilitySlotId}' does not exist. Please select a valid slot.", null);
             }
 
-            if (slot.BookedCapacity + item.NumberOfGuests > slot.MaxCapacity)
+            if (slot.Attraction is null ||
+                !slot.Attraction.IsActive ||
+                !string.Equals(slot.Attraction.Status, "Approved", StringComparison.Ordinal))
+            {
+                return (false, "The attraction is not available for booking.", null);
+            }
+
+            if (slot.EndTime <= DateTime.UtcNow)
+            {
+                return (false, "The availability slot is no longer bookable.", null);
+            }
+
+            if (slot.BookedCapacity < 0 ||
+                slot.MaxCapacity <= 0 ||
+                slot.BookedCapacity > slot.MaxCapacity ||
+                item.NumberOfGuests > slot.MaxCapacity - slot.BookedCapacity)
             {
                 return (false, $"Availability slot has insufficient capacity. Available: {slot.AvailableCapacity}, Requested: {item.NumberOfGuests}.", null);
             }
@@ -59,7 +92,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             slot.BookedCapacity += item.NumberOfGuests;
             slot.UpdatedAt = DateTime.UtcNow;
 
-            var unitPrice = item.UnitPrice > 0 ? item.UnitPrice : slot.PricePerPerson;
+            var unitPrice = slot.PricePerPerson;
             var subtotal = item.NumberOfGuests * unitPrice;
             total += subtotal;
 
@@ -326,7 +359,14 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         Guid? attractionId = null,
         CancellationToken cancellationToken = default)
     {
-        var query = dbContext.AvailabilitySlots.AsNoTracking();
+        var query = dbContext.AvailabilitySlots
+            .AsNoTracking()
+            .Where(slot =>
+                slot.Attraction != null &&
+                slot.Attraction.IsActive &&
+                string.Equals(slot.Attraction.Status, "Approved", StringComparison.Ordinal) &&
+                slot.BookedCapacity < slot.MaxCapacity &&
+                slot.EndTime > DateTime.UtcNow);
 
         if (attractionId.HasValue && attractionId.Value != Guid.Empty)
         {

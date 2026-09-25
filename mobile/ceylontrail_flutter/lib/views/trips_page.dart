@@ -34,7 +34,7 @@ class _TripsPageState extends State<TripsPage> {
   Future<void> _load() async {
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
-      final trips = await _service!.fetchTrips();
+      final trips = await _service!.getTrips();
       if (mounted) setState(() => _trips = trips);
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);

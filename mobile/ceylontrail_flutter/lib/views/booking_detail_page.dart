@@ -180,8 +180,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.confirmation_number_outlined)),
-                  title: Text('Attraction (${item.attractionId.substring(0, 8)}...)'),
-                  subtitle: Text('Qty: ${item.quantity} × \$${item.unitPrice.toStringAsFixed(2)}'),
+                  title: Text('Availability slot (${item.availabilitySlotId.substring(0, item.availabilitySlotId.length > 8 ? 8 : item.availabilitySlotId.length)}...)'),
+                  subtitle: Text('Guests: ${item.numberOfGuests} × \$${item.unitPrice.toStringAsFixed(2)}'),
                   trailing: Text(
                     '\$${item.subtotal.toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),

@@ -54,7 +54,8 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
   }
 
   Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Delete this trip?'),
@@ -78,16 +79,16 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
     try {
       await widget.api.deleteTrip(widget.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trip deleted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Trip deleted.')));
       context.go('/trips');
     } on ApiException catch (error) {
       if (mounted) {
         setState(() => _deleting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
@@ -97,16 +98,16 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
     try {
       await widget.api.generateItinerary(widget.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Itinerary generated.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Itinerary generated.')));
       await context.push('/trips/${widget.id}/itinerary');
       if (mounted) _load();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } finally {
       if (mounted) setState(() => _generating = false);
@@ -153,9 +154,14 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${displayDate(trip.startDate)} – ${displayDate(trip.endDate)}'),
+                    Text(
+                      '${displayDate(trip.startDate)} – ${displayDate(trip.endDate)}',
+                    ),
                     const SizedBox(height: 8),
-                    Text(displayMoney(trip.budget), style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      displayMoney(trip.budget),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ],
                 ),
               ),
@@ -178,7 +184,10 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
             const SizedBox(height: CeylonSpacing.sm),
             ElevatedButton.icon(
               onPressed: () async {
-                final result = await context.push('/trips/${trip.id}/edit', extra: trip);
+                final result = await context.push(
+                  '/trips/${trip.id}/edit',
+                  extra: trip,
+                );
                 if (result != null && mounted) _load();
               },
               icon: const Icon(Icons.edit_outlined),
@@ -196,7 +205,9 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
                       )
                     : const Icon(Icons.auto_awesome_outlined),
                 label: Text(
-                  _generating ? 'Generating itinerary...' : 'Generate itinerary',
+                  _generating
+                      ? 'Generating itinerary...'
+                      : 'Generate itinerary',
                 ),
               ),
             ],
@@ -205,6 +216,12 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
               onPressed: () => context.push('/trips/${trip.id}/itinerary'),
               icon: const Icon(Icons.route_outlined),
               label: const Text('View generated itinerary'),
+            ),
+            const SizedBox(height: CeylonSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: () => context.push('/trips/${trip.id}/travel-safety'),
+              icon: const Icon(Icons.shield_outlined),
+              label: const Text('Travel Safety'),
             ),
           ],
         ),

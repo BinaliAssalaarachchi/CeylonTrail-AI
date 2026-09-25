@@ -10,6 +10,8 @@ public class BookingItemRequest
     [Range(1, 100, ErrorMessage = "NumberOfGuests must be between 1 and 100.")]
     public int NumberOfGuests { get; set; }
 
-    [Range(0.01, 100000.0, ErrorMessage = "UnitPrice must be greater than 0.")]
-    public decimal UnitPrice { get; set; }
+    // Accepted for backwards compatibility with the original M3 contract.
+    // The server always uses AvailabilitySlot.PricePerPerson as the authoritative price.
+    [Range(0.0, 100000.0, ErrorMessage = "UnitPrice must be non-negative when supplied.")]
+    public decimal? UnitPrice { get; set; }
 }

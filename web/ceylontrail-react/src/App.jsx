@@ -40,9 +40,6 @@ function App() {
                 <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />
                 <Route path="/trip-planning/:id" element={<ItineraryReviewPage />} />
               </Route>
-              <Route path="/travel-alerts" element={<TravelAlertsPage />} />
-              <Route path="/ai-operations" element={<AIOperationsPage />} />
-
               <Route element={<ProtectedRoute allowedRoles={['TourismProvider']} />}>
                 <Route path="/provider" element={<RoleDashboardPage title="Tourism Provider Dashboard" description="A shared workspace for tourism providers." />} />
                 <Route path="/provider/attractions" element={<MyAttractionsPage />} />
