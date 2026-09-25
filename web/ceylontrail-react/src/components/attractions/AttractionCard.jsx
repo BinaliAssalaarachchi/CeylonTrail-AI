@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import StatusBadge from './StatusBadge'
+import AttractionPreviewModal from './AttractionPreviewModal'
 
 function formatPrice(price) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(price)
@@ -12,13 +13,14 @@ function formatUpdatedDate(value) {
 
 export default function AttractionCard({ attraction, onDeactivate }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const image = attraction.images?.find((item) => item?.imageUrl)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const image = attraction.images?.find((item) => item?.isPrimary && item?.imageUrl) || attraction.images?.find((item) => item?.imageUrl)
 
   return (
     <article className="provider-attraction-card">
       <div className="provider-card-main">
         <div className="provider-card-thumbnail">
-          {image ? <img src={image.imageUrl} alt={image.altText || attraction.name} /> : <span aria-hidden="true">✦</span>}
+          {image ? <button className="provider-card-image-button" type="button" onClick={() => setPreviewOpen(true)} aria-label={`Preview ${attraction.name}`}><img src={image.imageUrl} alt={image.altText || attraction.name} /></button> : <span aria-hidden="true">✦</span>}
         </div>
         <div className="provider-card-copy">
           <div className="provider-card-topline">
@@ -43,6 +45,7 @@ export default function AttractionCard({ attraction, onDeactivate }) {
           </div>}
         </div>}
       </div>
+      {previewOpen && <AttractionPreviewModal attraction={attraction} onClose={() => setPreviewOpen(false)} canEdit />}
     </article>
   )
 }

@@ -115,4 +115,10 @@ public interface IAttractionService
         Guid imageId,
         Guid actorId,
         CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<AttractionImageResponse>> SetPrimaryImageAsync(
+        Guid attractionId,
+        Guid imageId,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
 }

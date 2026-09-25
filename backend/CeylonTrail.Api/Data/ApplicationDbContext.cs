@@ -128,6 +128,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(image => image.ImageUrl).IsRequired().HasMaxLength(2048);
             entity.Property(image => image.AltText).HasMaxLength(300);
             entity.Property(image => image.SortOrder).IsRequired();
+            entity.Property(image => image.IsPrimary).IsRequired();
             entity.Property(image => image.CreatedAt).IsRequired();
             entity.HasIndex(image => new { image.AttractionId, image.SortOrder });
             entity.HasOne(image => image.Attraction)

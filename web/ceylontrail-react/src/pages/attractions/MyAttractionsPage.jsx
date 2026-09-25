@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { deleteAttraction, getMyAttractions } from '../../api/attractions'
 import AttractionCard from '../../components/attractions/AttractionCard'
 import { apiErrorMessage } from './attractionUtils'
+import ConfirmationModal from '../../components/ConfirmationModal'
 
 const initialFilters = { search: '', status: '', category: '', district: '' }
 const emptyAttractions = []
@@ -19,8 +20,11 @@ export default function MyAttractionsPage() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
+  const location = useLocation()
+  const [message, setMessage] = useState(location.state?.message || '')
   const [filters, setFilters] = useState(initialFilters)
+  const [confirming, setConfirming] = useState(null)
+  const [deactivating, setDeactivating] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -37,14 +41,16 @@ export default function MyAttractionsPage() {
   useEffect(() => { load() }, [load])
 
   async function deactivate(attraction) {
-    if (!window.confirm(`Deactivate “${attraction.name}”? It will no longer be publicly available.`)) return
+    setDeactivating(true)
     try {
       await deleteAttraction(attraction.id)
+      setConfirming(null)
       setMessage('Attraction deactivated successfully.')
       load()
     } catch (requestError) {
       setError(apiErrorMessage(requestError))
-    }
+      setConfirming(null)
+    } finally { setDeactivating(false) }
   }
 
   const attractions = result?.items ?? emptyAttractions
@@ -132,12 +138,13 @@ export default function MyAttractionsPage() {
         </div>
 
         {filteredAttractions.length > 0 && <div className="provider-attraction-grid">
-          {filteredAttractions.map((attraction) => <AttractionCard key={attraction.id} attraction={attraction} onDeactivate={deactivate} />)}
+          {filteredAttractions.map((attraction) => <AttractionCard key={attraction.id} attraction={attraction} onDeactivate={setConfirming} />)}
         </div>}
         {filteredAttractions.length === 0 && <div className="empty-state provider-filter-empty"><h2>No attractions match your filters.</h2><p>Try changing your search or clearing the active filters.</p><button className="button button-secondary-light" type="button" onClick={clearFilters}>Clear filters</button></div>}
       </>}
 
       {!loading && !error && attractions.length === 0 && <div className="empty-state"><h2>No attractions yet</h2><p>Create your first attraction to begin managing schedules and experience slots.</p><Link className="button button-primary" to="/provider/attractions/create">Create your first attraction</Link></div>}
+      {confirming && <ConfirmationModal title="Deactivate attraction?" message="This attraction will no longer be visible to tourists. Its existing database record will be preserved." confirmLabel="Deactivate attraction" isLoading={deactivating} onConfirm={() => deactivate(confirming)} onClose={() => setConfirming(null)} />}
     </section>
   )
 }

@@ -602,6 +602,7 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
             ImageUrl = request.ImageUrl.Trim(),
             AltText = string.IsNullOrWhiteSpace(request.AltText) ? null : request.AltText.Trim(),
             SortOrder = request.SortOrder,
+            IsPrimary = !await dbContext.AttractionImages.AnyAsync(image => image.AttractionId == attractionId, cancellationToken),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -631,8 +632,44 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         }
 
         dbContext.AttractionImages.Remove(image);
+        if (image.IsPrimary)
+        {
+            var fallback = await dbContext.AttractionImages
+                .Where(candidate => candidate.AttractionId == attractionId && candidate.Id != imageId)
+                .OrderBy(candidate => candidate.SortOrder)
+                .ThenBy(candidate => candidate.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (fallback is not null)
+                fallback.IsPrimary = true;
+        }
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<bool>.Success(true);
+    }
+
+    public async Task<ServiceResult<AttractionImageResponse>> SetPrimaryImageAsync(
+        Guid attractionId,
+        Guid imageId,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        if (!manageable.Succeeded)
+            return ServiceResult<AttractionImageResponse>.Failure(manageable.Error!, manageable.ErrorCode);
+
+        var image = await dbContext.AttractionImages.SingleOrDefaultAsync(candidate =>
+            candidate.Id == imageId && candidate.AttractionId == attractionId,
+            cancellationToken);
+        if (image is null)
+            return ServiceResult<AttractionImageResponse>.Failure("Image not found.", ServiceErrorCode.NotFound);
+
+        var attractionImages = await dbContext.AttractionImages
+            .Where(candidate => candidate.AttractionId == attractionId)
+            .ToListAsync(cancellationToken);
+        foreach (var attractionImage in attractionImages)
+            attractionImage.IsPrimary = false;
+        image.IsPrimary = true;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ServiceResult<AttractionImageResponse>.Success(ToResponse(image));
     }
 
     private IQueryable<Attraction> ApplySearchFilters(
@@ -836,5 +873,6 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         image.ImageUrl,
         image.AltText,
         image.SortOrder,
+        image.IsPrimary,
         image.CreatedAt);
 }
