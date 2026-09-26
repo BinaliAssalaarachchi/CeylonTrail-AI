@@ -28,6 +28,11 @@ public interface IAttractionService
         AttractionSearchRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<AttractionSearchResponse>> GetAdminAttractionsAsync(
+        AttractionSearchRequest request,
+        string? statusFilter = null,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<IReadOnlyList<CategoryResponse>>> GetCategoriesAsync(
         CancellationToken cancellationToken = default);
 
@@ -38,6 +43,17 @@ public interface IAttractionService
 
     Task<ServiceResult<AttractionResponse>> ApproveAsync(
         Guid attractionId,
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<AttractionResponse>> RejectAsync(
+        Guid attractionId,
+        string reason,
+        CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<AttractionResponse>> SetStatusAsync(
+        Guid attractionId,
+        string status,
+        string? reason = null,
         CancellationToken cancellationToken = default);
 
     Task<ServiceResult<AttractionResponse>> UpdateAsync(

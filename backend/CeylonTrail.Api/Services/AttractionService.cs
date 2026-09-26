@@ -10,6 +10,8 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
 {
     private const string PendingApprovalStatus = "PendingApproval";
     private const string ApprovedStatus = "Approved";
+    private const string RejectedStatus = "Rejected";
+    private const string UnderReviewStatus = "UnderReview";
 
     public async Task<ServiceResult<AttractionResponse>> CreateAsync(
         CreateAttractionRequest request,
@@ -87,7 +89,23 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         CancellationToken cancellationToken = default)
     {
         var query = GetAttractionQuery()
-            .Where(attraction => attraction.IsActive && attraction.Status == PendingApprovalStatus);
+            .Where(attraction => attraction.IsActive && (attraction.Status == PendingApprovalStatus || attraction.Status == UnderReviewStatus));
+
+        return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, null, cancellationToken);
+    }
+
+    public async Task<ServiceResult<AttractionSearchResponse>> GetAdminAttractionsAsync(
+        AttractionSearchRequest request,
+        string? statusFilter = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = GetAttractionQuery();
+
+        if (!string.IsNullOrWhiteSpace(statusFilter) && !statusFilter.Equals("all", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalized = statusFilter.Trim().ToLower();
+            query = query.Where(attraction => attraction.Status.ToLower() == normalized);
+        }
 
         return await ExecuteSearchAsync(ApplySearchFilters(query, request), request, null, cancellationToken);
     }
@@ -182,14 +200,98 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
                 ServiceErrorCode.Validation);
         }
 
-        if (attraction.Status != PendingApprovalStatus)
+        attraction.Status = ApprovedStatus;
+        attraction.RejectionReason = null;
+        attraction.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var saved = await GetAttractionQuery()
+            .SingleAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        return ServiceResult<AttractionResponse>.Success(ToResponse(saved, false));
+    }
+
+    public async Task<ServiceResult<AttractionResponse>> RejectAsync(
+        Guid attractionId,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
         {
-            return ServiceResult<AttractionResponse>.Failure(
-                "Only pending attractions can be approved.",
-                ServiceErrorCode.Conflict);
+            return ServiceResult<AttractionResponse>.Failure("A rejection reason is required.", ServiceErrorCode.Validation);
         }
 
-        attraction.Status = ApprovedStatus;
+        var attraction = await dbContext.Attractions
+            .SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        if (attraction is null)
+        {
+            return ServiceResult<AttractionResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+        }
+
+        if (!attraction.IsActive)
+        {
+            return ServiceResult<AttractionResponse>.Failure(
+                "Inactive attractions cannot be rejected.",
+                ServiceErrorCode.Validation);
+        }
+
+        attraction.Status = RejectedStatus;
+        attraction.RejectionReason = reason.Trim();
+        attraction.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var saved = await GetAttractionQuery()
+            .SingleAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        return ServiceResult<AttractionResponse>.Success(ToResponse(saved, false));
+    }
+
+    public async Task<ServiceResult<AttractionResponse>> SetStatusAsync(
+        Guid attractionId,
+        string status,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedStatus = status.Trim();
+        var validStatuses = new[] { PendingApprovalStatus, ApprovedStatus, RejectedStatus, UnderReviewStatus };
+        var matched = validStatuses.FirstOrDefault(s => s.Equals(normalizedStatus, StringComparison.OrdinalIgnoreCase));
+        if (matched is null)
+        {
+            return ServiceResult<AttractionResponse>.Failure(
+                $"Invalid status '{status}'. Valid statuses are: {string.Join(", ", validStatuses)}",
+                ServiceErrorCode.Validation);
+        }
+
+        if (matched == RejectedStatus && string.IsNullOrWhiteSpace(reason))
+        {
+            return ServiceResult<AttractionResponse>.Failure("A reason is required when rejecting an attraction.", ServiceErrorCode.Validation);
+        }
+
+        var attraction = await dbContext.Attractions
+            .SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
+        if (attraction is null)
+        {
+            return ServiceResult<AttractionResponse>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
+        }
+
+        if (!attraction.IsActive)
+        {
+            return ServiceResult<AttractionResponse>.Failure(
+                "Inactive attractions cannot have their status updated.",
+                ServiceErrorCode.Validation);
+        }
+
+        attraction.Status = matched;
+        if (matched == ApprovedStatus)
+        {
+            attraction.RejectionReason = null;
+        }
+        else if (matched == RejectedStatus)
+        {
+            attraction.RejectionReason = reason?.Trim();
+        }
+        else if (!string.IsNullOrWhiteSpace(reason))
+        {
+            attraction.RejectionReason = reason.Trim();
+        }
         attraction.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -225,6 +327,10 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         attraction.Latitude = request.Latitude;
         attraction.Longitude = request.Longitude;
         attraction.Price = request.Price;
+        if (attraction.Status == RejectedStatus)
+        {
+            attraction.Status = PendingApprovalStatus;
+        }
         attraction.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -237,7 +343,7 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken);
+        var manageable = await LoadManageableAttractionAsync(attractionId, actorId, cancellationToken, requireActive: false);
         if (!manageable.Succeeded)
         {
             return ServiceResult<bool>.Failure(manageable.Error!, manageable.ErrorCode);
@@ -245,8 +351,25 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
 
         var attraction = manageable.Value!;
 
-        attraction.IsActive = false;
-        attraction.UpdatedAt = DateTime.UtcNow;
+        var hasBookings = await dbContext.AvailabilitySlots
+            .AnyAsync(slot => slot.AttractionId == attractionId && slot.BookingItems.Any(), cancellationToken);
+
+        if (hasBookings)
+        {
+            return ServiceResult<bool>.Failure(
+                "Cannot permanently delete this attraction because active bookings are linked to it.",
+                ServiceErrorCode.Conflict);
+        }
+
+        var availabilitySlots = await dbContext.AvailabilitySlots
+            .Where(slot => slot.AttractionId == attractionId)
+            .ToListAsync(cancellationToken);
+        if (availabilitySlots.Count > 0)
+        {
+            dbContext.AvailabilitySlots.RemoveRange(availabilitySlots);
+        }
+
+        dbContext.Attractions.Remove(attraction);
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<bool>.Success(true);
     }
@@ -821,7 +944,8 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
     private async Task<ServiceResult<Attraction>> LoadManageableAttractionAsync(
         Guid attractionId,
         Guid actorId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireActive = true)
     {
         var attraction = await dbContext.Attractions
             .SingleOrDefaultAsync(candidate => candidate.Id == attractionId, cancellationToken);
@@ -830,7 +954,7 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
             return ServiceResult<Attraction>.Failure("Attraction not found.", ServiceErrorCode.NotFound);
         }
 
-        if (!attraction.IsActive)
+        if (requireActive && !attraction.IsActive)
         {
             return ServiceResult<Attraction>.Failure(
                 "Inactive attractions cannot be modified.",
@@ -871,7 +995,8 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         attraction.Schedules.OrderBy(schedule => schedule.DayOfWeek).Select(ToResponse).ToList(),
         attraction.ExperienceSlots.OrderBy(slot => slot.Date).ThenBy(slot => slot.StartTime).Select(ToResponse).ToList(),
         attraction.Images.OrderBy(image => image.SortOrder).Select(ToResponse).ToList(),
-        isFavorite);
+        isFavorite,
+        attraction.RejectionReason);
 
     private static AttractionScheduleResponse ToResponse(AttractionSchedule schedule) => new(
         schedule.Id,

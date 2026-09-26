@@ -20,8 +20,23 @@ export async function getPendingAttractions(params = {}) {
   return response.data
 }
 
+export async function getAdminAttractions(params = {}) {
+  const response = await apiClient.get('/api/attractions/admin', { params })
+  return response.data
+}
+
 export async function approveAttraction(id) {
   const response = await apiClient.patch(`/api/attractions/${id}/approve`)
+  return response.data
+}
+
+export async function rejectAttraction(id, reason) {
+  const response = await apiClient.patch(`/api/attractions/${id}/reject`, { reason })
+  return response.data
+}
+
+export async function setAttractionStatus(id, status, reason = null) {
+  const response = await apiClient.patch(`/api/attractions/${id}/status`, { status, reason })
   return response.data
 }
 

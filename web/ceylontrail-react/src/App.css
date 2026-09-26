@@ -978,3 +978,443 @@ h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.
   .ai-filter-row .filter-field { min-width: 0; }
   .ai-operations-feedback { align-items: flex-start; flex-direction: column; }
 }
+
+/* ----------------------------------------------------
+   Admin Attraction Administration & Rejection Workflow
+   ---------------------------------------------------- */
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.admin-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 22px;
+  border: 1px solid #dce9e4;
+  border-radius: 12px;
+  background: #ffffff;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(18, 63, 58, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(18, 63, 58, 0.1);
+}
+
+.admin-stat-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-stat-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--color-forest);
+  line-height: 1.1;
+}
+
+.admin-stat-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.admin-stat-pending { border-left: 4px solid #f59e0b; }
+.admin-stat-approved { border-left: 4px solid #10b981; }
+.admin-stat-rejected { border-left: 4px solid #ef4444; }
+
+/* Status Tabs */
+.admin-status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 16px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.admin-status-tab {
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-status-tab:hover {
+  background: #f1f5f9;
+  color: var(--color-forest);
+}
+
+.admin-status-tab.active {
+  background: var(--color-forest);
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(14, 59, 46, 0.15);
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+}
+
+.status-approved {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.status-pendingapproval, .status-pending-approval {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.status-rejected {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.status-underreview, .status-under-review {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.status-inactive {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+/* Admin Attraction Row Additions */
+.admin-attraction-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.admin-attraction-thumb {
+  width: 90px;
+  height: 90px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-attraction-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-attraction-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-attraction-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.admin-attraction-title h2 {
+  font-size: 1.25rem;
+  margin: 0;
+  color: var(--color-forest);
+}
+
+.admin-attraction-meta {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 4px 0;
+}
+
+.admin-attraction-provider {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.admin-attraction-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.admin-status-dropdown {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+}
+
+.admin-status-dropdown:focus {
+  border-color: var(--color-tea);
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
+}
+
+.button-danger {
+  background: #dc2626;
+  color: #ffffff;
+  border: 1px solid transparent;
+}
+
+.button-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+/* Rejection Callouts */
+.admin-rejection-note {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-left: 3px solid #ef4444;
+  background: #fff5f5;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #7f1d1d;
+}
+
+.admin-rejection-note p {
+  margin: 3px 0 0;
+  font-style: italic;
+}
+
+.admin-rejection-banner {
+  padding: 18px 20px;
+  border: 1px solid #fecaca;
+  border-left: 5px solid #dc2626;
+  background: #fef2f2;
+  border-radius: 10px;
+  margin-bottom: 24px;
+}
+
+.rejection-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #991b1b;
+}
+
+.rejection-banner-text {
+  margin: 8px 0 0;
+  color: #7f1d1d;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.admin-inline-reject-box {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid #fca5a5;
+  border-radius: 12px;
+  background: #fffafa;
+}
+
+.admin-inline-reject-box h3 {
+  margin: 0 0 6px;
+  color: #991b1b;
+}
+
+/* Provider Workspace Callouts */
+.card-rejected-state {
+  border-color: #fca5a5 !important;
+  background: #fffdfd !important;
+}
+
+.provider-rejection-callout {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.8rem;
+}
+
+.provider-rejection-callout p {
+  margin: 4px 0 6px;
+  color: #7f1d1d;
+  font-weight: 500;
+}
+
+.provider-rejection-callout small {
+  display: block;
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.provider-edit-rejection-box {
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid #fca5a5;
+  border-left: 5px solid #dc2626;
+  border-radius: 10px;
+  background: #fef2f2;
+  margin-bottom: 24px;
+}
+
+.rejection-box-icon {
+  font-size: 1.5rem;
+}
+
+.rejection-box-content strong {
+  color: #991b1b;
+  font-size: 0.95rem;
+}
+
+.rejection-box-content p {
+  margin: 6px 0 8px;
+  color: #7f1d1d;
+  font-size: 0.9rem;
+}
+
+.rejection-box-content small {
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+/* Admin Image Gallery Preview */
+.admin-image-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-gallery-item {
+  position: relative;
+  width: 140px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.primary-pill {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-forest);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+/* Admin Decision Actions Group */
+.admin-decision-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+  margin-top: 14px;
+}
+
+.status-dropdown-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.decision-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-content {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 580px;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.modal-content h2 {
+  margin: 0 0 10px;
+  color: var(--color-forest);
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  resize: vertical;
+}
+
+.form-textarea:focus {
+  border-color: var(--color-tea);
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
+}
+

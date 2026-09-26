@@ -163,6 +163,52 @@ public sealed class AttractionServiceTests
     }
 
     [Fact]
+    public async Task AdminCanRejectAttractionWithReasonAndProviderCanResubmit()
+    {
+        await using var dbContext = CreateDbContext();
+        var provider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        await dbContext.SaveChangesAsync();
+        var service = new AttractionService(dbContext);
+
+        var created = await service.CreateAsync(CreateRequest(category.Id), provider.Id);
+        var rejection = await service.RejectAsync(created.Value!.Id, "Please provide clearer address details and more descriptive images.");
+
+        Assert.True(rejection.Succeeded);
+        Assert.Equal("Rejected", rejection.Value!.Status);
+        Assert.Equal("Please provide clearer address details and more descriptive images.", rejection.Value.RejectionReason);
+
+        // Provider updates the attraction - should automatically resubmit to PendingApproval
+        var updateResult = await service.UpdateAsync(
+            created.Value.Id,
+            new UpdateAttractionRequest
+            {
+                CategoryId = category.Id,
+                Name = "Updated Temple attraction",
+                Description = "A refined cultural attraction description",
+                District = "Kandy",
+                Address = "Exact Street No 4, Temple Road",
+                Latitude = 7.2906m,
+                Longitude = 80.6337m,
+                Price = 30m
+            },
+            provider.Id);
+
+        Assert.True(updateResult.Succeeded);
+        Assert.Equal("PendingApproval", updateResult.Value!.Status);
+
+        // Admin can list all attractions with status filter
+        var adminAll = await service.GetAdminAttractionsAsync(new AttractionSearchRequest(), "all");
+        var adminPending = await service.GetAdminAttractionsAsync(new AttractionSearchRequest(), "PendingApproval");
+        var adminRejected = await service.GetAdminAttractionsAsync(new AttractionSearchRequest(), "Rejected");
+
+        Assert.True(adminAll.Succeeded);
+        Assert.Single(adminAll.Value!.Items);
+        Assert.Single(adminPending.Value!.Items);
+        Assert.Empty(adminRejected.Value!.Items);
+    }
+
+    [Fact]
     public async Task ProviderCanSelectOnePrimaryImageAndDeletingItPromotesFallback()
     {
         await using var dbContext = CreateDbContext();
@@ -199,6 +245,26 @@ public sealed class AttractionServiceTests
 
         Assert.True(removed.Succeeded);
         Assert.True(afterRemoval.Value!.Images.Single().IsPrimary);
+    }
+
+    [Fact]
+    public async Task ProviderCanPermanentlyDeleteAttractionFromDatabase()
+    {
+        await using var dbContext = CreateDbContext();
+        var provider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        await dbContext.SaveChangesAsync();
+        var service = new AttractionService(dbContext);
+
+        var created = await service.CreateAsync(CreateRequest(category.Id), provider.Id);
+        Assert.True(created.Succeeded);
+
+        var deleteResult = await service.DeleteAsync(created.Value!.Id, provider.Id);
+        Assert.True(deleteResult.Succeeded);
+
+        // Attraction record should no longer exist in dbContext
+        var exists = await dbContext.Attractions.AnyAsync(a => a.Id == created.Value.Id);
+        Assert.False(exists);
     }
 
     [Fact]

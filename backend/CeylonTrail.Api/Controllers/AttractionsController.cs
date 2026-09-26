@@ -49,6 +49,28 @@ public sealed class AttractionsController(IAttractionService attractionService, 
         return ToActionResult(result, Ok);
     }
 
+    [HttpPatch("{id:guid}/reject")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> Reject(
+        Guid id,
+        [FromBody] RejectAttractionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await attractionService.RejectAsync(id, request.Reason, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
+    [HttpPatch("{id:guid}/status")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateStatus(
+        Guid id,
+        [FromBody] UpdateAttractionStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await attractionService.SetStatusAsync(id, request.Status, request.Reason, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
     [HttpGet]
     public Task<IActionResult> Search(
         [FromQuery] AttractionSearchRequest request,
@@ -106,6 +128,17 @@ public sealed class AttractionsController(IAttractionService attractionService, 
         return ToActionResult(result, Ok);
     }
 
+    [HttpGet("admin")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> AdminList(
+        [FromQuery] AttractionSearchRequest request,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken)
+    {
+        var result = await attractionService.GetAdminAttractionsAsync(request, status, cancellationToken);
+        return ToActionResult(result, Ok);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(
         Guid id,
@@ -137,6 +170,11 @@ public sealed class AttractionsController(IAttractionService attractionService, 
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = ProviderOrAdministrator)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetCurrentUserId(out var actorId))

@@ -85,6 +85,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(attraction => attraction.Address).IsRequired().HasMaxLength(300);
             entity.Property(attraction => attraction.Price).HasPrecision(12, 2).IsRequired();
             entity.Property(attraction => attraction.Status).IsRequired().HasMaxLength(30);
+            entity.Property(attraction => attraction.RejectionReason).HasMaxLength(1000);
             entity.Property(attraction => attraction.IsActive).IsRequired();
             entity.Property(attraction => attraction.CreatedAt).IsRequired();
             entity.Property(attraction => attraction.UpdatedAt).IsRequired();
