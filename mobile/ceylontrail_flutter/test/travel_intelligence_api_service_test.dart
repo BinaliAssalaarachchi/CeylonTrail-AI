@@ -36,4 +36,26 @@ void main() {
       expect(outcome?.tripId, 'trip-42');
     },
   );
+
+  test('requests the tourist-safe latest workflow for the supplied trip', () async {
+    String? requestedPath;
+    final service = TravelIntelligenceApiService.forTesting((path) async {
+      requestedPath = path;
+      return Response<dynamic>(
+        requestOptions: RequestOptions(path: path),
+        data: {
+          'workflowId': 'workflow-1',
+          'tripId': 'trip-42',
+          'status': 'Completed',
+          'requiresApproval': false,
+          'stages': [],
+        },
+      );
+    });
+
+    final workflow = await service.fetchWorkflow('trip-42');
+
+    expect(requestedPath, '/api/trips/trip-42/agent-workflow/latest');
+    expect(workflow?.workflowId, 'workflow-1');
+  });
 }

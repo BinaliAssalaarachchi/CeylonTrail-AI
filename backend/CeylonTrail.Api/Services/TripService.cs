@@ -13,7 +13,8 @@ public sealed class TripService(
     IPlannerAgentService? plannerAgent = null,
     IAttractionService? attractionService = null,
     IItineraryTravelIntelligenceWorkflowService? travelIntelligenceWorkflow = null,
-    ILogger<TripService>? logger = null) : ITripService
+    ILogger<TripService>? logger = null,
+    IAgentTripWorkflowOrchestrator? agentWorkflowOrchestrator = null) : ITripService
 {
     public async Task<TripServiceResult<TripResponse>> CreateTripAsync(
         Guid touristId,
@@ -253,6 +254,11 @@ public sealed class TripService(
         Guid tripId,
         CancellationToken cancellationToken = default)
     {
+        if (agentWorkflowOrchestrator is not null)
+        {
+            return await agentWorkflowOrchestrator.ExecuteAsync(touristId, tripId, cancellationToken);
+        }
+
         if (tripId == Guid.Empty)
         {
             return new TripServiceResult<ItineraryResponse>(Error: "Trip ID must not be empty.", NotFound: true);

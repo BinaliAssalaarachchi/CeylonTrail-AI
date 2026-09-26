@@ -11,6 +11,8 @@ from .schemas import (
     ItemType,
 )
 from .booking_agent import BookingActionAgent
+from .booking_agent import BookingProposalAgent
+from .api import app
 
 __all__ = [
     "BookingActionType",
@@ -20,4 +22,6 @@ __all__ = [
     "TouristTripContext",
     "ItemType",
     "BookingActionAgent",
+    "BookingProposalAgent",
+    "app",
 ]

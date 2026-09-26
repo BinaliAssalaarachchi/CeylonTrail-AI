@@ -4,14 +4,27 @@
 This directory houses the autonomous agent components for the CeylonTrail platform.
 
 ### Member 3: Booking & Action Agent (`bookings/`)
-The **Booking & Action Agent** is responsible for:
-1. Translating approved tourist itinerary items and slots into structured booking action intents (`CREATE_BOOKING_REQUEST`).
-2. Performing deterministic validations:
-   - Schedule overlap detection between activities/attractions.
-   - Budget constraint validation against tourist preferences.
-   - Party size and capacity bounds checking.
-3. Enforcing **human-in-the-loop** safety workflows (`requires_approval = True`).
-4. Synthesizing structured payloads matching the ASP.NET Core `CreateBookingRequest` DTO schema.
+The production FastAPI boundary is proposal-only. It receives a trusted
+snapshot of M3 `AvailabilitySlot` records from ASP.NET, checks future times,
+capacity, trip dates, and remaining budget, and returns structured proposals.
+It never calls PostgreSQL, `BookingService`, or any mutation endpoint.
+
+Endpoints:
+
+    GET  /health
+    POST /booking/prepare
+
+Start it independently on port 8004:
+
+    cd agentic-ai
+    uvicorn bookings.api:app --host 127.0.0.1 --port 8004
+
+ASP.NET finds it through `BookingActionAgent:BaseUrl` and
+`BookingActionAgent:TimeoutSeconds`. `requiresApproval` is true for prepared
+proposals; no booking or capacity reservation occurs.
+
+The older dataclass-based helper remains available for compatibility with its
+existing unit tests, but it is not used by the production FastAPI boundary.
 
 ---
 

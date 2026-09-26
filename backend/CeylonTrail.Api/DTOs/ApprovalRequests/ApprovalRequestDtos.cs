@@ -31,6 +31,12 @@ public sealed class ApprovalRequestResponse
 
     public DateTime UpdatedAt { get; set; }
 
+    public bool? ExecutionSucceeded { get; set; }
+
+    public Guid? BookingId { get; set; }
+
+    public string? ExecutionMessage { get; set; }
+
     public ApprovalDecisionResponse? Decision { get; set; }
 }
 
