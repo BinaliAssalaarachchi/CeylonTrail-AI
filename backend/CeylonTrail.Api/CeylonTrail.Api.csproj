@@ -2,9 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <RollForward>Disable</RollForward>
-    <RuntimeFrameworkVersion>8.0.30</RuntimeFrameworkVersion>
-    <TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseAppHost>false</UseAppHost>
