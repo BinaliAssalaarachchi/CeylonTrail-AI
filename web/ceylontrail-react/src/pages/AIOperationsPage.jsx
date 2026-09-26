@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { approveApprovalRequest, rejectApprovalRequest } from '../api/approvals'
-import { getTravelIntelligenceExecution, getTravelIntelligenceExecutions } from '../api/travelIntelligenceExecutions'
+import { getAgentWorkflow, getTravelIntelligenceExecution, getTravelIntelligenceExecutions } from '../api/travelIntelligenceExecutions'
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const actionLabels = { Proceed: 'Proceed with trip', ProceedWithCaution: 'Proceed with caution', Reschedule: 'Reschedule trip', Reroute: 'Reroute trip', ReviewBudget: 'Review trip budget', ResolveScheduleConflict: 'Resolve schedule conflict', ManualReview: 'Review trip manually' }
@@ -30,6 +30,7 @@ export default function AIOperationsPage() {
   const [history, setHistory] = useState({ items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 0 })
   const [selectedId, setSelectedId] = useState('')
   const [selected, setSelected] = useState(null)
+  const [workflow, setWorkflow] = useState(null)
   const [page, setPage] = useState(1)
   const [executionStatus, setExecutionStatus] = useState('')
   const [usedFallback, setUsedFallback] = useState('')
@@ -61,7 +62,11 @@ export default function AIOperationsPage() {
     if (!selectedId) return undefined
     let current = true; setIsDetailLoading(true)
     getTravelIntelligenceExecution(selectedId)
-      .then((execution) => { if (current) setSelected(execution) })
+      .then(async (execution) => {
+        if (!current) return
+        setSelected(execution)
+        setWorkflow(execution.workflowId ? await getAgentWorkflow(execution.workflowId) : null)
+      })
       .catch((requestError) => { if (current) setError(getErrorMessage(requestError, 'Unable to load execution details.')) })
       .finally(() => { if (current) setIsDetailLoading(false) })
     return () => { current = false }
@@ -76,7 +81,7 @@ export default function AIOperationsPage() {
       if (decision === 'Approved') await approveApprovalRequest(approval.id, comment)
       else await rejectApprovalRequest(approval.id, comment)
       setComment(''); setFeedback('Recommendation ' + decision.toLowerCase() + ' successfully.')
-      await Promise.all([loadHistory(page), getTravelIntelligenceExecution(selectedId).then(setSelected)])
+      await Promise.all([loadHistory(page), getTravelIntelligenceExecution(selectedId).then(async (execution) => { setSelected(execution); setWorkflow(execution.workflowId ? await getAgentWorkflow(execution.workflowId) : null) })])
     } catch (requestError) { setError(getErrorMessage(requestError, 'Unable to update this recommendation.')) }
     finally { setIsSubmitting(false) }
   }
@@ -94,9 +99,19 @@ export default function AIOperationsPage() {
     </div><div className="approval-detail-panel">
       {isDetailLoading && <div className="state-message" role="status">Loading execution details…</div>}
       {!isDetailLoading && !selected && <div className="state-message">Select an execution to review its evidence.</div>}
-      {!isDetailLoading && selected && <ExecutionDetail execution={selected} comment={comment} setComment={setComment} isSubmitting={isSubmitting} decide={decide} />}
+      {!isDetailLoading && selected && <><ExecutionDetail execution={selected} comment={comment} setComment={setComment} isSubmitting={isSubmitting} decide={decide} /><WorkflowReview workflow={workflow} /></>}
     </div></div>
   </section>
+}
+
+function WorkflowReview({ workflow }) {
+  if (!workflow) return null
+  return <section className="ai-detail-section"><p className="eyebrow">FOUR-AGENT WORKFLOW</p><div className="ai-step-list">
+    <div className="approval-facts"><Fact label="Trip">{workflow.tripId}</Fact><Fact label="Workflow">{workflow.workflowId}</Fact><Fact label="Overall status">{formatLabel(workflow.status)}</Fact><Fact label="Execution">{workflow.executionSucceeded === true ? `Succeeded${workflow.bookingId ? ` · Booking ${workflow.bookingId}` : ''}` : workflow.executionSucceeded === false ? 'Failed safely' : 'Not executed'}</Fact></div>
+    {(workflow.stages || []).map((stage) => <div className="ai-step" key={stage.sequence}><div className="ai-step-number">{stage.sequence}</div><div><div className="ai-step-heading"><strong>{formatLabel(stage.agentRole)}</strong><span className={statusClass(stage.status)}>{formatLabel(stage.status)}</span></div><p>{stage.summary || 'No stage summary available.'}</p></div></div>)}
+    {workflow.bookingProposals?.length > 0 && <div className="ai-item-grid">{workflow.bookingProposals.map((proposal) => <div className="ai-item-card" key={proposal.availabilitySlotId}><strong>Booking proposal</strong><span>Attraction {proposal.attractionId}</span><span>Slot {proposal.availabilitySlotId}</span><small>{proposal.guestCount} guest(s) · LKR {proposal.proposedUnitPrice} · {formatDate(proposal.startTime)}</small></div>)}</div>}
+    {workflow.executionMessage && <p className="non-actionable-notice">{workflow.executionMessage}</p>}
+  </div></section>
 }
 
 function ExecutionDetail({ execution, comment, setComment, isSubmitting, decide }) {

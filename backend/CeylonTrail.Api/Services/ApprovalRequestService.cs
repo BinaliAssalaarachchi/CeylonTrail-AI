@@ -9,7 +9,8 @@ namespace CeylonTrail.Api.Services;
 
 public sealed class ApprovalRequestService(
     ApplicationDbContext dbContext,
-    IApprovedWorkflowActionExecutor? approvedWorkflowActionExecutor = null) : IApprovalRequestService
+    IApprovedWorkflowActionExecutor? approvedWorkflowActionExecutor = null,
+    IAgentWorkflowVisibilityService? workflowVisibilityService = null) : IApprovalRequestService
 {
     public async Task<(bool Succeeded, string? Error, ApprovalRequestResponse? Response)> CreateOrReusePendingAsync(
         Guid validationResultId,
@@ -93,7 +94,18 @@ public sealed class ApprovalRequestService(
             .ThenByDescending(request => request.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return requests.Select(request => ToResponse(request)).ToList();
+        var responses = new List<ApprovalRequestResponse>(requests.Count);
+        foreach (var request in requests)
+        {
+            var response = ToResponse(request);
+            if (workflowVisibilityService is not null)
+            {
+                await workflowVisibilityService.ApplyApprovalExecutionOutcomeAsync(request.Id, response, cancellationToken);
+            }
+            responses.Add(response);
+        }
+
+        return responses;
     }
 
     public async Task<ApprovalRequestResponse?> GetByIdAsync(
@@ -106,7 +118,18 @@ public sealed class ApprovalRequestService(
             .Include(candidate => candidate.ValidationResult)
             .SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
 
-        return request is null ? null : ToResponse(request);
+        if (request is null)
+        {
+            return null;
+        }
+
+        var response = ToResponse(request);
+        if (workflowVisibilityService is not null)
+        {
+            await workflowVisibilityService.ApplyApprovalExecutionOutcomeAsync(request.Id, response, cancellationToken);
+        }
+
+        return response;
     }
 
     public async Task<(bool Succeeded, string? Error, ApprovalRequestResponse? Response)> DecideAsync(
@@ -149,6 +172,10 @@ public sealed class ApprovalRequestService(
                 resumedResponse.ExecutionMessage = execution.Error ?? (execution.Succeeded
                     ? "Approved booking executed."
                     : "Approved decision recorded, but booking execution failed safely.");
+                if (workflowVisibilityService is not null)
+                {
+                    await workflowVisibilityService.ApplyApprovalExecutionOutcomeAsync(id, resumedResponse, cancellationToken);
+                }
                 return (true, null, resumedResponse);
             }
 
@@ -209,6 +236,10 @@ public sealed class ApprovalRequestService(
             response.ExecutionSucceeded = execution.Succeeded;
             response.BookingId = execution.BookingId;
             response.ExecutionMessage = execution.Error ?? (execution.Succeeded ? "Approved booking executed." : "Approved decision recorded, but booking execution failed safely.");
+            if (workflowVisibilityService is not null)
+            {
+                await workflowVisibilityService.ApplyApprovalExecutionOutcomeAsync(id, response, cancellationToken);
+            }
         }
         else if (decision == ApprovalDecisionType.Rejected)
         {

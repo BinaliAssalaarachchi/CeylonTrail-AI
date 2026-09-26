@@ -54,6 +54,7 @@ builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IItineraryValidationService, ItineraryValidationService>();
 builder.Services.AddScoped<IApprovalRequestService, ApprovalRequestService>();
 builder.Services.AddScoped<IApprovedWorkflowActionExecutor, ApprovedWorkflowActionExecutor>();
+builder.Services.AddScoped<IAgentWorkflowVisibilityService, AgentWorkflowVisibilityService>();
 builder.Services.AddScoped<ITravelIntelligenceExecutionPersistenceService, TravelIntelligenceExecutionPersistenceService>();
 builder.Services.AddScoped<ITravelIntelligenceExecutionQueryService, TravelIntelligenceExecutionQueryService>();
 builder.Services.AddScoped<ITouristTravelIntelligenceOutcomeService, TouristTravelIntelligenceOutcomeService>();

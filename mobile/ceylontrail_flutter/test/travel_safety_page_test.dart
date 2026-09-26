@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ceylontrail_flutter/models/travel_intelligence_outcome_model.dart';
+import 'package:ceylontrail_flutter/models/agent_workflow_model.dart';
 import 'package:ceylontrail_flutter/services/travel_intelligence_api_service.dart';
 import 'package:ceylontrail_flutter/views/travel_safety_page.dart';
 
@@ -10,6 +11,13 @@ class _FakeSource implements TravelIntelligenceOutcomeSource {
   final TravelIntelligenceOutcome? outcome;
   @override
   Future<TravelIntelligenceOutcome?> fetchLatest(String tripId) async => outcome;
+}
+
+class _FakeWorkflowSource implements AgentWorkflowSource {
+  _FakeWorkflowSource(this.workflow);
+  final AgentWorkflow? workflow;
+  @override
+  Future<AgentWorkflow?> fetchWorkflow(String tripId) async => workflow;
 }
 
 TravelIntelligenceOutcome _outcome(TouristReviewStatus status) => TravelIntelligenceOutcome(
@@ -21,6 +29,8 @@ TravelIntelligenceOutcome _outcome(TouristReviewStatus status) => TravelIntellig
 );
 
 Widget _page(TravelIntelligenceOutcome? outcome) => MaterialApp(home: TravelSafetyPage(tripId: 'trip-1', source: _FakeSource(outcome)));
+
+Widget _workflowPage(AgentWorkflow workflow) => MaterialApp(home: TravelSafetyPage(tripId: 'trip-1', source: _FakeSource(_outcome(TouristReviewStatus.pending)), workflowSource: _FakeWorkflowSource(workflow)));
 
 void main() {
   testWidgets('shows no-assessment state for a 404-mapped null outcome', (tester) async {
@@ -37,6 +47,26 @@ void main() {
       expect(find.text(_expectedTitle(status)), findsOneWidget);
     });
   }
+
+  testWidgets('shows ordered workflow stages and successful booking outcome', (tester) async {
+    await tester.pumpWidget(_workflowPage(AgentWorkflow(
+      workflowId: 'workflow-1', tripId: 'trip-1', status: AgentWorkflowStatus.completed,
+      requiresApproval: true, reviewStatus: 'Approved', executionSucceeded: true,
+      bookingId: 'booking-1', safeMessage: 'Approved booking executed successfully.',
+      stages: const [
+        AgentWorkflowStage(sequence: 1, agentRole: 'Planner', status: 'Completed', summary: 'Planner complete.'),
+        AgentWorkflowStage(sequence: 2, agentRole: 'Destination', status: 'Completed', summary: 'Destination complete.'),
+        AgentWorkflowStage(sequence: 3, agentRole: 'BookingAction', status: 'Completed', summary: 'Booking complete.'),
+        AgentWorkflowStage(sequence: 4, agentRole: 'TravelIntelligence', status: 'Completed', summary: 'Safety complete.'),
+      ],
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Trip workflow'), findsOneWidget);
+    expect(find.textContaining('Booking execution succeeded'), findsOneWidget);
+    expect(find.text('Planner'), findsOneWidget);
+    expect(find.text('Travel Intelligence'), findsOneWidget);
+  });
 }
 
 String _expectedTitle(TouristReviewStatus status) => switch (status) {

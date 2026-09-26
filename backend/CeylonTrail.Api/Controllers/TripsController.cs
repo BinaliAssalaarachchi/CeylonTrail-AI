@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CeylonTrail.Api.DTOs.AgentWorkflows;
 using CeylonTrail.Api.DTOs.TravelIntelligence;
 using CeylonTrail.Api.DTOs.Trips;
 using CeylonTrail.Api.Interfaces;
@@ -13,7 +14,8 @@ namespace CeylonTrail.Api.Controllers;
 [Authorize(Roles = nameof(UserRole.Tourist))]
 public sealed class TripsController(
     ITripService tripService,
-    ITouristTravelIntelligenceOutcomeService travelIntelligenceOutcomeService) : ControllerBase
+    ITouristTravelIntelligenceOutcomeService travelIntelligenceOutcomeService,
+    IAgentWorkflowVisibilityService workflowVisibilityService) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<TripResponse>> Create(
@@ -186,6 +188,24 @@ public sealed class TripsController(
                 message =
                     "No Travel Intelligence assessment was found for this trip."
             })
+            : Ok(result);
+    }
+
+    [HttpGet("{id:guid}/agent-workflow/latest")]
+    [ProducesResponseType(typeof(TouristAgentWorkflowResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TouristAgentWorkflowResponse>> GetLatestAgentWorkflow(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetTouristId(out var touristId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await workflowVisibilityService.GetLatestForTouristAsync(touristId, id, cancellationToken);
+        return result is null
+            ? NotFound(new { message = "No agent workflow was found for this trip." })
             : Ok(result);
     }
 

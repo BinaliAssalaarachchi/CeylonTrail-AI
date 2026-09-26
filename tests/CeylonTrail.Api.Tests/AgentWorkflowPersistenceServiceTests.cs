@@ -254,13 +254,18 @@ public sealed class AgentWorkflowPersistenceServiceTests
     }
 
     [Fact]
-    public void NoWorkflowMutationControllerIsExposed()
+    public void WorkflowVisibilityControllerExposesNoMutationActions()
     {
         var workflowControllers = typeof(AgentWorkflowPersistenceService).Assembly
             .GetTypes()
             .Where(type => typeof(ControllerBase).IsAssignableFrom(type) && type.Name.Contains("Workflow", StringComparison.OrdinalIgnoreCase));
 
-        Assert.Empty(workflowControllers);
+        Assert.All(workflowControllers, controller =>
+        {
+            var methods = controller.GetMethods();
+            Assert.DoesNotContain(methods, method => method.GetCustomAttributes(inherit: true).Any(attribute =>
+                attribute is HttpPostAttribute or HttpPutAttribute or HttpDeleteAttribute or HttpPatchAttribute));
+        });
     }
 
     private static AgentWorkflowPersistenceService Service(ApplicationDbContext db) => new(db);

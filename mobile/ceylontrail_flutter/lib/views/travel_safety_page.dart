@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../models/travel_intelligence_outcome_model.dart';
+import '../models/agent_workflow_model.dart';
 import '../services/api_client.dart';
 import '../services/travel_intelligence_api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/auth_scope.dart';
 
 class TravelSafetyPage extends StatefulWidget {
-  const TravelSafetyPage({required this.tripId, this.source, super.key});
+  const TravelSafetyPage({required this.tripId, this.source, this.workflowSource, super.key});
 
   final String tripId;
   final TravelIntelligenceOutcomeSource? source;
+  final AgentWorkflowSource? workflowSource;
 
   @override
   State<TravelSafetyPage> createState() => _TravelSafetyPageState();
@@ -19,6 +21,8 @@ class TravelSafetyPage extends StatefulWidget {
 class _TravelSafetyPageState extends State<TravelSafetyPage> {
   TravelIntelligenceOutcomeSource? _source;
   TravelIntelligenceOutcome? _outcome;
+  AgentWorkflow? _workflow;
+  AgentWorkflowSource? _workflowSource;
   String? _error;
   bool _loading = true;
   bool _loaded = false;
@@ -29,6 +33,7 @@ class _TravelSafetyPageState extends State<TravelSafetyPage> {
     _source ??= widget.source ?? TravelIntelligenceApiService(
       ApiClient(storage: AuthScope.of(context).storage),
     );
+    _workflowSource ??= widget.workflowSource ?? (_source is AgentWorkflowSource ? _source as AgentWorkflowSource : null);
     if (!_loaded) {
       _loaded = true;
       _load();
@@ -39,7 +44,8 @@ class _TravelSafetyPageState extends State<TravelSafetyPage> {
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
       final outcome = await _source!.fetchLatest(widget.tripId);
-      if (mounted) setState(() { _outcome = outcome; _loading = false; });
+      final workflow = _workflowSource == null ? null : await _workflowSource!.fetchWorkflow(widget.tripId);
+      if (mounted) setState(() { _outcome = outcome; _workflow = workflow; _loading = false; });
     } on ApiException catch (error) {
       if (mounted) setState(() { _error = error.message; _loading = false; });
     } catch (_) {
@@ -56,13 +62,44 @@ class _TravelSafetyPageState extends State<TravelSafetyPage> {
           ? ListView(children: const [SizedBox(height: 240), Center(child: CircularProgressIndicator())])
           : _error != null
               ? ListView(children: [_StateMessage(icon: Icons.cloud_off_outlined, title: 'Travel safety is unavailable', message: _error!, action: _load)])
-              : _outcome == null
-                  ? ListView(children: [_StateMessage(icon: Icons.shield_outlined, title: 'Travel safety assessment not available yet', message: 'Once your trip is assessed, safety recommendations and review status will appear here.', action: _load)])
+              : _outcome == null && _workflow == null
+                ? ListView(children: [_StateMessage(icon: Icons.shield_outlined, title: 'Travel safety assessment not available yet', message: 'Once your trip is assessed, safety recommendations and workflow progress will appear here.', action: _load)])
+                  : _outcome == null
+                      ? ListView(padding: const EdgeInsets.all(CeylonSpacing.md), children: [_WorkflowCard(workflow: _workflow!)])
                   : ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(CeylonSpacing.md, CeylonSpacing.sm, CeylonSpacing.md, CeylonSpacing.xl),
-                      children: [_OutcomeView(outcome: _outcome!)],
+                      children: [_OutcomeView(outcome: _outcome!), if (_workflow != null) ...[const SizedBox(height: CeylonSpacing.md), _WorkflowCard(workflow: _workflow!)]],
                     ),
+    ),
+  );
+}
+
+class _WorkflowCard extends StatelessWidget {
+  const _WorkflowCard({required this.workflow});
+  final AgentWorkflow workflow;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(CeylonSpacing.md),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Trip workflow', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: CeylonSpacing.sm),
+        Text(_workflowLabel(workflow.status)),
+        if (workflow.reviewStatus != null) Text('Review: ${_label(workflow.reviewStatus!)}'),
+        if (workflow.executionSucceeded == true) Text('Booking execution succeeded${workflow.bookingId == null ? '' : ' · ${workflow.bookingId}'}'),
+        if (workflow.executionSucceeded == false) Text(workflow.safeMessage.isEmpty ? 'Booking execution failed safely.' : workflow.safeMessage),
+        if (workflow.safeMessage.isNotEmpty && workflow.executionSucceeded != true && workflow.executionSucceeded != false) Text(workflow.safeMessage),
+        const SizedBox(height: CeylonSpacing.sm),
+        ...workflow.stages.map((stage) => ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(stage.status.toLowerCase() == 'completed' ? Icons.check_circle_outline : Icons.hourglass_empty),
+          title: Text(_label(stage.agentRole)),
+          subtitle: Text(stage.summary.isEmpty ? _label(stage.status) : '${_label(stage.status)} · ${stage.summary}'),
+        )),
+      ]),
     ),
   );
 }
@@ -211,6 +248,15 @@ class _StateMessage extends StatelessWidget {
 }
 
 String _label(Object value) => value.toString().split('.').last.replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (match) => '${match.group(1)} ${match.group(2)}');
+String _workflowLabel(AgentWorkflowStatus status) => switch (status) {
+  AgentWorkflowStatus.pending => 'Workflow queued',
+  AgentWorkflowStatus.running => 'Workflow processing',
+  AgentWorkflowStatus.awaitingApproval => 'Awaiting coordinator approval',
+  AgentWorkflowStatus.completed => 'Workflow completed',
+  AgentWorkflowStatus.failedSafe => 'Workflow failed safely',
+  AgentWorkflowStatus.cancelled => 'Workflow rejected',
+  AgentWorkflowStatus.unknown => 'Workflow status unavailable',
+};
 String _dateTime(DateTime? value) => value == null ? 'Time unavailable' : '${value.day}/${value.month}/${value.year}';
 IconData _reviewIcon(TouristReviewStatus status) => switch (status) {
   TouristReviewStatus.notRequired => Icons.check_circle_outline,
