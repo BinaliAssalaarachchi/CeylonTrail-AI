@@ -95,9 +95,12 @@ public sealed class DestinationAgentServiceTests
         public Task<ServiceResult<AttractionResponse>> GetByIdAsync(Guid attractionId, Guid? viewerId = null, CancellationToken cancellationToken = default) => Unsupported<AttractionResponse>();
         public Task<ServiceResult<AttractionSearchResponse>> GetMineAsync(AttractionSearchRequest request, Guid providerId, CancellationToken cancellationToken = default) => Unsupported<AttractionSearchResponse>();
         public Task<ServiceResult<AttractionSearchResponse>> GetPendingAsync(AttractionSearchRequest request, CancellationToken cancellationToken = default) => Unsupported<AttractionSearchResponse>();
+        public Task<ServiceResult<AttractionSearchResponse>> GetAdminAttractionsAsync(AttractionSearchRequest request, string? statusFilter = null, CancellationToken cancellationToken = default) => Unsupported<AttractionSearchResponse>();
         public Task<ServiceResult<IReadOnlyList<CategoryResponse>>> GetCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult(CategoriesResult);
         public Task<ServiceResult<AttractionSearchResponse>> GetFavoritesAsync(AttractionSearchRequest request, Guid touristId, CancellationToken cancellationToken = default) => Unsupported<AttractionSearchResponse>();
         public Task<ServiceResult<AttractionResponse>> ApproveAsync(Guid attractionId, CancellationToken cancellationToken = default) => Unsupported<AttractionResponse>();
+        public Task<ServiceResult<AttractionResponse>> RejectAsync(Guid attractionId, string reason, CancellationToken cancellationToken = default) => Unsupported<AttractionResponse>();
+        public Task<ServiceResult<AttractionResponse>> SetStatusAsync(Guid attractionId, string status, string? reason = null, CancellationToken cancellationToken = default) => Unsupported<AttractionResponse>();
         public Task<ServiceResult<AttractionResponse>> UpdateAsync(Guid attractionId, UpdateAttractionRequest request, Guid actorId, CancellationToken cancellationToken = default) => Unsupported<AttractionResponse>();
         public Task<ServiceResult<bool>> DeleteAsync(Guid attractionId, Guid actorId, CancellationToken cancellationToken = default) => Unsupported<bool>();
         public Task<ServiceResult<AttractionResponse>> ActivateAsync(Guid attractionId, Guid actorId, CancellationToken cancellationToken = default) => Unsupported<AttractionResponse>();

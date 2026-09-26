@@ -19,4 +19,6 @@ public sealed record AttractionResponse(
     IReadOnlyList<AttractionScheduleResponse> Schedules,
     IReadOnlyList<ExperienceSlotResponse> ExperienceSlots,
     IReadOnlyList<AttractionImageResponse> Images,
-    bool IsFavorite);
+    bool IsFavorite,
+    string? RejectionReason = null);
+
