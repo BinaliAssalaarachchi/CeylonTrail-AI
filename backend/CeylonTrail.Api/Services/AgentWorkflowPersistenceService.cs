@@ -92,6 +92,25 @@ public sealed class AgentWorkflowPersistenceService(ApplicationDbContext dbConte
         return Success(workflow);
     }
 
+    public async Task<AgentWorkflowPersistenceResult> GetActiveForTripAsync(
+        Guid tripId,
+        Guid requestedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var workflow = await dbContext.AgentWorkflows
+            .Include(candidate => candidate.Stages)
+            .Where(candidate =>
+                candidate.TripId == tripId &&
+                candidate.RequestedByUserId == requestedByUserId &&
+                (candidate.Status == AgentWorkflowStatus.Pending ||
+                 candidate.Status == AgentWorkflowStatus.Running ||
+                 candidate.Status == AgentWorkflowStatus.AwaitingApproval))
+            .OrderByDescending(candidate => candidate.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return workflow is null ? Failure("No active workflow was found.") : Success(workflow);
+    }
+
     public async Task<AgentWorkflowPersistenceResult> StartStageAsync(
         Guid workflowId,
         AgentWorkflowAgentRole agentRole,

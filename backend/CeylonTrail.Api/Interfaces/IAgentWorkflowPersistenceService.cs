@@ -21,6 +21,11 @@ public interface IAgentWorkflowPersistenceService
         Guid? requestedByUserId = null,
         CancellationToken cancellationToken = default);
 
+    Task<AgentWorkflowPersistenceResult> GetActiveForTripAsync(
+        Guid tripId,
+        Guid requestedByUserId,
+        CancellationToken cancellationToken = default);
+
     Task<AgentWorkflowPersistenceResult> StartStageAsync(
         Guid workflowId,
         AgentWorkflowAgentRole agentRole,

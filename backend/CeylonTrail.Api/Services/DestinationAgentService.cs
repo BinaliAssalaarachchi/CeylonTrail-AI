@@ -70,7 +70,13 @@ public sealed class DestinationAgentService(
                 return new(Error: "Destination Agent rejected the recommendation request.", ServiceUnavailable: (int)response.StatusCode >= 500 || (int)response.StatusCode == 429);
 
             var result = await response.Content.ReadFromJsonAsync<DestinationAgentResponse>(JsonOptions, cancellationToken);
-            return result is null ? new(Error: "Destination Agent returned an empty response.", ServiceUnavailable: true) : new(Value: result);
+            if (result is null)
+                return new(Error: "Destination Agent returned an empty response.", ServiceUnavailable: true);
+
+            var validationError = ValidateResponse(result, trusted, request);
+            return validationError is null
+                ? new(Value: result)
+                : new(Error: validationError);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -100,4 +106,41 @@ public sealed class DestinationAgentService(
         item.IsActive,
         item.Schedules.Select(schedule => new DestinationTrustedSchedule(schedule.DayOfWeek, schedule.OpeningTime, schedule.ClosingTime, schedule.IsClosed)).ToList(),
         item.ExperienceSlots.Select(slot => new DestinationTrustedSlot(slot.Date, slot.StartTime, slot.EndTime, slot.Capacity, slot.AvailableCapacity)).ToList());
+
+    private static string? ValidateResponse(
+        DestinationAgentResponse response,
+        IReadOnlyDictionary<Guid, DestinationTrustedAttraction> trusted,
+        DestinationRecommendationRequest request)
+    {
+        if (response.Candidates.Count > 50 || response.Status is not ("Success" or "NoResults"))
+            return "Destination Agent returned an invalid bounded response.";
+
+        var seen = new HashSet<Guid>();
+        foreach (var candidate in response.Candidates)
+        {
+            if (!trusted.TryGetValue(candidate.AttractionId, out var source))
+                return "Destination Agent returned an unknown attraction.";
+            if (!seen.Add(candidate.AttractionId))
+                return "Destination Agent returned duplicate attractions.";
+            if (!source.IsActive || !string.Equals(source.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+                return "Destination Agent returned a non-public attraction.";
+            if (candidate.Name != source.Name || candidate.District != source.District ||
+                candidate.CategoryId != source.CategoryId || candidate.Category != source.Category ||
+                candidate.Price != source.Price)
+                return "Destination Agent changed authoritative attraction facts.";
+
+            var expectedAvailability = source.ExperienceSlots
+                .Where(slot => !request.Date.HasValue || slot.Date == request.Date.Value)
+                .ToList();
+            if (!candidate.Availability.SequenceEqual(expectedAvailability) ||
+                !candidate.OpeningHours.SequenceEqual(source.Schedules))
+                return "Destination Agent changed authoritative attraction availability.";
+        }
+
+        if (response.Status == "NoResults" && response.Candidates.Count > 0)
+            return "Destination Agent returned candidates with a NoResults status.";
+        if (response.Status == "Success" && response.Candidates.Count == 0)
+            return "Destination Agent returned Success without candidates.";
+        return null;
+    }
 }
