@@ -7,9 +7,15 @@ namespace CeylonTrail.Api.Data;
 public static class DevelopmentDataSeeder
 {
     private const string SeedPassword = "Test@123";
+    private const string DemoAttractionName = "Sigiriya Heritage Sunrise Trail";
+    private const decimal DemoAttractionPrice = 6500m;
+    private const decimal DemoAvailabilityPrice = 6500m;
 
+    private static readonly Guid DemoAttractionId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly SeedUser[] SeedUsers =
     [
+        new("tourist@test.com", "Test", "Tourist", UserRole.Tourist),
+        new("provider@test.com", "Test", "Provider", UserRole.TourismProvider),
         new("coordinator@test.com", "Test", "Coordinator", UserRole.TravelCoordinator),
         new("admin@test.com", "Test", "Administrator", UserRole.Administrator)
     ];
@@ -19,8 +25,6 @@ public static class DevelopmentDataSeeder
         IPasswordHasher<User> passwordHasher,
         CancellationToken cancellationToken = default)
     {
-        var usersAdded = false;
-
         foreach (var seedUser in SeedUsers)
         {
             var normalizedEmail = NormalizeEmail(seedUser.Email);
@@ -46,7 +50,6 @@ public static class DevelopmentDataSeeder
 
             user.PasswordHash = passwordHasher.HashPassword(user, SeedPassword);
             dbContext.Users.Add(user);
-            usersAdded = true;
         }
 
         var categories = new[]
@@ -62,13 +65,116 @@ public static class DevelopmentDataSeeder
             if (!await dbContext.Categories.AnyAsync(c => c.Name == category.Name, cancellationToken))
             {
                 dbContext.Categories.Add(category);
-                usersAdded = true;
             }
         }
 
-        if (usersAdded)
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var provider = await dbContext.Users
+            .SingleAsync(user => user.Email == "PROVIDER@TEST.COM", cancellationToken);
+        var demoCategory = await dbContext.Categories
+            .SingleAsync(item => item.Name == "Historical & Cultural", cancellationToken);
+
+        var attraction = await dbContext.Attractions
+            .SingleOrDefaultAsync(item => item.Id == DemoAttractionId, cancellationToken);
+
+        if (attraction is null)
         {
+            attraction = new Attraction
+            {
+                Id = DemoAttractionId,
+                ProviderId = provider.Id,
+                CategoryId = demoCategory.Id,
+                Name = DemoAttractionName,
+                Description = "A guided sunrise heritage walk with panoramic views of the ancient Sigiriya landscape.",
+                District = "Matale",
+                Address = "Sigiriya Rock Fortress, Sigiriya, Matale, Sri Lanka",
+                Latitude = 7.9570m,
+                Longitude = 80.7603m,
+                Price = DemoAttractionPrice,
+                Status = "Approved",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            dbContext.Attractions.Add(attraction);
             await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await EnsureSchedulesAsync(dbContext, attraction.Id, cancellationToken);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var demoDate = today.AddDays(7);
+        var experienceSlot = await dbContext.ExperienceSlots
+            .SingleOrDefaultAsync(slot =>
+                slot.AttractionId == attraction.Id &&
+                slot.Date >= today &&
+                slot.StartTime == new TimeOnly(9, 0), cancellationToken);
+
+        if (experienceSlot is null)
+        {
+            dbContext.ExperienceSlots.Add(new ExperienceSlot
+            {
+                Id = Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                AttractionId = attraction.Id,
+                Date = demoDate,
+                StartTime = new TimeOnly(9, 0),
+                EndTime = new TimeOnly(11, 0),
+                Capacity = 40,
+                AvailableCapacity = 40
+            });
+        }
+
+        var startTime = DateTime.SpecifyKind(demoDate.ToDateTime(new TimeOnly(9, 0)), DateTimeKind.Utc);
+        var endTime = DateTime.SpecifyKind(demoDate.ToDateTime(new TimeOnly(11, 0)), DateTimeKind.Utc);
+        var availabilitySlot = await dbContext.AvailabilitySlots
+            .SingleOrDefaultAsync(slot =>
+                slot.AttractionId == attraction.Id &&
+                slot.StartTime >= DateTime.UtcNow &&
+                slot.StartTime.Hour == 9, cancellationToken);
+
+        if (availabilitySlot is null)
+        {
+            dbContext.AvailabilitySlots.Add(new AvailabilitySlot
+            {
+                Id = Guid.Parse("77777777-7777-7777-7777-777777777777"),
+                AttractionId = attraction.Id,
+                StartTime = startTime,
+                EndTime = endTime,
+                MaxCapacity = 40,
+                BookedCapacity = 0,
+                PricePerPerson = DemoAvailabilityPrice,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task EnsureSchedulesAsync(
+        ApplicationDbContext dbContext,
+        Guid attractionId,
+        CancellationToken cancellationToken)
+    {
+        var existingDays = await dbContext.AttractionSchedules
+            .Where(schedule => schedule.AttractionId == attractionId)
+            .Select(schedule => schedule.DayOfWeek)
+            .ToListAsync(cancellationToken);
+
+        var missingDays = Enum.GetValues<DayOfWeek>().Except(existingDays);
+        foreach (var day in missingDays)
+        {
+            dbContext.AttractionSchedules.Add(new AttractionSchedule
+            {
+                Id = Guid.NewGuid(),
+                AttractionId = attractionId,
+                DayOfWeek = day,
+                OpeningTime = new TimeOnly(8, 0),
+                ClosingTime = new TimeOnly(17, 0),
+                IsClosed = false
+            });
         }
     }
 
