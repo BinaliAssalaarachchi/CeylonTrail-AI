@@ -538,6 +538,25 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         };
 
         dbContext.ExperienceSlots.Add(slot);
+
+        var slotStart = DateTime.SpecifyKind(slot.Date.ToDateTime(slot.StartTime), DateTimeKind.Utc);
+        var slotEnd = DateTime.SpecifyKind(slot.Date.ToDateTime(slot.EndTime), DateTimeKind.Utc);
+        var bookedCapacity = Math.Max(0, slot.Capacity - slot.AvailableCapacity);
+
+        dbContext.AvailabilitySlots.Add(new AvailabilitySlot
+        {
+            Id = slot.Id,
+            AttractionId = attractionId,
+            StartTime = slotStart,
+            EndTime = slotEnd,
+            MaxCapacity = slot.Capacity,
+            BookedCapacity = bookedCapacity,
+            PricePerPerson = manageable.Value.Price,
+            RowVersion = new byte[] { 0 },
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<ExperienceSlotResponse>.Success(ToResponse(slot));
     }
@@ -588,6 +607,39 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         slot.EndTime = request.EndTime;
         slot.Capacity = request.Capacity;
         slot.AvailableCapacity = request.AvailableCapacity;
+
+        var slotStart = DateTime.SpecifyKind(slot.Date.ToDateTime(slot.StartTime), DateTimeKind.Utc);
+        var slotEnd = DateTime.SpecifyKind(slot.Date.ToDateTime(slot.EndTime), DateTimeKind.Utc);
+        var bookedCapacity = Math.Max(0, slot.Capacity - slot.AvailableCapacity);
+
+        var availSlot = await dbContext.AvailabilitySlots
+            .FirstOrDefaultAsync(s => s.Id == slot.Id, cancellationToken);
+        if (availSlot is not null)
+        {
+            availSlot.StartTime = slotStart;
+            availSlot.EndTime = slotEnd;
+            availSlot.MaxCapacity = slot.Capacity;
+            availSlot.BookedCapacity = bookedCapacity;
+            availSlot.PricePerPerson = manageable.Value.Price;
+            availSlot.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            dbContext.AvailabilitySlots.Add(new AvailabilitySlot
+            {
+                Id = slot.Id,
+                AttractionId = attractionId,
+                StartTime = slotStart,
+                EndTime = slotEnd,
+                MaxCapacity = slot.Capacity,
+                BookedCapacity = bookedCapacity,
+                PricePerPerson = manageable.Value.Price,
+                RowVersion = new byte[] { 0 },
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<ExperienceSlotResponse>.Success(ToResponse(slot));
     }
@@ -613,6 +665,13 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         }
 
         dbContext.ExperienceSlots.Remove(slot);
+
+        var availSlot = await dbContext.AvailabilitySlots
+            .FirstOrDefaultAsync(s => s.Id == slot.Id, cancellationToken);
+        if (availSlot is not null)
+        {
+            dbContext.AvailabilitySlots.Remove(availSlot);
+        }
         await dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<bool>.Success(true);
     }
@@ -631,8 +690,7 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
         }
 
         var query = dbContext.ExperienceSlots
-            .AsNoTracking()
-            .Where(slot => slot.AttractionId == attractionId && slot.AvailableCapacity > 0);
+            .Where(slot => slot.AttractionId == attractionId);
 
         if (date.HasValue)
         {
@@ -644,10 +702,36 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
             .ThenBy(slot => slot.StartTime)
             .ToListAsync(cancellationToken);
 
+        var slotIds = slots.Select(s => s.Id).ToList();
+        var availSlots = await dbContext.AvailabilitySlots
+            .Where(a => slotIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, cancellationToken);
+
+        var changed = false;
+        foreach (var slot in slots)
+        {
+            if (availSlots.TryGetValue(slot.Id, out var avail))
+            {
+                var correctAvailable = Math.Max(0, slot.Capacity - avail.BookedCapacity);
+                if (slot.AvailableCapacity != correctAvailable)
+                {
+                    slot.AvailableCapacity = correctAvailable;
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var visibleSlots = slots.Where(s => s.AvailableCapacity > 0).ToList();
+
         return ServiceResult<AvailabilityResponse>.Success(new AvailabilityResponse(
             attractionId,
             date,
-            slots.Select(ToResponse).ToList()));
+            visibleSlots.Select(ToResponse).ToList()));
     }
 
     public async Task<ServiceResult<FavoriteResponse>> AddFavoriteAsync(

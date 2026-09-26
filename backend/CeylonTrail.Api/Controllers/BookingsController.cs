@@ -12,9 +12,8 @@ namespace CeylonTrail.Api.Controllers;
 [Authorize]
 public sealed class BookingsController(IBookingService bookingService) : ControllerBase
 {
-    // 1. POST /api/bookings (Create a booking request - Tourist only) 
+    // 1. POST /api/bookings (Create a booking request) 
     [HttpPost]
-    [Authorize(Roles = nameof(UserRole.Tourist))]
     [ProducesResponseType(typeof(BookingResponse), StatusCodes.Status201Created)] 
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<BookingResponse>> Create(
@@ -32,9 +31,8 @@ public sealed class BookingsController(IBookingService bookingService) : Control
         return CreatedAtAction(nameof(GetById), new { id = result.Response!.Id }, result.Response);
     }
 
-    // 2. GET /api/bookings (Get current tourist's bookings)
+    // 2. GET /api/bookings (Get current user's bookings)
     [HttpGet]
-    [Authorize(Roles = nameof(UserRole.Tourist))]
     [ProducesResponseType(typeof(List<BookingResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<BookingResponse>>> GetMyBookings(CancellationToken cancellationToken)
     {

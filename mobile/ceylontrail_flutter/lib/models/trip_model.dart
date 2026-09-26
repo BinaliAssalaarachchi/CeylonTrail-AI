@@ -31,8 +31,8 @@ class Trip {
     createdAt: parseTimestamp(json['createdAt']),
     updatedAt: parseTimestamp(json['updatedAt']),
     preferences: (json['preferences'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(TripPreference.fromJson)
+        .whereType<Map>()
+        .map((item) => TripPreference.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
   );
 }
@@ -78,8 +78,8 @@ class Itinerary {
     createdAt: parseTimestamp(json['createdAt']),
     updatedAt: parseTimestamp(json['updatedAt']),
     days: (json['days'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(ItineraryDay.fromJson)
+        .whereType<Map>()
+        .map((item) => ItineraryDay.fromJson(Map<String, dynamic>.from(item)))
         .toList()
       ..sort((a, b) => a.dayNumber.compareTo(b.dayNumber)),
   );
@@ -112,8 +112,8 @@ class ItineraryDay {
     dayNumber: (json['dayNumber'] as num?)?.toInt() ?? 0,
     date: parseCalendarDate(json['date']),
     items: (json['items'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(ItineraryItem.fromJson)
+        .whereType<Map>()
+        .map((item) => ItineraryItem.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
   );
 }

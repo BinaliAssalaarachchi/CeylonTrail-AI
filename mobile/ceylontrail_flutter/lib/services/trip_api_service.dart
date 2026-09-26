@@ -8,15 +8,17 @@ class TripApiService {
 
   Future<List<Trip>> getTrips() async {
     final response = await _client.get('/api/trips');
-    return (response.data as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(Trip.fromJson)
+    final data = response.data;
+    if (data is! List) return const [];
+    return data
+        .whereType<Map>()
+        .map((json) => Trip.fromJson(Map<String, dynamic>.from(json)))
         .toList();
   }
 
   Future<Trip> getTrip(String id) async {
     final response = await _client.get('/api/trips/$id');
-    return Trip.fromJson(response.data as Map<String, dynamic>);
+    return Trip.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 
   Future<Trip> createTrip({required String name, required DateTime startDate, required DateTime endDate, required double budget}) async {

@@ -64,7 +64,7 @@ export default function ItineraryReviewPage() {
               <button className="history-row" key={version.id} onClick={async () => setItinerary(await getStaffTripItineraryVersion(id, version.id))}>
                 <span>{formatDate(version.createdAt)}</span>
                 <span className="status-pill">{version.status}</span>
-                <span>Rs. {Number(version.totalEstimatedCost).toLocaleString('en-LK')}</span>
+                <span>LKR {Number(version.totalEstimatedCost).toLocaleString('en-LK')}</span>
               </button>
             ))}
           </section>

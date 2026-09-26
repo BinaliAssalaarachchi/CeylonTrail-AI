@@ -65,7 +65,7 @@ public sealed class DevelopmentDataSeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_CreatesBookableApprovedDemoAttraction()
+    public async Task SeedAsync_SeedsCategoriesAndDoesNotCreateDemoAttraction()
     {
         await using var dbContext = CreateDbContext();
 
@@ -73,27 +73,15 @@ public sealed class DevelopmentDataSeederTests
         await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
         await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
 
-        var provider = await dbContext.Users.SingleAsync(user => user.Email == "PROVIDER@TEST.COM");
-        var attraction = await dbContext.Attractions
-            .Include(item => item.Schedules)
-            .Include(item => item.ExperienceSlots)
-            .SingleAsync(item => item.Name == "Sigiriya Heritage Sunrise Trail");
-        var availability = await dbContext.AvailabilitySlots
-            .SingleAsync(slot => slot.AttractionId == attraction.Id);
+        var categories = await dbContext.Categories.ToListAsync();
+        Assert.Equal(4, categories.Count);
+        Assert.Contains(categories, c => c.Name == "Historical & Cultural");
+        Assert.Contains(categories, c => c.Name == "Nature & Wildlife");
+        Assert.Contains(categories, c => c.Name == "Adventure & Outdoor");
+        Assert.Contains(categories, c => c.Name == "Beaches & Coastal");
 
-        Assert.Equal(provider.Id, attraction.ProviderId);
-        Assert.Equal("Approved", attraction.Status);
-        Assert.True(attraction.IsActive);
-        Assert.Equal(6500m, attraction.Price);
-        Assert.NotEmpty(attraction.Schedules);
-        Assert.NotEmpty(attraction.ExperienceSlots);
-        Assert.Contains(attraction.ExperienceSlots, slot => slot.Date >= DateOnly.FromDateTime(DateTime.UtcNow));
-        Assert.True(availability.EndTime > DateTime.UtcNow);
-        Assert.Equal(40, availability.MaxCapacity);
-        Assert.Equal(0, availability.BookedCapacity);
-        Assert.Equal(6500m, availability.PricePerPerson);
-        Assert.Equal(1, await dbContext.Attractions.CountAsync(item => item.Name == "Sigiriya Heritage Sunrise Trail"));
-        Assert.Equal(1, await dbContext.AvailabilitySlots.CountAsync(slot => slot.AttractionId == attraction.Id));
+        Assert.Empty(dbContext.Attractions);
+        Assert.Empty(dbContext.AvailabilitySlots);
     }
 
     private static ApplicationDbContext CreateDbContext() => new(

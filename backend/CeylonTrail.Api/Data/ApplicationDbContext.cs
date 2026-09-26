@@ -164,7 +164,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(slot => slot.CreatedAt).IsRequired();
             entity.Property(slot => slot.UpdatedAt).IsRequired();
 
-            entity.Property(slot => slot.RowVersion).IsRowVersion();
+            entity.Property(slot => slot.RowVersion)
+                .IsConcurrencyToken()
+                .ValueGeneratedNever()
+                .HasDefaultValue(new byte[] { 0 });
 
             entity.HasIndex(slot => new { slot.AttractionId, slot.StartTime, slot.EndTime });
             entity.ToTable(table =>

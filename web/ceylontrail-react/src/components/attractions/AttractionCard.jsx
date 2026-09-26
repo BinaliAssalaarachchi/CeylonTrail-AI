@@ -45,7 +45,7 @@ export default function AttractionCard({ attraction, onDelete }) {
           <h2>{attraction.name}</h2>
           <p className="provider-card-meta">
             <span>{attraction.district}</span>
-            <span>Price {formatPrice(attraction.price)}</span>
+            <span>Price LKR {formatPrice(attraction.price)}</span>
           </p>
           <p className="provider-card-updated">Updated {formatUpdatedDate(attraction.updatedAt)}</p>
           <p className="provider-card-description">{attraction.description}</p>

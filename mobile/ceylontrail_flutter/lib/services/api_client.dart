@@ -78,9 +78,14 @@ class ApiClient {
 
 
   static String _messageFor(DioException error) {
-    final responseMessage = (error.response?.data as Map?)?['message'];
-    if (responseMessage is String && responseMessage.isNotEmpty) {
-      return responseMessage;
+    final dynamic data = error.response?.data;
+    if (data is Map) {
+      final responseMessage = data['message'];
+      if (responseMessage is String && responseMessage.isNotEmpty) {
+        return responseMessage;
+      }
+    } else if (data is String && data.isNotEmpty && !data.startsWith('<') && data.length < 200) {
+      return data;
     }
     if (error.response?.statusCode == 401) return 'Invalid email or password.';
     if (error.response?.statusCode == 403) return 'You do not have access to this feature.';

@@ -154,8 +154,8 @@ class AttractionModel {
     isActive: json['isActive'] as bool? ?? false,
     createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
     updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
-    category: json['category'] is Map<String, dynamic>
-        ? CategoryModel.fromJson(json['category'] as Map<String, dynamic>)
+    category: json['category'] is Map
+        ? CategoryModel.fromJson(Map<String, dynamic>.from(json['category'] as Map))
         : null,
     schedules: _list(json['schedules'], AttractionScheduleModel.fromJson),
     experienceSlots: _list(json['experienceSlots'], ExperienceSlotModel.fromJson),
@@ -165,8 +165,8 @@ class AttractionModel {
 
   static List<T> _list<T>(Object? value, T Function(Map<String, dynamic>) parse) =>
       (value as List<dynamic>? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(parse)
+          .whereType<Map>()
+          .map((item) => parse(Map<String, dynamic>.from(item)))
           .toList();
 }
 
@@ -187,8 +187,8 @@ class AttractionSearchResponse {
 
   factory AttractionSearchResponse.fromJson(Map<String, dynamic> json) => AttractionSearchResponse(
     items: (json['items'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(AttractionModel.fromJson)
+        .whereType<Map>()
+        .map((item) => AttractionModel.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
     totalCount: (json['totalCount'] as num?)?.toInt() ?? 0,
     page: (json['page'] as num?)?.toInt() ?? 1,
@@ -208,8 +208,8 @@ class AvailabilityModel {
     attractionId: json['attractionId']?.toString() ?? '',
     date: DateTime.tryParse(json['date']?.toString() ?? ''),
     slots: (json['slots'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(ExperienceSlotModel.fromJson)
+        .whereType<Map>()
+        .map((item) => ExperienceSlotModel.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
   );
 }

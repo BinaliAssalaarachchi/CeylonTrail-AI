@@ -19,8 +19,8 @@ public class AvailabilitySlot
 
     public decimal PricePerPerson { get; set; }
 
-    [Timestamp]
-    public byte[] RowVersion { get; set; } = [];
+    [ConcurrencyCheck]
+    public byte[] RowVersion { get; set; } = [0];
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

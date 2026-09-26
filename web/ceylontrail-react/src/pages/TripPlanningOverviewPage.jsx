@@ -61,7 +61,7 @@ export default function TripPlanningOverviewPage() {
                       <tr key={trip.id}>
                         <td><strong>{trip.name}</strong><small>Tourist {trip.touristId.slice(0, 8)}…</small></td>
                         <td>{formatDate(trip.startDate)}<small>to {formatDate(trip.endDate)}</small></td>
-                        <td>Rs. {Number(trip.budget).toLocaleString('en-LK')}</td>
+                        <td>LKR {Number(trip.budget).toLocaleString('en-LK')}</td>
                         <td><span className={statusClass(trip.status)}>{trip.status}</span></td>
                         <td><span className={trip.hasItinerary ? 'availability available' : 'availability'}>{trip.hasItinerary ? 'Available' : 'Not generated'}</span></td>
                         <td><Link className="table-link" to={`/trip-planning/${trip.id}`}>Review <span aria-hidden="true">→</span></Link></td>

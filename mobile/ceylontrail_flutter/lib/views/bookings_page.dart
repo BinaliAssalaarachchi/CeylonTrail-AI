@@ -5,6 +5,27 @@ import '../services/booking_api_service.dart';
 import '../widgets/auth_scope.dart';
 import 'booking_detail_page.dart';
 
+List<BookingModel> filterBookingsByTab(List<BookingModel> bookings, int tabIndex) {
+  if (tabIndex == 0) {
+    return bookings
+        .where((booking) => const {
+              'Draft',
+              'PendingAI',
+              'PendingHumanApproval',
+              'Confirmed',
+            }.contains(booking.status))
+        .toList();
+  } else if (tabIndex == 1) {
+    return bookings.where((booking) => booking.status == 'Confirmed').toList();
+  } else {
+    return bookings
+        .where((booking) => booking.status == 'Cancelled' ||
+            booking.status == 'Rejected' ||
+            booking.status == 'Completed')
+        .toList();
+  }
+}
+
 class BookingsPage extends StatefulWidget {
   const BookingsPage({super.key});
 
@@ -52,17 +73,7 @@ class _BookingsPageState extends State<BookingsPage>
   }
 
   List<BookingModel> _filterByTab(int tabIndex) {
-    if (tabIndex == 0) {
-      return _bookings
-          .where((b) => b.status == 'Pending' || b.status == 'Confirmed')
-          .toList();
-    } else if (tabIndex == 1) {
-      return _bookings.where((b) => b.status == 'Confirmed').toList();
-    } else {
-      return _bookings
-          .where((b) => b.status == 'Cancelled' || b.status == 'Rejected' || b.status == 'Completed')
-          .toList();
-    }
+    return filterBookingsByTab(_bookings, tabIndex);
   }
 
   @override
@@ -171,7 +182,7 @@ class _BookingsPageState extends State<BookingsPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Total: \$${item.totalAmount.toStringAsFixed(2)}',
+                      'Total: LKR ${item.totalAmount.toStringAsFixed(2)}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,

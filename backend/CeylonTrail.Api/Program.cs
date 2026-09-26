@@ -67,6 +67,7 @@ builder.Services.Configure<DestinationAgentOptions>(
     builder.Configuration.GetSection(DestinationAgentOptions.SectionName));
 builder.Services.Configure<BookingActionAgentOptions>(
     builder.Configuration.GetSection(BookingActionAgentOptions.SectionName));
+builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceService>((serviceProvider, client) =>
 {
     var options = serviceProvider
@@ -127,9 +128,10 @@ if (builder.Environment.IsDevelopment())
     {
         options.AddPolicy("ReactDevelopment", policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "http://localhost:5174")
+            policy.SetIsOriginAllowed(_ => true)
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                .AllowCredentials();
         });
     });
 }

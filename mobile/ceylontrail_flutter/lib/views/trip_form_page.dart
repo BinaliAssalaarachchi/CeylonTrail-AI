@@ -105,7 +105,7 @@ class _TripFormPageState extends State<TripFormPage> {
       const SizedBox(height: CeylonSpacing.sm),
       _dateButton('End date', _end, () => _pickDate(false)),
       const SizedBox(height: CeylonSpacing.md),
-      TextField(controller: _budget, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Budget', prefixText: 'Rs. ')),
+      TextField(controller: _budget, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Budget (LKR)', prefixText: 'LKR ')),
       if (widget.isEditing) ...[
         const SizedBox(height: CeylonSpacing.md),
         DropdownButtonFormField<String>(initialValue: _status, decoration: const InputDecoration(labelText: 'Status'), items: _allowedStatuses().map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(), onChanged: _saving ? null : (value) => setState(() => _status = value)),

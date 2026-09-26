@@ -70,129 +70,21 @@ public static class DevelopmentDataSeeder
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var provider = await dbContext.Users
-            .SingleAsync(user => user.Email == "PROVIDER@TEST.COM", cancellationToken);
-        var demoCategory = await dbContext.Categories
-            .SingleAsync(item => item.Name == "Historical & Cultural", cancellationToken);
+        // Remove legacy demo attraction if it exists so only user-created attractions exist
+        var demoAttraction = await dbContext.Attractions
+            .Include(a => a.Schedules)
+            .Include(a => a.ExperienceSlots)
+            .Include(a => a.Images)
+            .SingleOrDefaultAsync(item => item.Id == DemoAttractionId || item.Name == DemoAttractionName, cancellationToken);
 
-        var attraction = await dbContext.Attractions
-            .SingleOrDefaultAsync(item => item.Id == DemoAttractionId, cancellationToken);
-
-        if (attraction is null)
+        if (demoAttraction is not null)
         {
-            attraction = new Attraction
-            {
-                Id = DemoAttractionId,
-                ProviderId = provider.Id,
-                CategoryId = demoCategory.Id,
-                Name = DemoAttractionName,
-                Description = "A guided sunrise heritage walk with panoramic views of the ancient Sigiriya landscape.",
-                District = "Matale",
-                Address = "Sigiriya Rock Fortress, Sigiriya, Matale, Sri Lanka",
-                Latitude = 7.9570m,
-                Longitude = 80.7603m,
-                Price = DemoAttractionPrice,
-                Status = "Approved",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            dbContext.Attractions.Add(attraction);
+            var availSlots = await dbContext.AvailabilitySlots
+                .Where(s => s.AttractionId == demoAttraction.Id)
+                .ToListAsync(cancellationToken);
+            dbContext.AvailabilitySlots.RemoveRange(availSlots);
+            dbContext.Attractions.Remove(demoAttraction);
             await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        await EnsureSchedulesAsync(dbContext, attraction.Id, cancellationToken);
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var demoDate = today.AddDays(7);
-        var experienceSlot = await dbContext.ExperienceSlots
-            .SingleOrDefaultAsync(slot =>
-                slot.AttractionId == attraction.Id &&
-                slot.Date >= today &&
-                slot.StartTime == new TimeOnly(9, 0), cancellationToken);
-
-        if (experienceSlot is null)
-        {
-            dbContext.ExperienceSlots.Add(new ExperienceSlot
-            {
-                Id = Guid.Parse("66666666-6666-6666-6666-666666666666"),
-                AttractionId = attraction.Id,
-                Date = demoDate,
-                StartTime = new TimeOnly(9, 0),
-                EndTime = new TimeOnly(11, 0),
-                Capacity = 40,
-                AvailableCapacity = 40
-            });
-        }
-
-        var startTime = DateTime.SpecifyKind(demoDate.ToDateTime(new TimeOnly(9, 0)), DateTimeKind.Utc);
-        var endTime = DateTime.SpecifyKind(demoDate.ToDateTime(new TimeOnly(11, 0)), DateTimeKind.Utc);
-        var availabilitySlot = await dbContext.AvailabilitySlots
-            .SingleOrDefaultAsync(slot =>
-                slot.AttractionId == attraction.Id &&
-                slot.StartTime >= DateTime.UtcNow &&
-                slot.StartTime.Hour == 9, cancellationToken);
-
-        if (availabilitySlot is null)
-        {
-            var availabilitySlotId = Guid.Parse("77777777-7777-7777-7777-777777777777");
-            var createdAt = DateTime.UtcNow;
-            var rowVersion = new byte[] { 0 };
-            var seedAvailabilitySlot = new AvailabilitySlot
-            {
-                Id = availabilitySlotId,
-                AttractionId = attraction.Id,
-                StartTime = startTime,
-                EndTime = endTime,
-                MaxCapacity = 40,
-                BookedCapacity = 0,
-                PricePerPerson = DemoAvailabilityPrice,
-                RowVersion = rowVersion,
-                CreatedAt = createdAt,
-                UpdatedAt = createdAt
-            };
-
-            if (dbContext.Database.IsRelational())
-            {
-                await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
-                    INSERT INTO "AvailabilitySlots"
-                        ("Id", "AttractionId", "StartTime", "EndTime", "MaxCapacity", "BookedCapacity", "PricePerPerson", "RowVersion", "CreatedAt", "UpdatedAt")
-                    VALUES
-                        ({seedAvailabilitySlot.Id}, {seedAvailabilitySlot.AttractionId}, {seedAvailabilitySlot.StartTime}, {seedAvailabilitySlot.EndTime}, {seedAvailabilitySlot.MaxCapacity}, {seedAvailabilitySlot.BookedCapacity}, {seedAvailabilitySlot.PricePerPerson}, {seedAvailabilitySlot.RowVersion}, {seedAvailabilitySlot.CreatedAt}, {seedAvailabilitySlot.UpdatedAt})
-                    """, cancellationToken);
-            }
-            else
-            {
-                dbContext.AvailabilitySlots.Add(seedAvailabilitySlot);
-            }
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    private static async Task EnsureSchedulesAsync(
-        ApplicationDbContext dbContext,
-        Guid attractionId,
-        CancellationToken cancellationToken)
-    {
-        var existingDays = await dbContext.AttractionSchedules
-            .Where(schedule => schedule.AttractionId == attractionId)
-            .Select(schedule => schedule.DayOfWeek)
-            .ToListAsync(cancellationToken);
-
-        var missingDays = Enum.GetValues<DayOfWeek>().Except(existingDays);
-        foreach (var day in missingDays)
-        {
-            dbContext.AttractionSchedules.Add(new AttractionSchedule
-            {
-                Id = Guid.NewGuid(),
-                AttractionId = attractionId,
-                DayOfWeek = day,
-                OpeningTime = new TimeOnly(8, 0),
-                ClosingTime = new TimeOnly(17, 0),
-                IsClosed = false
-            });
         }
     }
 
