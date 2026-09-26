@@ -136,18 +136,36 @@ public static class DevelopmentDataSeeder
 
         if (availabilitySlot is null)
         {
-            dbContext.AvailabilitySlots.Add(new AvailabilitySlot
+            var availabilitySlotId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+            var createdAt = DateTime.UtcNow;
+            var rowVersion = new byte[] { 0 };
+            var seedAvailabilitySlot = new AvailabilitySlot
             {
-                Id = Guid.Parse("77777777-7777-7777-7777-777777777777"),
+                Id = availabilitySlotId,
                 AttractionId = attraction.Id,
                 StartTime = startTime,
                 EndTime = endTime,
                 MaxCapacity = 40,
                 BookedCapacity = 0,
                 PricePerPerson = DemoAvailabilityPrice,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
+                RowVersion = rowVersion,
+                CreatedAt = createdAt,
+                UpdatedAt = createdAt
+            };
+
+            if (dbContext.Database.IsRelational())
+            {
+                await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO "AvailabilitySlots"
+                        ("Id", "AttractionId", "StartTime", "EndTime", "MaxCapacity", "BookedCapacity", "PricePerPerson", "RowVersion", "CreatedAt", "UpdatedAt")
+                    VALUES
+                        ({seedAvailabilitySlot.Id}, {seedAvailabilitySlot.AttractionId}, {seedAvailabilitySlot.StartTime}, {seedAvailabilitySlot.EndTime}, {seedAvailabilitySlot.MaxCapacity}, {seedAvailabilitySlot.BookedCapacity}, {seedAvailabilitySlot.PricePerPerson}, {seedAvailabilitySlot.RowVersion}, {seedAvailabilitySlot.CreatedAt}, {seedAvailabilitySlot.UpdatedAt})
+                    """, cancellationToken);
+            }
+            else
+            {
+                dbContext.AvailabilitySlots.Add(seedAvailabilitySlot);
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
