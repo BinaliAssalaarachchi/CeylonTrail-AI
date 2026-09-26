@@ -16,7 +16,7 @@ class AvailabilitySlotModel {
     availableCapacity: (json['availableCapacity'] as num?)?.toInt() ?? 0, pricePerPerson: (json['pricePerPerson'] as num?)?.toDouble() ?? 0,
   );
 }
-
+ 
 class BookingItemModel {
   const BookingItemModel({required this.id, required this.availabilitySlotId, required this.numberOfGuests, required this.unitPrice, required this.subtotal});
   final String id;
