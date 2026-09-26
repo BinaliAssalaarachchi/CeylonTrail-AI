@@ -4,6 +4,7 @@ Synthesizes structured booking actions from approved itineraries and verifies co
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import List, Optional
 from .schemas import (
     BookingActionType,
@@ -11,6 +12,10 @@ from .schemas import (
     BookingValidationIssue,
     ItineraryActivitySlot,
     TouristTripContext,
+    BookingActionExecutionRequest,
+    BookingActionIssue,
+    BookingActionOutput,
+    BookingActionProposal,
 )
 
 
@@ -171,3 +176,78 @@ class BookingActionAgent:
                 "valid": len(issues) == 0,
             },
         )                                 
+
+
+class BookingProposalAgent:
+    """Deterministic proposal generator over an ASP.NET-owned slot snapshot."""
+
+    def prepare(self, request: BookingActionExecutionRequest) -> BookingActionOutput:
+        now = datetime.now(timezone.utc)
+        selected_attractions = set(request.selected_attraction_ids)
+        issues: list[BookingActionIssue] = []
+        eligible = []
+
+        for slot in request.trusted_availability_slots:
+            if slot.attraction_id not in selected_attractions:
+                continue
+            if not slot.is_active or not slot.is_approved:
+                issues.append(BookingActionIssue(code="InvalidSlot", message="Slot is not publicly eligible.", availabilitySlotId=slot.availability_slot_id))
+                continue
+            if slot.start_time <= now or slot.end_time <= now:
+                issues.append(BookingActionIssue(code="ExpiredSlot", message="Slot is not a future availability window.", availabilitySlotId=slot.availability_slot_id))
+                continue
+            if ((request.start_date and slot.start_time.date() < request.start_date) or
+                    (request.end_date and slot.end_time.date() > request.end_date)):
+                issues.append(BookingActionIssue(code="OutsideTripDates", message="Slot is outside the supplied trip dates.", availabilitySlotId=slot.availability_slot_id))
+                continue
+            if slot.available_capacity < request.guest_count:
+                issues.append(BookingActionIssue(code="InsufficientCapacity", message="Slot does not have enough remaining capacity.", availabilitySlotId=slot.availability_slot_id))
+                continue
+            eligible.append(slot)
+
+        eligible.sort(key=lambda slot: (slot.start_time, slot.price_per_person, str(slot.availability_slot_id)))
+        proposals: list[BookingActionProposal] = []
+        proposed_slots: set = set()
+        total = Decimal("0")
+        for slot in eligible:
+            if slot.availability_slot_id in proposed_slots:
+                continue
+            subtotal = slot.price_per_person * request.guest_count
+            if request.remaining_budget is not None and total + subtotal > request.remaining_budget:
+                issues.append(BookingActionIssue(code="BudgetExceeded", message="Slot proposal would exceed the remaining budget.", availabilitySlotId=slot.availability_slot_id))
+                continue
+            proposals.append(BookingActionProposal(
+                attractionId=slot.attraction_id,
+                availabilitySlotId=slot.availability_slot_id,
+                guestCount=request.guest_count,
+                unitPrice=slot.price_per_person,
+                totalPrice=subtotal,
+                startTime=slot.start_time,
+                endTime=slot.end_time,
+                reason="Eligible future M3 availability with sufficient capacity and authoritative pricing.",
+            ))
+            proposed_slots.add(slot.availability_slot_id)
+            total += subtotal
+
+        if not proposals:
+            if not issues:
+                issues.append(BookingActionIssue(code="NoAvailability", message="No eligible availability slots were supplied."))
+            return BookingActionOutput(
+                workflowId=request.workflow_id,
+                tripId=request.trip_id,
+                status="NoEligibleProposal",
+                proposals=[],
+                issues=issues,
+                requiresApproval=False,
+                summary="No booking proposal can be prepared from the trusted availability snapshot.",
+            )
+
+        return BookingActionOutput(
+            workflowId=request.workflow_id,
+            tripId=request.trip_id,
+            status="Prepared",
+            proposals=proposals,
+            issues=issues,
+            requiresApproval=True,
+            summary=f"Prepared {len(proposals)} proposal(s); no booking side effect was performed.",
+        )

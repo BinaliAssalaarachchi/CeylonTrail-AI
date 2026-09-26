@@ -46,6 +46,8 @@ builder.Services.AddScoped<ITripService, TripService>();
 builder.Services.AddScoped<IItineraryTravelIntelligenceWorkflowService, ItineraryTravelIntelligenceWorkflowService>();
 builder.Services.AddScoped<IAttractionService, AttractionService>();
 builder.Services.AddScoped<IDestinationAgentService, DestinationAgentService>();
+builder.Services.AddScoped<IBookingAvailabilitySnapshotService, BookingAvailabilitySnapshotService>();
+builder.Services.AddScoped<IBookingActionAgentService, BookingActionAgentService>();
 builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IItineraryValidationService, ItineraryValidationService>();
@@ -60,6 +62,8 @@ builder.Services.Configure<PlannerAgentOptions>(
     builder.Configuration.GetSection(PlannerAgentOptions.SectionName));
 builder.Services.Configure<DestinationAgentOptions>(
     builder.Configuration.GetSection(DestinationAgentOptions.SectionName));
+builder.Services.Configure<BookingActionAgentOptions>(
+    builder.Configuration.GetSection(BookingActionAgentOptions.SectionName));
 builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceService>((serviceProvider, client) =>
 {
     var options = serviceProvider
@@ -79,6 +83,12 @@ builder.Services.AddHttpClient<IPlannerAgentService, PlannerAgentService>((servi
 builder.Services.AddHttpClient<IDestinationAgentService, DestinationAgentService>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DestinationAgentOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 15);
+});
+builder.Services.AddHttpClient<IBookingActionAgentService, BookingActionAgentService>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<BookingActionAgentOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 15);
 });
