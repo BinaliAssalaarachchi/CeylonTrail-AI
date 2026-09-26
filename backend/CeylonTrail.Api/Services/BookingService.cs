@@ -88,10 +88,6 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 return (false, $"Availability slot has insufficient capacity. Available: {slot.AvailableCapacity}, Requested: {item.NumberOfGuests}.", null);
             }
 
-            // Reserve slot capacity
-            slot.BookedCapacity += item.NumberOfGuests;
-            slot.UpdatedAt = DateTime.UtcNow;
-
             var unitPrice = slot.PricePerPerson;
             var subtotal = item.NumberOfGuests * unitPrice;
             total += subtotal;
@@ -211,6 +207,30 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, $"Cannot accept booking in '{booking.CurrentStatus}' status.", null);
         }
 
+        // Deduct slot capacity now that provider has confirmed the booking
+        foreach (var item in booking.Items)
+        {
+            var slot = await dbContext.AvailabilitySlots
+                .FirstOrDefaultAsync(s => s.Id == item.AvailabilitySlotId, cancellationToken);
+            if (slot != null)
+            {
+                if (item.NumberOfGuests > slot.MaxCapacity - slot.BookedCapacity)
+                {
+                    return (false, $"Cannot confirm booking: slot has insufficient capacity. Available: {slot.AvailableCapacity}, Requested: {item.NumberOfGuests}.", null);
+                }
+
+                slot.BookedCapacity += item.NumberOfGuests;
+                slot.UpdatedAt = DateTime.UtcNow;
+
+                var expSlot = await dbContext.ExperienceSlots
+                    .FirstOrDefaultAsync(e => e.Id == slot.Id || (e.AttractionId == slot.AttractionId && e.Date == DateOnly.FromDateTime(slot.StartTime) && e.StartTime == TimeOnly.FromDateTime(slot.StartTime)), cancellationToken);
+                if (expSlot != null)
+                {
+                    expSlot.AvailableCapacity = Math.Max(0, expSlot.Capacity - slot.BookedCapacity);
+                }
+            }
+        }
+
         var previousStatus = booking.CurrentStatus;
         booking.CurrentStatus = BookingStatus.Confirmed;
         booking.UpdatedAt = DateTime.UtcNow;
@@ -249,6 +269,28 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         var previousStatus = booking.CurrentStatus;
         booking.CurrentStatus = BookingStatus.Rejected;
         booking.UpdatedAt = DateTime.UtcNow;
+
+        // Release slot capacity only if booking was already confirmed
+        if (previousStatus == BookingStatus.Confirmed)
+        {
+            foreach (var item in booking.Items)
+            {
+                var slot = await dbContext.AvailabilitySlots
+                    .FirstOrDefaultAsync(s => s.Id == item.AvailabilitySlotId, cancellationToken);
+                if (slot != null)
+                {
+                    slot.BookedCapacity = Math.Max(0, slot.BookedCapacity - item.NumberOfGuests);
+                    slot.UpdatedAt = DateTime.UtcNow;
+
+                    var expSlot = await dbContext.ExperienceSlots
+                        .FirstOrDefaultAsync(e => e.Id == slot.Id || (e.AttractionId == slot.AttractionId && e.Date == DateOnly.FromDateTime(slot.StartTime) && e.StartTime == TimeOnly.FromDateTime(slot.StartTime)), cancellationToken);
+                    if (expSlot != null)
+                    {
+                        expSlot.AvailableCapacity = Math.Max(0, expSlot.Capacity - slot.BookedCapacity);
+                    }
+                }
+            }
+        }
 
         booking.StatusHistory.Add(new BookingStatusHistory
         {
@@ -291,6 +333,28 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         var previousStatus = booking.CurrentStatus;
         booking.CurrentStatus = BookingStatus.Cancelled;
         booking.UpdatedAt = DateTime.UtcNow;
+
+        // Release slot capacity only if booking was already confirmed
+        if (previousStatus == BookingStatus.Confirmed)
+        {
+            foreach (var item in booking.Items)
+            {
+                var slot = await dbContext.AvailabilitySlots
+                    .FirstOrDefaultAsync(s => s.Id == item.AvailabilitySlotId, cancellationToken);
+                if (slot != null)
+                {
+                    slot.BookedCapacity = Math.Max(0, slot.BookedCapacity - item.NumberOfGuests);
+                    slot.UpdatedAt = DateTime.UtcNow;
+
+                    var expSlot = await dbContext.ExperienceSlots
+                        .FirstOrDefaultAsync(e => e.Id == slot.Id || (e.AttractionId == slot.AttractionId && e.Date == DateOnly.FromDateTime(slot.StartTime) && e.StartTime == TimeOnly.FromDateTime(slot.StartTime)), cancellationToken);
+                    if (expSlot != null)
+                    {
+                        expSlot.AvailableCapacity = Math.Max(0, expSlot.Capacity - slot.BookedCapacity);
+                    }
+                }
+            }
+        }
 
         // Record cancellation request
         var cancellationRequest = new CancellationRequest
@@ -359,6 +423,61 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         Guid? attractionId = null,
         CancellationToken cancellationToken = default)
     {
+        // Auto-synchronize ExperienceSlots on approved attractions to AvailabilitySlots
+        var expQuery = dbContext.ExperienceSlots
+            .Include(e => e.Attraction)
+            .Where(e => e.Attraction != null && e.Attraction.IsActive && e.Attraction.Status == "Approved");
+
+        if (attractionId.HasValue && attractionId.Value != Guid.Empty)
+        {
+            expQuery = expQuery.Where(e => e.AttractionId == attractionId.Value);
+        }
+
+        var experienceSlots = await expQuery.ToListAsync(cancellationToken);
+        var addedAny = false;
+
+        foreach (var exp in experienceSlots)
+        {
+            var startUtc = DateTime.SpecifyKind(exp.Date.ToDateTime(exp.StartTime), DateTimeKind.Utc);
+            var endUtc = DateTime.SpecifyKind(exp.Date.ToDateTime(exp.EndTime), DateTimeKind.Utc);
+
+            var existingSlot = await dbContext.AvailabilitySlots.FirstOrDefaultAsync(
+                s => s.Id == exp.Id || (s.AttractionId == exp.AttractionId && s.StartTime == startUtc && s.EndTime == endUtc),
+                cancellationToken);
+
+            if (existingSlot == null)
+            {
+                dbContext.AvailabilitySlots.Add(new AvailabilitySlot
+                {
+                    Id = exp.Id,
+                    AttractionId = exp.AttractionId,
+                    StartTime = startUtc,
+                    EndTime = endUtc,
+                    MaxCapacity = exp.Capacity,
+                    BookedCapacity = Math.Max(0, exp.Capacity - exp.AvailableCapacity),
+                    PricePerPerson = exp.Attraction!.Price,
+                    RowVersion = new byte[] { 0 },
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                addedAny = true;
+            }
+            else
+            {
+                var calculatedAvailable = Math.Max(0, exp.Capacity - existingSlot.BookedCapacity);
+                if (exp.AvailableCapacity != calculatedAvailable)
+                {
+                    exp.AvailableCapacity = calculatedAvailable;
+                    addedAny = true;
+                }
+            }
+        }
+
+        if (addedAny)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         var query = dbContext.AvailabilitySlots
             .AsNoTracking()
             .Where(slot =>
@@ -412,6 +531,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             MaxCapacity = request.MaxCapacity,
             BookedCapacity = 0,
             PricePerPerson = request.PricePerPerson,
+            RowVersion = new byte[] { 0 },
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

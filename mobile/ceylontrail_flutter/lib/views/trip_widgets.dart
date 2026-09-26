@@ -4,7 +4,7 @@ import '../models/trip_model.dart';
 import '../theme/app_theme.dart';
 
 String displayDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-String displayMoney(double value) => 'Rs. ${value.toStringAsFixed(2)}';
+String displayMoney(double value) => 'LKR ${value.toStringAsFixed(2)}';
 
 Color statusColor(String status) {
   switch (status) {

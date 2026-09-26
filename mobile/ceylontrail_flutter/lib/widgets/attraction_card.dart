@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../config/api_config.dart';
 import '../models/attraction_model.dart';
 import '../theme/app_theme.dart';
 
@@ -51,7 +52,7 @@ class AttractionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  attraction.price == 0 ? 'Free entry' : 'From ${attraction.price.toStringAsFixed(2)}',
+                  attraction.price == 0 ? 'Free entry' : 'From LKR ${attraction.price.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ],
@@ -70,16 +71,17 @@ class _ImagePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = attraction.images.isEmpty ? null : attraction.images.first.imageUrl;
+    final resolvedImage = ApiConfig.resolveImageUrl(image);
     return SizedBox(
       height: 150,
       width: double.infinity,
-      child: image == null || image.isEmpty
+      child: resolvedImage.isEmpty
           ? const ColoredBox(
               color: CeylonColors.mint,
               child: Center(child: Icon(Icons.landscape_outlined, size: 46, color: CeylonColors.tea)),
             )
           : Image.network(
-              image,
+              resolvedImage,
               fit: BoxFit.cover,
               semanticLabel: attraction.images.first.altText ?? attraction.name,
               errorBuilder: (_, __, ___) => const ColoredBox(

@@ -188,7 +188,7 @@ export default function BookingManagement() {
                                     <span className={`status-badge ${statusStr.toLowerCase()}`}>{statusStr}</span>
                                     <span className="booking-id">ID: {b.id?.substring(0, 8)}...</span>
                                 </div>
-                                <span className="booking-total">${(b.totalAmount || 0).toFixed(2)}</span>
+                                <span className="booking-total">LKR {(b.totalAmount || 0).toFixed(2)}</span>
                             </div>
 
                             <div className="booking-meta">
@@ -212,7 +212,7 @@ export default function BookingManagement() {
                                         return (
                                             <li key={item.id}>
                                                 <span>Slot ({targetId}...)</span>
-                                                <span>Guests: {guests} × ${unitPrice.toFixed(2)} = <strong>${subtotal.toFixed(2)}</strong></span>
+                                                <span>Guests: {guests} × LKR {unitPrice.toFixed(2)} = <strong>LKR {subtotal.toFixed(2)}</strong></span>
                                             </li>
                                         )
                                     })}

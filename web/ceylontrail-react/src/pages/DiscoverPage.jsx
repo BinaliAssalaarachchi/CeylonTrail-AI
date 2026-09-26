@@ -135,7 +135,7 @@ export default function DiscoverPage() {
               </div>
               <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <strong style={{ color: 'var(--color-primary, #005a36)' }}>
-                  {attr.price ? `Rs. ${Number(attr.price).toLocaleString('en-LK')}` : 'Free Entry'}
+                  {attr.price ? `LKR ${Number(attr.price).toLocaleString('en-LK')}` : 'Free Entry'}
                 </strong>
                 <Link to="/bookings" className="button button-secondary-light" style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}>
                   Book →

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../config/api_config.dart';
 import '../models/attraction_model.dart';
 import '../services/attraction_api_service.dart';
 import '../services/api_client.dart';
@@ -73,13 +74,24 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
           children: [
-            if (attraction.images.isNotEmpty) ClipRRect(borderRadius: BorderRadius.circular(CeylonRadii.card), child: Image.network(attraction.images.first.imageUrl, height: 230, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _fallbackImage())) else _fallbackImage(),
+            if (attraction.images.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(CeylonRadii.card),
+                child: Image.network(
+                  ApiConfig.resolveImageUrl(attraction.images.first.imageUrl),
+                  height: 230,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _fallbackImage(),
+                ),
+              )
+            else
+              _fallbackImage(),
             const SizedBox(height: 20),
             Text(attraction.name, style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),
             Text('${attraction.category?.name ?? 'Experience'} · ${attraction.district}', style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 8),
-            Text(attraction.price == 0 ? 'Free entry' : 'From ${attraction.price.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
+            Text(attraction.price == 0 ? 'Free entry' : 'From LKR ${attraction.price.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 18),
             Text(attraction.description, style: Theme.of(context).textTheme.bodyLarge),
             if (isTourist) ...[

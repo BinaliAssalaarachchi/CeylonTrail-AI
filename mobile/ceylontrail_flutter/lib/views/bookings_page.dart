@@ -182,7 +182,7 @@ class _BookingsPageState extends State<BookingsPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Total: \$${item.totalAmount.toStringAsFixed(2)}',
+                      'Total: LKR ${item.totalAmount.toStringAsFixed(2)}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,

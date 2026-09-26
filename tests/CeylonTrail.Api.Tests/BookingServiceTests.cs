@@ -217,7 +217,7 @@ public sealed class BookingServiceTests
     }
 
     [Fact]
-    public async Task AcceptBooking_WhenDraftOrPending_TransitionsToConfirmed()
+    public async Task AcceptBooking_WhenDraftOrPending_TransitionsToConfirmedAndDeductsCapacity()
     {
         await using var dbContext = CreateDbContext();
         var slot = CreateSlot(10, 100m);
@@ -232,9 +232,14 @@ public sealed class BookingServiceTests
         {
             Items = new List<BookingItemRequest>
             {
-                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 100m }
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 3, UnitPrice = 100m }
             }
         });
+
+        // Verify slot capacity is NOT deducted while in Draft
+        var dbSlotBeforeAccept = await dbContext.AvailabilitySlots.FindAsync(slot.Id);
+        Assert.Equal(0, dbSlotBeforeAccept!.BookedCapacity);
+        Assert.Equal(10, dbSlotBeforeAccept.AvailableCapacity);
 
         var bookingId = createResult.Response!.Id;
 
@@ -244,6 +249,11 @@ public sealed class BookingServiceTests
         Assert.Equal("Confirmed", acceptResult.Response!.CurrentStatus);
         Assert.Equal(2, acceptResult.Response.StatusHistory!.Count);
         Assert.Equal("Confirmed", acceptResult.Response.StatusHistory[1].NewStatus);
+
+        // Verify slot capacity IS deducted after confirmation
+        var dbSlotAfterAccept = await dbContext.AvailabilitySlots.FindAsync(slot.Id);
+        Assert.Equal(3, dbSlotAfterAccept!.BookedCapacity);
+        Assert.Equal(7, dbSlotAfterAccept.AvailableCapacity);
     }
 
     [Fact]
@@ -373,6 +383,83 @@ public sealed class BookingServiceTests
 
         Assert.False(cancelResult.Succeeded);
         Assert.Equal("You cannot cancel another user's booking.", cancelResult.Error);
+    }
+
+    [Fact]
+    public async Task CancelBooking_WhenConfirmed_RestoresCapacity()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 75m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var service = new BookingService(dbContext);
+        var touristId = Guid.NewGuid();
+        var providerId = Guid.NewGuid();
+
+        var createResult = await service.CreateBookingAsync(touristId, new CreateBookingRequest
+        {
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 4, UnitPrice = 75m }
+            }
+        });
+
+        var bookingId = createResult.Response!.Id;
+        await service.AcceptBookingAsync(bookingId, providerId);
+
+        var dbSlotAfterAccept = await dbContext.AvailabilitySlots.FindAsync(slot.Id);
+        Assert.Equal(4, dbSlotAfterAccept!.BookedCapacity);
+        Assert.Equal(6, dbSlotAfterAccept.AvailableCapacity);
+
+        var cancelResult = await service.CancelBookingAsync(
+            bookingId,
+            touristId,
+            nameof(UserRole.Tourist),
+            new CancelBookingRequest { Reason = "Change of plans" });
+
+        Assert.True(cancelResult.Succeeded);
+        var dbSlotAfterCancel = await dbContext.AvailabilitySlots.FindAsync(slot.Id);
+        Assert.Equal(0, dbSlotAfterCancel!.BookedCapacity);
+        Assert.Equal(10, dbSlotAfterCancel.AvailableCapacity);
+    }
+
+    [Fact]
+    public async Task RejectBooking_WhenConfirmed_RestoresCapacity()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var service = new BookingService(dbContext);
+        var touristId = Guid.NewGuid();
+        var providerId = Guid.NewGuid();
+
+        var createResult = await service.CreateBookingAsync(touristId, new CreateBookingRequest
+        {
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 2, UnitPrice = 50m }
+            }
+        });
+
+        var bookingId = createResult.Response!.Id;
+        await service.AcceptBookingAsync(bookingId, providerId);
+
+        var dbSlotAfterAccept = await dbContext.AvailabilitySlots.FindAsync(slot.Id);
+        Assert.Equal(2, dbSlotAfterAccept!.BookedCapacity);
+        Assert.Equal(8, dbSlotAfterAccept.AvailableCapacity);
+
+        var rejectResult = await service.RejectBookingAsync(
+            bookingId,
+            providerId,
+            new RejectBookingRequest { Reason = "Emergency closure" });
+
+        Assert.True(rejectResult.Succeeded);
+        var dbSlotAfterReject = await dbContext.AvailabilitySlots.FindAsync(slot.Id);
+        Assert.Equal(0, dbSlotAfterReject!.BookedCapacity);
+        Assert.Equal(10, dbSlotAfterReject.AvailableCapacity);
     }
 
     private static AvailabilitySlot CreateSlot(int capacity, decimal price)

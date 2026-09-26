@@ -10,10 +10,14 @@ class AvailabilitySlotModel {
   final double pricePerPerson;
 
   factory AvailabilitySlotModel.fromJson(Map<String, dynamic> json) => AvailabilitySlotModel(
-    id: json['id']?.toString() ?? '', attractionId: json['attractionId']?.toString() ?? '',
-    startTime: DateTime.tryParse(json['startTime']?.toString() ?? '') ?? DateTime(1970), endTime: DateTime.tryParse(json['endTime']?.toString() ?? '') ?? DateTime(1970),
-    maxCapacity: (json['maxCapacity'] as num?)?.toInt() ?? 0, bookedCapacity: (json['bookedCapacity'] as num?)?.toInt() ?? 0,
-    availableCapacity: (json['availableCapacity'] as num?)?.toInt() ?? 0, pricePerPerson: (json['pricePerPerson'] as num?)?.toDouble() ?? 0,
+    id: (json['id'] ?? json['Id'])?.toString() ?? '',
+    attractionId: (json['attractionId'] ?? json['AttractionId'])?.toString() ?? '',
+    startTime: DateTime.tryParse((json['startTime'] ?? json['StartTime'])?.toString() ?? '') ?? DateTime(1970),
+    endTime: DateTime.tryParse((json['endTime'] ?? json['EndTime'])?.toString() ?? '') ?? DateTime(1970),
+    maxCapacity: ((json['maxCapacity'] ?? json['MaxCapacity']) as num?)?.toInt() ?? 0,
+    bookedCapacity: ((json['bookedCapacity'] ?? json['BookedCapacity']) as num?)?.toInt() ?? 0,
+    availableCapacity: ((json['availableCapacity'] ?? json['AvailableCapacity']) as num?)?.toInt() ?? 0,
+    pricePerPerson: ((json['pricePerPerson'] ?? json['PricePerPerson']) as num?)?.toDouble() ?? 0,
   );
 }
  
@@ -66,15 +70,24 @@ class BookingModel {
     id: json['id']?.toString() ?? '', userId: (json['userId'] ?? json['touristId'])?.toString() ?? '', tripId: json['tripId']?.toString(),
     currentStatus: (json['currentStatus'] ?? json['status'])?.toString() ?? '', totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
     qrCodeHash: json['qrCodeHash'] as String?, createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime(1970), updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime(1970),
-    items: (json['items'] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().map((item) => BookingItemModel(
-      id: item['id']?.toString() ?? '', availabilitySlotId: (item['availabilitySlotId'] ?? item['attractionId'])?.toString() ?? '', numberOfGuests: ((item['numberOfGuests'] ?? item['quantity']) as num?)?.toInt() ?? 0,
-      unitPrice: (item['unitPrice'] as num?)?.toDouble() ?? 0, subtotal: ((item['subTotal'] ?? item['subtotal']) as num?)?.toDouble() ?? 0,
-    )).toList(),
-    statusHistory: (json['statusHistory'] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().map((entry) => BookingHistoryModel(
-      id: entry['id']?.toString() ?? '', previousStatus: entry['previousStatus']?.toString() ?? '', newStatus: entry['newStatus']?.toString() ?? '', changedByUserId: entry['changedByUserId']?.toString(), timestamp: DateTime.tryParse(entry['timestamp']?.toString() ?? '') ?? DateTime(1970), reason: entry['reason'] as String?,
-    )).toList(),
-    cancellationRequests: (json['cancellationRequests'] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().map((entry) => CancellationModel(
-      id: entry['id']?.toString() ?? '', reason: entry['reason']?.toString() ?? '', status: entry['status']?.toString() ?? '', refundAmount: (entry['refundAmount'] as num?)?.toDouble(), requestedAt: DateTime.tryParse(entry['requestedAt']?.toString() ?? '') ?? DateTime(1970),
-    )).toList(),
+    items: (json['items'] as List<dynamic>? ?? const []).whereType<Map>().map((item) {
+      final map = Map<String, dynamic>.from(item);
+      return BookingItemModel(
+        id: map['id']?.toString() ?? '', availabilitySlotId: (map['availabilitySlotId'] ?? map['attractionId'])?.toString() ?? '', numberOfGuests: ((map['numberOfGuests'] ?? map['quantity']) as num?)?.toInt() ?? 0,
+        unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0, subtotal: ((map['subTotal'] ?? map['subtotal']) as num?)?.toDouble() ?? 0,
+      );
+    }).toList(),
+    statusHistory: (json['statusHistory'] as List<dynamic>? ?? const []).whereType<Map>().map((entry) {
+      final map = Map<String, dynamic>.from(entry);
+      return BookingHistoryModel(
+        id: map['id']?.toString() ?? '', previousStatus: map['previousStatus']?.toString() ?? '', newStatus: map['newStatus']?.toString() ?? '', changedByUserId: map['changedByUserId']?.toString(), timestamp: DateTime.tryParse(map['timestamp']?.toString() ?? '') ?? DateTime(1970), reason: map['reason'] as String?,
+      );
+    }).toList(),
+    cancellationRequests: (json['cancellationRequests'] as List<dynamic>? ?? const []).whereType<Map>().map((entry) {
+      final map = Map<String, dynamic>.from(entry);
+      return CancellationModel(
+        id: map['id']?.toString() ?? '', reason: map['reason']?.toString() ?? '', status: map['status']?.toString() ?? '', refundAmount: (map['refundAmount'] as num?)?.toDouble(), requestedAt: DateTime.tryParse(map['requestedAt']?.toString() ?? '') ?? DateTime(1970),
+      );
+    }).toList(),
   );
 }

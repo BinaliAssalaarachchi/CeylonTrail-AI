@@ -144,7 +144,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                           ),
                         ),
                         Text(
-                          '\$${_currentBooking.totalAmount.toStringAsFixed(2)}',
+                          'LKR ${_currentBooking.totalAmount.toStringAsFixed(2)}',
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: Theme.of(context).colorScheme.primary,
@@ -181,9 +181,9 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.confirmation_number_outlined)),
                   title: Text('Availability slot (${item.availabilitySlotId.substring(0, item.availabilitySlotId.length > 8 ? 8 : item.availabilitySlotId.length)}...)'),
-                  subtitle: Text('Guests: ${item.numberOfGuests} × \$${item.unitPrice.toStringAsFixed(2)}'),
+                  subtitle: Text('Guests: ${item.numberOfGuests} × LKR ${item.unitPrice.toStringAsFixed(2)}'),
                   trailing: Text(
-                    '\$${item.subtotal.toStringAsFixed(2)}',
+                    'LKR ${item.subtotal.toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),

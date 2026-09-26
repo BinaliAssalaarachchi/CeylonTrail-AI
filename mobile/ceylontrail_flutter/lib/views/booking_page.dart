@@ -47,16 +47,19 @@ class _BookingPageState extends State<BookingPage> {
 
   Future<void> _load() async {
     try {
-      final results = await Future.wait<dynamic>([
-        _attractionApi.getAttraction(widget.attractionId),
-        _bookingApi.fetchAvailabilitySlots(attractionId: widget.attractionId),
-        widget.tripApi.getTrips(),
-      ]);
+      final attractionFuture = _attractionApi.getAttraction(widget.attractionId);
+      final slotsFuture = _bookingApi.fetchAvailabilitySlots(attractionId: widget.attractionId);
+      final tripsFuture = widget.tripApi.getTrips().catchError((_) => <Trip>[]);
+
+      final attraction = await attractionFuture;
+      final slots = await slotsFuture;
+      final trips = await tripsFuture;
+
       if (!mounted) return;
       setState(() {
-        _attraction = results[0] as AttractionModel;
-        _slots = (results[1] as List<AvailabilitySlotModel>).where((slot) => slot.availableCapacity > 0 && slot.endTime.isAfter(DateTime.now())).toList();
-        _trips = results[2] as List<Trip>;
+        _attraction = attraction;
+        _slots = slots.where((slot) => slot.availableCapacity > 0 && slot.endTime.isAfter(DateTime.now())).toList();
+        _trips = trips;
         _loading = false;
       });
     } catch (error) {
@@ -126,7 +129,36 @@ class _BookingPageState extends State<BookingPage> {
 
   Widget _successView(BookingModel booking) => Scaffold(appBar: AppBar(title: const Text('Booking Confirmed')), body: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.check_circle, color: Colors.green, size: 64), const SizedBox(height: 16), Text('Your booking is confirmed.', style: Theme.of(context).textTheme.headlineSmall), const SizedBox(height: 12), Text('Reference: ${booking.id}'), Text('Status: ${booking.currentStatus}'), Text('Server total: LKR ${booking.totalAmount.toStringAsFixed(2)}'), const Spacer(), SizedBox(width: double.infinity, height: 50, child: FilledButton(onPressed: () => context.go('/bookings'), child: const Text('View My Bookings')))])));
 
-  Widget _errorView() => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Unable to load booking information.'), const SizedBox(height: 12), FilledButton(onPressed: () { setState(() { _loading = true; _error = null; }); _load(); }, child: const Text('Retry'))])));
+  Widget _errorView() => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Unable to load booking information.'),
+          if (_error != null && _error!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                _loading = true;
+                _error = null;
+              });
+              _load();
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    ),
+  );
   static String _date(DateTime date) => '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   static String _slotText(AvailabilitySlotModel slot) => '${_date(slot.startTime)} · ${_time(slot.startTime)}–${_time(slot.endTime)}';
   static String _time(DateTime date) => '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
