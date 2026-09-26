@@ -187,7 +187,10 @@ public sealed class BookingServiceTests
         expired.EndTime = DateTime.UtcNow.AddMinutes(-1);
         var pending = CreateSlot(10, 50m);
         pending.Attraction!.Status = "PendingApproval";
+        var lowerCaseApproved = CreateSlot(10, 50m);
+        lowerCaseApproved.Attraction!.Status = "approved";
         dbContext.AvailabilitySlots.AddRange(bookable, full, expired, pending);
+        dbContext.AvailabilitySlots.Add(lowerCaseApproved);
         await dbContext.SaveChangesAsync();
 
         var result = await new BookingService(dbContext).GetAvailabilitySlotsAsync();
@@ -197,6 +200,8 @@ public sealed class BookingServiceTests
         Assert.DoesNotContain(full.Id, returnedIds);
         Assert.DoesNotContain(expired.Id, returnedIds);
         Assert.DoesNotContain(pending.Id, returnedIds);
+        Assert.DoesNotContain(lowerCaseApproved.Id, returnedIds);
+        Assert.Equal(bookable.Id, Assert.Single(result).Id);
     }
 
     [Fact]

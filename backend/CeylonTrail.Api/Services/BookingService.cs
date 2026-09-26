@@ -364,7 +364,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Where(slot =>
                 slot.Attraction != null &&
                 slot.Attraction.IsActive &&
-                string.Equals(slot.Attraction.Status, "Approved", StringComparison.Ordinal) &&
+                slot.Attraction.Status == "Approved" &&
                 slot.BookedCapacity < slot.MaxCapacity &&
                 slot.EndTime > DateTime.UtcNow);
 
