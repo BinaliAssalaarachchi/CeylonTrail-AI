@@ -251,10 +251,14 @@ public sealed class AgentTripWorkflowOrchestrator(
             bookingStage.Stage!.Id,
             Serialize(new
             {
+                contract = "CeylonTrail.BookingActionProposal.v1",
+                workflowId = bookingResult.Value.WorkflowId,
+                tripId = bookingResult.Value.TripId,
                 status = bookingResult.Value.Status,
-                proposalCount = bookingResult.Value.Proposals.Count,
+                proposals = bookingResult.Value.Proposals,
+                issues = bookingResult.Value.Issues,
                 requiresApproval = bookingResult.Value.RequiresApproval,
-                issueCodes = bookingResult.Value.Issues.Select(issue => issue.Code).Distinct().ToList()
+                summary = bookingResult.Value.Summary
             }),
             cancellationToken: cancellationToken);
 

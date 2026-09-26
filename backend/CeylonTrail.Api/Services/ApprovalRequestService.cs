@@ -7,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CeylonTrail.Api.Services;
 
-public sealed class ApprovalRequestService(ApplicationDbContext dbContext) : IApprovalRequestService
+public sealed class ApprovalRequestService(
+    ApplicationDbContext dbContext,
+    IApprovedWorkflowActionExecutor? approvedWorkflowActionExecutor = null) : IApprovalRequestService
 {
     public async Task<(bool Succeeded, string? Error, ApprovalRequestResponse? Response)> CreateOrReusePendingAsync(
         Guid validationResultId,
@@ -133,6 +135,23 @@ public sealed class ApprovalRequestService(ApplicationDbContext dbContext) : IAp
 
         if (request.Status != ApprovalRequestStatus.Pending || request.Decision is not null)
         {
+            if (request.Status == ApprovalRequestStatus.Approved &&
+                request.Decision?.Decision == ApprovalDecisionType.Approved &&
+                approvedWorkflowActionExecutor is not null)
+            {
+                var execution = await approvedWorkflowActionExecutor.ExecuteAsync(
+                    request,
+                    request.Decision.DecidedByUserId,
+                    cancellationToken);
+                var resumedResponse = ToResponse(request);
+                resumedResponse.ExecutionSucceeded = execution.Succeeded;
+                resumedResponse.BookingId = execution.BookingId;
+                resumedResponse.ExecutionMessage = execution.Error ?? (execution.Succeeded
+                    ? "Approved booking executed."
+                    : "Approved decision recorded, but booking execution failed safely.");
+                return (true, null, resumedResponse);
+            }
+
             return (false, "The approval request has already been decided.", null);
         }
 
@@ -155,7 +174,20 @@ public sealed class ApprovalRequestService(ApplicationDbContext dbContext) : IAp
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
             : null;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
+            dbContext.ChangeTracker.Clear();
+            return (false, "The approval request has already been decided.", null);
+        }
         if (transaction is not null)
         {
             await transaction.CommitAsync(cancellationToken);
@@ -167,7 +199,23 @@ public sealed class ApprovalRequestService(ApplicationDbContext dbContext) : IAp
             .Include(candidate => candidate.ValidationResult)
             .SingleAsync(candidate => candidate.Id == id, cancellationToken);
 
-        return (true, null, ToResponse(decidedRequest));
+        var response = ToResponse(decidedRequest);
+        if (decision == ApprovalDecisionType.Approved && approvedWorkflowActionExecutor is not null)
+        {
+            var execution = await approvedWorkflowActionExecutor.ExecuteAsync(
+                decidedRequest,
+                decidedByUserId,
+                cancellationToken);
+            response.ExecutionSucceeded = execution.Succeeded;
+            response.BookingId = execution.BookingId;
+            response.ExecutionMessage = execution.Error ?? (execution.Succeeded ? "Approved booking executed." : "Approved decision recorded, but booking execution failed safely.");
+        }
+        else if (decision == ApprovalDecisionType.Rejected)
+        {
+            await TerminalizeRejectedWorkflowAsync(id, cancellationToken);
+        }
+
+        return (true, null, response);
     }
 
     private static ApprovalRecommendedAction ToModelAction(TravelIntelligenceAction action) =>
@@ -197,8 +245,29 @@ public sealed class ApprovalRequestService(ApplicationDbContext dbContext) : IAp
                 Decision = request.Decision.Decision,
                 Comment = request.Decision.Comment,
                 DecidedAt = request.Decision.DecidedAt
-            }
+            },
+        ExecutionSucceeded = null,
+        BookingId = null,
+        ExecutionMessage = null
         };
+
+    private async Task TerminalizeRejectedWorkflowAsync(Guid approvalRequestId, CancellationToken cancellationToken)
+    {
+        var workflow = await dbContext.AgentWorkflows
+            .Include(candidate => candidate.Stages)
+            .SingleOrDefaultAsync(
+                candidate => candidate.Stages.Any(stage => stage.ApprovalRequestId == approvalRequestId),
+                cancellationToken);
+        if (workflow is null || workflow.Status != AgentWorkflowStatus.AwaitingApproval)
+        {
+            return;
+        }
+
+        workflow.Status = AgentWorkflowStatus.Cancelled;
+        workflow.CompletedAt = DateTime.UtcNow;
+        workflow.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 
     private static ApprovalRequestResponse ToResponse(ApprovalRequest request, string? tripReference = null) =>
         ToResponseForRead(request, tripReference);
