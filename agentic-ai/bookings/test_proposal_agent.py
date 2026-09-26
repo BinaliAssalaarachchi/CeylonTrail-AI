@@ -113,4 +113,3 @@ def test_ineligible_records_are_never_proposed():
     result = BookingProposalAgent().prepare(request([slot(active=False), slot(approved=False)]))
     assert result.status == "NoEligibleProposal"
     assert result.proposals == []
-

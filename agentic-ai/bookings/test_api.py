@@ -40,4 +40,3 @@ def test_prepare_endpoint_is_proposal_only():
     assert response.status_code == 200
     assert response.json()["status"] == "Prepared"
     assert response.json()["requiresApproval"] is True
-

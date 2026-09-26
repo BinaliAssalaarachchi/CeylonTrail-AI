@@ -18,4 +18,3 @@ def health() -> dict[str, str]:
 @app.post("/booking/prepare", response_model=BookingActionOutput)
 def prepare_booking(request: BookingActionExecutionRequest) -> BookingActionOutput:
     return booking_agent.prepare(request)
-
