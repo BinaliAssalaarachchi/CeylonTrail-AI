@@ -1,6 +1,7 @@
 """Travel Intelligence Agent with an explicit, safe investigation workflow."""
 
 from dataclasses import dataclass, field
+import logging
 from time import perf_counter
 from typing import Optional
 from uuid import UUID, uuid4
@@ -57,6 +58,12 @@ PLAN_STEP_TOOL_PERMISSIONS = {
 MAX_TOOL_SELECTION_ATTEMPTS = 1
 MAX_EXECUTED_TOOLS = 6
 
+logger = logging.getLogger(__name__)
+
+
+class DeterministicExecutionError(RuntimeError):
+    """Raised when the deterministic investigation cannot complete safely."""
+
 
 @dataclass
 class PlanExecution:
@@ -100,7 +107,17 @@ class TravelIntelligenceAgent:
     def analyze(self, validation: TravelValidationInput) -> TravelRecommendationOutput:
         """Run the plan, then use an optional provider behind safety enforcement."""
 
-        plan_execution = self._execute_plan(validation, self.provider)
+        try:
+            plan_execution = self._execute_plan(validation, self.provider)
+        except Exception as error:
+            logger.warning(
+                "Travel Intelligence deterministic execution failed "
+                "stage=investigation_plan exception_type=%s",
+                type(error).__name__,
+            )
+            raise DeterministicExecutionError(
+                "Deterministic Travel Intelligence execution is unavailable."
+            ) from error
         if self.provider is not None:
             provider_started = perf_counter()
             try:

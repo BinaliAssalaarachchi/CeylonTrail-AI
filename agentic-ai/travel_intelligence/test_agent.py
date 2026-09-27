@@ -3,8 +3,12 @@
 import unittest
 import json
 from uuid import uuid4
+from unittest.mock import patch
 
-from travel_intelligence.agent import TravelIntelligenceAgent
+from travel_intelligence.agent import (
+    DeterministicExecutionError,
+    TravelIntelligenceAgent,
+)
 from travel_intelligence.schemas import (
     RiskLevel,
     RecommendationAction,
@@ -41,6 +45,27 @@ class TestTravelIntelligenceAgent(unittest.TestCase):
         self.assertTrue(result.is_feasible)
         self.assertFalse(result.requires_human_approval)
         self.assertEqual(result.recommendations, [])
+
+    def test_deterministic_tool_failure_is_classified_without_recommendation(self):
+        with patch(
+            "travel_intelligence.agent.execute_tool",
+            side_effect=RuntimeError("sensitive tool failure"),
+        ):
+            with self.assertRaises(DeterministicExecutionError) as context:
+                self.agent.analyze(make_validation())
+
+        self.assertEqual(
+            str(context.exception),
+            "Deterministic Travel Intelligence execution is unavailable.",
+        )
+
+    def test_malformed_deterministic_tool_result_is_classified(self):
+        with patch(
+            "travel_intelligence.agent.execute_tool",
+            return_value=object(),
+        ):
+            with self.assertRaises(DeterministicExecutionError):
+                self.agent.analyze(make_validation())
 
     def test_structured_objective_and_plan_are_used(self):
         validation = make_validation()

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { approveApprovalRequest, rejectApprovalRequest } from '../api/approvals'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { approveApprovalRequest, getApprovalRequest, rejectApprovalRequest } from '../api/approvals'
 import { getAgentWorkflow, getTravelIntelligenceExecution, getTravelIntelligenceExecutions } from '../api/travelIntelligenceExecutions'
+import { AuthContext } from '../context/AuthContext'
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const actionLabels = { Proceed: 'Proceed with trip', ProceedWithCaution: 'Proceed with caution', Reschedule: 'Reschedule trip', Reroute: 'Reroute trip', ReviewBudget: 'Review trip budget', ResolveScheduleConflict: 'Resolve schedule conflict', ManualReview: 'Review trip manually' }
@@ -27,6 +28,8 @@ function EmptyBlock({ children = 'Not available for this execution.' }) { return
 function ListSection({ title, children, empty }) { return <section className="ai-detail-section"><p className="eyebrow">{title}</p>{children || <EmptyBlock>{empty}</EmptyBlock>}</section> }
 
 export default function AIOperationsPage() {
+  const { user } = useContext(AuthContext)
+  const canDecide = ['TravelCoordinator', 'Administrator'].includes(user?.role)
   const [history, setHistory] = useState({ items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 0 })
   const [selectedId, setSelectedId] = useState('')
   const [selected, setSelected] = useState(null)
@@ -64,8 +67,10 @@ export default function AIOperationsPage() {
     getTravelIntelligenceExecution(selectedId)
       .then(async (execution) => {
         if (!current) return
-        setSelected(execution)
-        setWorkflow(execution.workflowId ? await getAgentWorkflow(execution.workflowId) : null)
+        const approval = execution.approval?.id ? await getApprovalRequest(execution.approval.id) : execution.approval
+        const enrichedExecution = approval ? { ...execution, approval } : execution
+        setSelected(enrichedExecution)
+        setWorkflow(approval?.agentWorkflowId ? await getAgentWorkflow(approval.agentWorkflowId) : null)
       })
       .catch((requestError) => { if (current) setError(getErrorMessage(requestError, 'Unable to load execution details.')) })
       .finally(() => { if (current) setIsDetailLoading(false) })
@@ -75,13 +80,13 @@ export default function AIOperationsPage() {
   const pendingCount = useMemo(() => history.items.filter((item) => item.approval?.status === 'Pending').length, [history.items])
   async function decide(decision) {
     const approval = selected?.approval
-    if (!approval || approval.status !== 'Pending') return
+    if (!canDecide || !approval || approval.status !== 'Pending') return
     setIsSubmitting(true); setError(''); setFeedback('')
     try {
       if (decision === 'Approved') await approveApprovalRequest(approval.id, comment)
       else await rejectApprovalRequest(approval.id, comment)
       setComment(''); setFeedback('Recommendation ' + decision.toLowerCase() + ' successfully.')
-      await Promise.all([loadHistory(page), getTravelIntelligenceExecution(selectedId).then(async (execution) => { setSelected(execution); setWorkflow(execution.workflowId ? await getAgentWorkflow(execution.workflowId) : null) })])
+      await Promise.all([loadHistory(page), getTravelIntelligenceExecution(selectedId).then(async (execution) => { const approval = execution.approval?.id ? await getApprovalRequest(execution.approval.id) : execution.approval; const enrichedExecution = approval ? { ...execution, approval } : execution; setSelected(enrichedExecution); setWorkflow(approval?.agentWorkflowId ? await getAgentWorkflow(approval.agentWorkflowId) : null) })])
     } catch (requestError) { setError(getErrorMessage(requestError, 'Unable to update this recommendation.')) }
     finally { setIsSubmitting(false) }
   }
@@ -99,7 +104,7 @@ export default function AIOperationsPage() {
     </div><div className="approval-detail-panel">
       {isDetailLoading && <div className="state-message" role="status">Loading execution details…</div>}
       {!isDetailLoading && !selected && <div className="state-message">Select an execution to review its evidence.</div>}
-      {!isDetailLoading && selected && <><ExecutionDetail execution={selected} comment={comment} setComment={setComment} isSubmitting={isSubmitting} decide={decide} /><WorkflowReview workflow={workflow} /></>}
+      {!isDetailLoading && selected && <><ExecutionDetail execution={canDecide && selected.approval?.status === 'Pending' ? { ...selected, requiresHumanApproval: true } : selected} comment={comment} setComment={setComment} isSubmitting={isSubmitting} decide={decide} /><WorkflowReview workflow={workflow} /></>}
     </div></div>
   </section>
 }

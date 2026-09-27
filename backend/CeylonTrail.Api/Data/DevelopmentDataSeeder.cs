@@ -7,11 +7,6 @@ namespace CeylonTrail.Api.Data;
 public static class DevelopmentDataSeeder
 {
     private const string SeedPassword = "Test@123";
-    private const string DemoAttractionName = "Sigiriya Heritage Sunrise Trail";
-    private const decimal DemoAttractionPrice = 6500m;
-    private const decimal DemoAvailabilityPrice = 6500m;
-
-    private static readonly Guid DemoAttractionId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly SeedUser[] SeedUsers =
     [
         new("tourist@test.com", "Test", "Tourist", UserRole.Tourist),
@@ -69,23 +64,6 @@ public static class DevelopmentDataSeeder
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        // Remove legacy demo attraction if it exists so only user-created attractions exist
-        var demoAttraction = await dbContext.Attractions
-            .Include(a => a.Schedules)
-            .Include(a => a.ExperienceSlots)
-            .Include(a => a.Images)
-            .SingleOrDefaultAsync(item => item.Id == DemoAttractionId || item.Name == DemoAttractionName, cancellationToken);
-
-        if (demoAttraction is not null)
-        {
-            var availSlots = await dbContext.AvailabilitySlots
-                .Where(s => s.AttractionId == demoAttraction.Id)
-                .ToListAsync(cancellationToken);
-            dbContext.AvailabilitySlots.RemoveRange(availSlots);
-            dbContext.Attractions.Remove(demoAttraction);
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
     }
 
     private static string NormalizeEmail(string email) => email.Trim().ToUpperInvariant();

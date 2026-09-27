@@ -42,6 +42,69 @@ public sealed class BookingServiceTests
     }
 
     [Fact]
+    public async Task BookingAccess_IsScopedToTouristAndReferencedAttractionProvider()
+    {
+        await using var dbContext = CreateDbContext();
+        var ownerProviderId = Guid.NewGuid();
+        var otherProviderId = Guid.NewGuid();
+        var touristId = Guid.NewGuid();
+        var slot = CreateSlot(10, 50m);
+        slot.Attraction!.ProviderId = ownerProviderId;
+        var booking = new Booking
+        {
+            Id = Guid.NewGuid(), UserId = touristId, CurrentStatus = BookingStatus.Draft,
+            TotalAmount = 50m, Items = new List<BookingItem>
+            {
+                new() { Id = Guid.NewGuid(), AvailabilitySlotId = slot.Id, NumberOfGuests = 1, UnitPrice = 50m, SubTotal = 50m }
+            }
+        };
+        dbContext.AvailabilitySlots.Add(slot);
+        dbContext.Bookings.Add(booking);
+        await dbContext.SaveChangesAsync();
+        var service = new BookingService(dbContext);
+
+        Assert.True((await service.GetBookingByIdAsync(booking.Id, ownerProviderId, nameof(UserRole.TourismProvider))).Succeeded);
+        Assert.False((await service.GetBookingByIdAsync(booking.Id, otherProviderId, nameof(UserRole.TourismProvider))).Succeeded);
+        Assert.False((await service.GetBookingHistoryAsync(booking.Id, otherProviderId, nameof(UserRole.TourismProvider))).Succeeded);
+        Assert.False((await service.AcceptBookingAsync(booking.Id, otherProviderId, nameof(UserRole.TourismProvider))).Succeeded);
+        Assert.False((await service.RejectBookingAsync(booking.Id, otherProviderId, new RejectBookingRequest { Reason = "No access" }, nameof(UserRole.TourismProvider))).Succeeded);
+        Assert.False((await service.AcceptBookingAsync(booking.Id, touristId, nameof(UserRole.Tourist))).Succeeded);
+        Assert.True((await service.AcceptBookingAsync(booking.Id, ownerProviderId, nameof(UserRole.TourismProvider))).Succeeded);
+    }
+
+    [Fact]
+    public async Task CreateAvailabilitySlot_RejectsProviderForAnotherProvidersAttraction()
+    {
+        await using var dbContext = CreateDbContext();
+        var ownerProviderId = Guid.NewGuid();
+        var otherProviderId = Guid.NewGuid();
+        var attractionId = Guid.NewGuid();
+        dbContext.Attractions.Add(new Attraction
+        {
+            Id = attractionId, ProviderId = ownerProviderId, CategoryId = Guid.NewGuid(),
+            Name = "Owned attraction", Status = "Approved", IsActive = true,
+            CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateAvailabilitySlotAsync(
+            new CreateAvailabilitySlotRequest
+            {
+                AttractionId = attractionId,
+                StartTime = DateTime.UtcNow.AddDays(1),
+                EndTime = DateTime.UtcNow.AddDays(1).AddHours(1),
+                MaxCapacity = 5,
+                PricePerPerson = 25m
+            },
+            otherProviderId,
+            nameof(UserRole.TourismProvider));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Attraction not found.", result.Error);
+        Assert.Empty(dbContext.AvailabilitySlots);
+    }
+
+    [Fact]
     public async Task CreateBooking_WithOwnTrip_SucceedsAndPersistsTripOwnership()
     {
         await using var dbContext = CreateDbContext();

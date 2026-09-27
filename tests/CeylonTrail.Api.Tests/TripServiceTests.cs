@@ -184,6 +184,27 @@ public sealed class TripServiceTests
     }
 
     [Fact]
+    public async Task DeleteTrip_WithPersistedWorkflowReturnsConflictAndPreservesTrip()
+    {
+        await using var dbContext = CreateDbContext();
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Workflow trip");
+        dbContext.AgentWorkflows.Add(new AgentWorkflow
+        {
+            Id = Guid.NewGuid(), WorkflowId = Guid.NewGuid(), TripId = trip.Id,
+            RequestedByUserId = touristId, StartedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var result = await new TripService(dbContext).DeleteTripWithResultAsync(touristId, trip.Id);
+
+        Assert.True(result.Conflict);
+        Assert.False(result.Value);
+        Assert.NotNull(await dbContext.Trips.FindAsync(trip.Id));
+        Assert.False(await new TripService(dbContext).DeleteTripAsync(touristId, trip.Id));
+    }
+
+    [Fact]
     public async Task AddPreference_ByOwner_CreatesPreference()
     {
         await using var dbContext = CreateDbContext();

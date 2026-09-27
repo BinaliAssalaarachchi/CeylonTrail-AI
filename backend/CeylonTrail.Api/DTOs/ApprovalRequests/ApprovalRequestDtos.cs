@@ -13,6 +13,8 @@ public sealed class ApprovalRequestResponse
 
     public Guid ValidationResultId { get; set; }
 
+    public Guid? AgentWorkflowId { get; set; }
+
     public string? TripReference { get; set; }
 
     public Guid RequestedByUserId { get; set; }

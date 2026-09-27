@@ -1,5 +1,6 @@
 using CeylonTrail.Api.Data;
 using CeylonTrail.Api.DTOs.Bookings;
+using CeylonTrail.Api.DTOs.Pagination;
 using CeylonTrail.Api.DTOs.TravelAlerts;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
@@ -148,9 +149,14 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     }
 
     public async Task<List<BookingResponse>> GetProviderBookingsAsync(
+        Guid requestingUserId,
+        string requestingRole,
         CancellationToken cancellationToken = default)
     {
-        var bookings = await dbContext.Bookings
+        var bookings = await ApplyProviderScope(
+                dbContext.Bookings.AsNoTracking(),
+                requestingUserId,
+                requestingRole)
             .AsNoTracking()
             .Include(b => b.Items)
             .Include(b => b.StatusHistory)
@@ -160,6 +166,120 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
 
         var advisoryMap = await GetActiveAdvisoriesForBookingsAsync(bookings, cancellationToken);
         return bookings.Select(b => MapToResponse(b, advisoryMap.GetValueOrDefault(b.Id))).ToList();
+    }
+
+    public async Task<PagedResponse<BookingResponse>> GetProviderBookingsPageAsync(
+        Guid requestingUserId,
+        string requestingRole,
+        BookingQuery request,
+        CancellationToken cancellationToken = default)
+    {
+        var query = ApplyProviderScope(
+            dbContext.Bookings.AsNoTracking(),
+            requestingUserId,
+            requestingRole);
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim();
+            if (Guid.TryParse(search, out var bookingId))
+            {
+                query = query.Where(booking => booking.Id == bookingId ||
+                    booking.User!.FirstName.Contains(search) ||
+                    booking.User.LastName.Contains(search) ||
+                    booking.User.Email.Contains(search) ||
+                    booking.Items.Any(item => item.AvailabilitySlot!.Attraction!.Name.Contains(search)));
+            }
+            else
+            {
+                query = query.Where(booking =>
+                    booking.User!.FirstName.Contains(search) ||
+                    booking.User.LastName.Contains(search) ||
+                    booking.User.Email.Contains(search) ||
+                    booking.Items.Any(item => item.AvailabilitySlot!.Attraction!.Name.Contains(search)));
+            }
+        }
+
+        if (request.Status.HasValue)
+        {
+            query = query.Where(booking => booking.CurrentStatus == request.Status.Value);
+        }
+
+        if (request.DateFrom.HasValue)
+        {
+            query = query.Where(booking => booking.CreatedAt >= request.DateFrom.Value);
+        }
+
+        if (request.DateTo.HasValue)
+        {
+            query = query.Where(booking => booking.CreatedAt <= request.DateTo.Value);
+        }
+
+        if (request.AttractionId.HasValue)
+        {
+            query = query.Where(booking => booking.Items.Any(item =>
+                item.AvailabilitySlot!.AttractionId == request.AttractionId.Value));
+        }
+
+        if (request.TripId.HasValue)
+        {
+            query = query.Where(booking => booking.TripId == request.TripId.Value);
+        }
+
+        query = ApplyBookingOrdering(query, request.SortBy, request.SortDirection);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var bookings = await query
+            .Include(booking => booking.Items)
+            .Include(booking => booking.StatusHistory)
+            .Include(booking => booking.CancellationRequests)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResponse<BookingResponse>(
+            bookings.Select(b => MapToResponse(b, null)).ToList(),
+            totalCount,
+            request.Page,
+            request.PageSize,
+            totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)request.PageSize));
+    }
+
+    private static IQueryable<Booking> ApplyProviderScope(
+        IQueryable<Booking> query,
+        Guid requestingUserId,
+        string requestingRole)
+    {
+        if (requestingRole == nameof(UserRole.TourismProvider))
+        {
+            return query.Where(booking => booking.Items.Any(item =>
+                item.AvailabilitySlot != null &&
+                item.AvailabilitySlot.Attraction != null &&
+                item.AvailabilitySlot.Attraction.ProviderId == requestingUserId));
+        }
+
+        return requestingRole == nameof(UserRole.TravelCoordinator) ||
+               requestingRole == nameof(UserRole.Administrator)
+            ? query
+            : query.Where(_ => false);
+    }
+
+    private static IQueryable<Booking> ApplyBookingOrdering(
+        IQueryable<Booking> query,
+        string sortBy,
+        string sortDirection)
+    {
+        var ascending = string.Equals(sortDirection, "asc", StringComparison.OrdinalIgnoreCase);
+        return (sortBy.ToLowerInvariant(), ascending) switch
+        {
+            ("updatedat", true) => query.OrderBy(booking => booking.UpdatedAt).ThenBy(booking => booking.Id),
+            ("updatedat", false) => query.OrderByDescending(booking => booking.UpdatedAt).ThenByDescending(booking => booking.Id),
+            ("status", true) => query.OrderBy(booking => booking.CurrentStatus).ThenBy(booking => booking.Id),
+            ("status", false) => query.OrderByDescending(booking => booking.CurrentStatus).ThenByDescending(booking => booking.Id),
+            ("totalamount", true) => query.OrderBy(booking => booking.TotalAmount).ThenBy(booking => booking.Id),
+            ("totalamount", false) => query.OrderByDescending(booking => booking.TotalAmount).ThenByDescending(booking => booking.Id),
+            ("createdat", true) => query.OrderBy(booking => booking.CreatedAt).ThenBy(booking => booking.Id),
+            _ => query.OrderByDescending(booking => booking.CreatedAt).ThenByDescending(booking => booking.Id),
+        };
     }
 
     public async Task<(bool Succeeded, string? Error, BookingResponse? Response)> GetBookingByIdAsync(
@@ -180,10 +300,9 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "Booking not found.", null);
         }
 
-        // Authorization check: Tourist can only see their own booking
-        if (requestingRole == nameof(UserRole.Tourist) && booking.UserId != requestingUserId)
+        if (!await CanAccessBookingAsync(booking, requestingUserId, requestingRole, cancellationToken))
         {
-            return (false, "Unauthorized access to this booking.", null);
+            return (false, "Booking not found.", null);
         }
 
         var advisories = await GetActiveAdvisoriesForBookingAsync(booking, cancellationToken);
@@ -193,6 +312,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     public async Task<(bool Succeeded, string? Error, BookingResponse? Response)> AcceptBookingAsync(
         Guid bookingId,
         Guid changedBy,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default)
     {
         var booking = await dbContext.Bookings
@@ -202,6 +322,13 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
 
         if (booking == null)
+        {
+            return (false, "Booking not found.", null);
+        }
+
+        if (requestingRole is not null &&
+            (requestingRole == nameof(UserRole.Tourist) ||
+             !await CanAccessBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
         {
             return (false, "Booking not found.", null);
         }
@@ -259,6 +386,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         Guid bookingId,
         Guid changedBy,
         RejectBookingRequest request,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default)
     {
         var booking = await dbContext.Bookings
@@ -268,6 +396,13 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
 
         if (booking == null)
+        {
+            return (false, "Booking not found.", null);
+        }
+
+        if (requestingRole is not null &&
+            (requestingRole == nameof(UserRole.Tourist) ||
+             !await CanAccessBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
         {
             return (false, "Booking not found.", null);
         }
@@ -408,9 +543,9 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "Booking not found.", null);
         }
 
-        if (requestingRole == nameof(UserRole.Tourist) && booking.UserId != requestingUserId)
+        if (!await CanAccessBookingAsync(booking, requestingUserId, requestingRole, cancellationToken))
         {
-            return (false, "Unauthorized access to this booking history.", null);
+            return (false, "Booking not found.", null);
         }
 
         var history = booking.StatusHistory
@@ -520,10 +655,15 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
 
     public async Task<(bool Succeeded, string? Error, AvailabilitySlotResponse? Response)> CreateAvailabilitySlotAsync(
         CreateAvailabilitySlotRequest request,
+        Guid requestingUserId,
+        string requestingRole,
         CancellationToken cancellationToken = default)
     {
-        var attractionExists = await dbContext.Attractions.AnyAsync(a => a.Id == request.AttractionId, cancellationToken);
-        if (!attractionExists)
+        var attraction = await dbContext.Attractions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(a => a.Id == request.AttractionId, cancellationToken);
+        if (attraction is null ||
+            (requestingRole == nameof(UserRole.TourismProvider) && attraction.ProviderId != requestingUserId))
         {
             return (false, "Attraction not found.", null);
         }
@@ -592,6 +732,35 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         dbContext.Bookings.Remove(booking);
         await dbContext.SaveChangesAsync(cancellationToken);
         return (true, null);
+    }
+
+    private async Task<bool> CanAccessBookingAsync(
+        Booking booking,
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken)
+    {
+        if (requestingRole == nameof(UserRole.Tourist))
+        {
+            return booking.UserId == requestingUserId;
+        }
+
+        if (requestingRole is nameof(UserRole.TravelCoordinator) or nameof(UserRole.Administrator))
+        {
+            return true;
+        }
+
+        if (requestingRole != nameof(UserRole.TourismProvider))
+        {
+            return false;
+        }
+
+        return await dbContext.BookingItems
+            .Where(item => item.BookingId == booking.Id)
+            .AnyAsync(item => item.AvailabilitySlot != null &&
+                              item.AvailabilitySlot.Attraction != null &&
+                              item.AvailabilitySlot.Attraction.ProviderId == requestingUserId,
+                cancellationToken);
     }
 
     private static BookingResponse MapToResponse(Booking booking, List<TravelAlertResponse>? advisories = null)
@@ -686,10 +855,11 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                     continue;
                 }
 
+                var district = slot.Attraction.District.Trim();
                 var alertsForSlot = activeAlerts.Where(alert =>
                     string.Equals(alert.District.Trim(), district, StringComparison.OrdinalIgnoreCase) &&
-                    (alert.StartDateTime == null || alert.StartDateTime <= slot.EndTime) &&
-                    (alert.EndDateTime == null || alert.EndDateTime >= slot.StartTime));
+                    alert.StartDateTime <= slot.EndTime &&
+                    alert.EndDateTime >= slot.StartTime);
 
                 matchedAlerts.AddRange(alertsForSlot);
             }

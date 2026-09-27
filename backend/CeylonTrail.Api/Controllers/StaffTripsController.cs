@@ -1,4 +1,5 @@
 using CeylonTrail.Api.DTOs.Trips;
+using CeylonTrail.Api.DTOs.Pagination;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,14 @@ public sealed class StaffTripsController(ITripService tripService) : ControllerB
     public async Task<ActionResult<IReadOnlyList<StaffTripResponse>>> GetAll(CancellationToken cancellationToken)
     {
         return Ok(await tripService.GetStaffTripsAsync(cancellationToken));
+    }
+
+    [HttpGet("query")]
+    public async Task<ActionResult<PagedResponse<StaffTripResponse>>> Query(
+        [FromQuery] StaffTripQuery query,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await tripService.GetStaffTripsPageAsync(query, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]

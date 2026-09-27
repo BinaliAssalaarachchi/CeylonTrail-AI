@@ -26,7 +26,7 @@ def _sanitize_message(error: Exception) -> str:
 
 def _gemini_output_schema() -> dict[str, Any]:
     """Convert Pydantic JSON Schema to Gemini's supported JSON Schema subset."""
-    source = PlannerOutput.model_json_schema()
+    source = PlannerOutput.model_json_schema(by_alias=True, mode="serialization")
     definitions = source.pop("$defs", {})
     supported = {
         "type", "format", "title", "description", "enum", "items", "minItems",
@@ -57,11 +57,74 @@ def _gemini_output_schema() -> dict[str, Any]:
             for key, value in node.items()
             if key in supported
         }
-        if result.get("type") == "object" and isinstance(result.get("properties"), dict):
-            result["required"] = list(result["properties"].keys())
+        if isinstance(node.get("properties"), dict):
+            result["properties"] = {
+                property_name: convert(property_schema)
+                for property_name, property_schema in node["properties"].items()
+            }
         return result
 
     return convert(source)
+
+
+def _response_metadata(response: Any) -> str:
+    """Return bounded, non-content diagnostics for an empty Gemini response."""
+    details: list[str] = []
+    prompt_feedback = getattr(response, "prompt_feedback", None)
+    block_reason = getattr(prompt_feedback, "block_reason", None)
+    if block_reason:
+        details.append(f"prompt_block_reason={str(block_reason)}")
+
+    candidates = getattr(response, "candidates", None)
+    if candidates is None:
+        return "; ".join(details) or "no candidate metadata was provided"
+
+    try:
+        candidate_count = len(candidates)
+    except TypeError:
+        candidate_count = None
+    if candidate_count == 0:
+        details.append("candidate_count=0")
+    elif candidate_count is not None:
+        details.append(f"candidate_count={candidate_count}")
+        for candidate in list(candidates)[:3]:
+            finish_reason = getattr(candidate, "finish_reason", None)
+            if finish_reason:
+                details.append(f"finish_reason={str(finish_reason)}")
+            safety_ratings = getattr(candidate, "safety_ratings", None)
+            if safety_ratings:
+                details.append("safety_ratings_present=true")
+    return "; ".join(details) or "candidate metadata did not explain the empty response"
+
+
+def _json_text(text: str, response: Any) -> Any:
+    """Parse one JSON object, allowing one standard JSON markdown fence."""
+    normalized = text.strip()
+    fenced = re.fullmatch(r"```json\s*\n?(.*?)\n?```", normalized, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        normalized = fenced.group(1).strip()
+
+    try:
+        value = json.loads(normalized)
+    except json.JSONDecodeError as error:
+        raise PlannerProviderError(
+            "Gemini Planner returned malformed structured JSON.",
+            stage="structured_response_parsing",
+            diagnostic_message=_sanitize_message(error),
+            provider_exception_type=type(error).__name__,
+        ) from error
+
+    if not isinstance(value, dict) or not value:
+        raise PlannerProviderError(
+            "Gemini Planner returned an empty or non-object structured response.",
+            stage="structured_response_parsing",
+            diagnostic_message=(
+                f"decoded_type={type(value).__name__}; "
+                f"{_response_metadata(response)}"
+            ),
+            provider_exception_type=type(response).__name__,
+        )
+    return value
 
 
 class PlannerProviderError(RuntimeError):
@@ -126,45 +189,49 @@ class GeminiPlannerModelProvider:
                 config={
                     "system_instruction": system_prompt,
                     "response_mime_type": "application/json",
-                    "response_json_schema": _gemini_output_schema(),
                     "automatic_function_calling": {"disable": True},
                 },
             )
         except Exception as error:
+            status_code = _status_code(error)
             message = str(error).lower()
             retryable = not any(
                 marker in message
                 for marker in ("401", "403", "api key", "quota", "resource exhausted")
             )
+            if status_code == 400:
+                retryable = False
             raise PlannerProviderError(
                 "Gemini Planner request failed.",
                 retryable=retryable,
                 stage="gemini_request",
-                status_code=_status_code(error),
+                status_code=status_code,
                 diagnostic_message=_sanitize_message(error),
                 provider_exception_type=type(error).__name__,
             ) from error
 
         parsed = getattr(response, "parsed", None)
         if parsed not in (None, {}):
+            if not isinstance(parsed, dict):
+                raise PlannerProviderError(
+                    "Gemini Planner returned a non-object structured response.",
+                    stage="structured_response_parsing",
+                    diagnostic_message=(
+                        f"parsed_type={type(parsed).__name__}; "
+                        f"{_response_metadata(response)}"
+                    ),
+                    provider_exception_type=type(response).__name__,
+                )
             return parsed
         text = getattr(response, "text", None)
         if not text:
             raise PlannerProviderError(
-                "Gemini Planner returned an empty response.",
+                "Gemini Planner returned an empty structured response.",
                 stage="structured_response_parsing",
-                diagnostic_message="Gemini response contained neither parsed data nor text.",
+                diagnostic_message=_response_metadata(response),
                 provider_exception_type=type(response).__name__,
             )
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError as error:
-            raise PlannerProviderError(
-                "Gemini Planner returned malformed structured JSON.",
-                stage="structured_response_parsing",
-                diagnostic_message=_sanitize_message(error),
-                provider_exception_type=type(error).__name__,
-            ) from error
+        return _json_text(text, response)
 
 
 def create_planner_provider() -> PlannerModelProvider:
@@ -173,6 +240,6 @@ def create_planner_provider() -> PlannerModelProvider:
         return MissingPlannerProvider()
     return GeminiPlannerModelProvider(
         api_key=api_key,
-        model=os.getenv("PLANNER_MODEL", "gemini-3.6-flash").strip()
-        or "gemini-3.6-flash",
+        model=os.getenv("PLANNER_MODEL", "gemini-3.5-flash-lite").strip()
+        or "gemini-3.5-flash-lite",
     )

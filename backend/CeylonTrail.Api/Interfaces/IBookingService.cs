@@ -1,4 +1,5 @@
 using CeylonTrail.Api.DTOs.Bookings;
+using CeylonTrail.Api.DTOs.Pagination;
 
 namespace CeylonTrail.Api.Interfaces;
 
@@ -14,6 +15,14 @@ public interface IBookingService
         CancellationToken cancellationToken = default);  
 
     Task<List<BookingResponse>> GetProviderBookingsAsync(
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken = default);
+
+    Task<PagedResponse<BookingResponse>> GetProviderBookingsPageAsync(
+        Guid requestingUserId,
+        string requestingRole,
+        BookingQuery query,
         CancellationToken cancellationToken = default);
 
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> GetBookingByIdAsync(
@@ -25,12 +34,14 @@ public interface IBookingService
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> AcceptBookingAsync(
         Guid bookingId,
         Guid changedBy,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default);
 
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> RejectBookingAsync(
         Guid bookingId,
         Guid changedBy,
         RejectBookingRequest request,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default);
 
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> CancelBookingAsync(
@@ -52,6 +63,8 @@ public interface IBookingService
 
     Task<(bool Succeeded, string? Error, AvailabilitySlotResponse? Response)> CreateAvailabilitySlotAsync(
         CreateAvailabilitySlotRequest request,
+        Guid requestingUserId,
+        string requestingRole,
         CancellationToken cancellationToken = default);
 
     Task<(bool Succeeded, string? Error)> DeleteBookingAsync(

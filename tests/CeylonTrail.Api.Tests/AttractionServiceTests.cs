@@ -268,6 +268,45 @@ public sealed class AttractionServiceTests
     }
 
     [Fact]
+    public async Task ProviderCannotDeleteExperienceSlotReferencedByBooking()
+    {
+        await using var dbContext = CreateDbContext();
+        var provider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        var attractionId = Guid.NewGuid();
+        var slotId = Guid.NewGuid();
+        dbContext.Attractions.Add(new Attraction
+        {
+            Id = attractionId, ProviderId = provider.Id, CategoryId = category.Id,
+            Name = "Booked attraction", Status = "Approved", IsActive = true,
+            CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        });
+        dbContext.ExperienceSlots.Add(new ExperienceSlot
+        {
+            Id = slotId, AttractionId = attractionId, Date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            StartTime = new TimeOnly(9), EndTime = new TimeOnly(10), Capacity = 5, AvailableCapacity = 5
+        });
+        dbContext.AvailabilitySlots.Add(new AvailabilitySlot
+        {
+            Id = slotId, AttractionId = attractionId, StartTime = DateTime.UtcNow.AddDays(1),
+            EndTime = DateTime.UtcNow.AddDays(1).AddHours(1), MaxCapacity = 5, PricePerPerson = 25m
+        });
+        dbContext.BookingItems.Add(new BookingItem
+        {
+            Id = Guid.NewGuid(), BookingId = Guid.NewGuid(), AvailabilitySlotId = slotId,
+            NumberOfGuests = 1, UnitPrice = 25m, SubTotal = 25m
+        });
+        await dbContext.SaveChangesAsync();
+
+        var result = await new AttractionService(dbContext).DeleteSlotAsync(attractionId, slotId, provider.Id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(ServiceErrorCode.Conflict, result.ErrorCode);
+        Assert.NotNull(await dbContext.ExperienceSlots.FindAsync(slotId));
+        Assert.NotNull(await dbContext.AvailabilitySlots.FindAsync(slotId));
+    }
+
+    [Fact]
     public async Task ProviderCannotSelectAnImageOnAnotherProvidersAttraction()
     {
         await using var dbContext = CreateDbContext();

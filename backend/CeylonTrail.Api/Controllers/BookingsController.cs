@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CeylonTrail.Api.DTOs.Bookings;
+using CeylonTrail.Api.DTOs.Pagination;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -14,6 +15,7 @@ public sealed class BookingsController(IBookingService bookingService) : Control
 {
     // 1. POST /api/bookings (Create a booking request) 
     [HttpPost]
+    [Authorize(Roles = nameof(UserRole.Tourist))]
     [ProducesResponseType(typeof(BookingResponse), StatusCodes.Status201Created)] 
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<BookingResponse>> Create(
@@ -47,7 +49,25 @@ public sealed class BookingsController(IBookingService bookingService) : Control
     [ProducesResponseType(typeof(List<BookingResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<BookingResponse>>> GetProviderBookings(CancellationToken cancellationToken)
     {
-        var bookings = await bookingService.GetProviderBookingsAsync(cancellationToken);
+        var bookings = await bookingService.GetProviderBookingsAsync(
+            GetCurrentUserId(),
+            GetCurrentUserRole(),
+            cancellationToken);
+        return Ok(bookings);
+    }
+
+    [HttpGet("/api/provider/bookings/query")]
+    [Authorize(Roles = $"{nameof(UserRole.TourismProvider)},{nameof(UserRole.TravelCoordinator)},{nameof(UserRole.Administrator)}")]
+    [ProducesResponseType(typeof(PagedResponse<BookingResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResponse<BookingResponse>>> QueryProviderBookings(
+        [FromQuery] BookingQuery query,
+        CancellationToken cancellationToken)
+    {
+        var bookings = await bookingService.GetProviderBookingsPageAsync(
+            GetCurrentUserId(),
+            GetCurrentUserRole(),
+            query,
+            cancellationToken);
         return Ok(bookings);
     }
 
@@ -77,11 +97,13 @@ public sealed class BookingsController(IBookingService bookingService) : Control
     public async Task<ActionResult<BookingResponse>> Accept(Guid id, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var result = await bookingService.AcceptBookingAsync(id, userId, cancellationToken);
+        var result = await bookingService.AcceptBookingAsync(id, userId, GetCurrentUserRole(), cancellationToken);
 
         if (!result.Succeeded)
         {
-            return BadRequest(new { message = result.Error });
+            return result.Error == "Booking not found."
+                ? NotFound(new { message = result.Error })
+                : BadRequest(new { message = result.Error });
         }
 
         return Ok(result.Response);
@@ -98,11 +120,13 @@ public sealed class BookingsController(IBookingService bookingService) : Control
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var result = await bookingService.RejectBookingAsync(id, userId, request, cancellationToken);
+        var result = await bookingService.RejectBookingAsync(id, userId, request, GetCurrentUserRole(), cancellationToken);
 
         if (!result.Succeeded)
         {
-            return BadRequest(new { message = result.Error });
+            return result.Error == "Booking not found."
+                ? NotFound(new { message = result.Error })
+                : BadRequest(new { message = result.Error });
         }
 
         return Ok(result.Response);
@@ -187,7 +211,11 @@ public sealed class BookingsController(IBookingService bookingService) : Control
         [FromBody] CreateAvailabilitySlotRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await bookingService.CreateAvailabilitySlotAsync(request, cancellationToken);
+        var result = await bookingService.CreateAvailabilitySlotAsync(
+            request,
+            GetCurrentUserId(),
+            GetCurrentUserRole(),
+            cancellationToken);
         if (!result.Succeeded)
         {
             return BadRequest(new { message = result.Error });

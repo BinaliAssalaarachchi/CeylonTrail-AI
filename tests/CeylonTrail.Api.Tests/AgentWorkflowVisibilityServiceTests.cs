@@ -97,6 +97,7 @@ public sealed class AgentWorkflowVisibilityServiceTests
         Assert.Single(response.BookingProposals);
         Assert.DoesNotContain("hidden", JsonSerializer.Serialize(response));
         Assert.NotNull(approvalResponse);
+        Assert.Equal(workflow.WorkflowId, approvalResponse!.AgentWorkflowId);
         Assert.Equal(true, approvalResponse!.ExecutionSucceeded);
         Assert.NotNull(approvalResponse.BookingId);
     }
