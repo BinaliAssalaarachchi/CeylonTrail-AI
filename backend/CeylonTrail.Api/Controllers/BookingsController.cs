@@ -129,7 +129,26 @@ public sealed class BookingsController(IBookingService bookingService) : Control
         return Ok(result.Response);
     }
 
-    // 8. GET /api/bookings/{id}/history (Status history audit log)
+    // 8. DELETE /api/bookings/{id} (Delete draft booking)
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+        var result = await bookingService.DeleteBookingAsync(id, userId, role, cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            return BadRequest(new { message = result.Error });
+        }
+
+        return NoContent();
+    }
+
+    // 9. GET /api/bookings/{id}/history (Status history audit log)
     [HttpGet("{id:guid}/history")]
     [ProducesResponseType(typeof(List<BookingHistoryResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

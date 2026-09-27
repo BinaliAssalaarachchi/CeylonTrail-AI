@@ -1,3 +1,5 @@
+using CeylonTrail.Api.DTOs.TravelAlerts;
+
 namespace CeylonTrail.Api.DTOs.Bookings;
 
 public record BookingItemResponse(
@@ -36,5 +38,6 @@ public record BookingResponse(
     DateTime UpdatedAt,
     List<BookingItemResponse> Items,
     List<BookingHistoryResponse>? StatusHistory,
-    List<CancellationRequestResponse>? CancellationRequests
+    List<CancellationRequestResponse>? CancellationRequests,
+    List<TravelAlertResponse>? ActiveAdvisories = null
 );

@@ -35,3 +35,8 @@ export async function getBookingHistory(bookingId) {
     return response.data
 }
 
+export async function deleteBooking(bookingId) {
+    const response = await apiClient.delete(`/api/bookings/${bookingId}`)
+    return response.data
+}
+

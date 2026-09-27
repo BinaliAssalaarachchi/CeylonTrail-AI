@@ -76,6 +76,40 @@ class _BookingsPageState extends State<BookingsPage>
     return filterBookingsByTab(_bookings, tabIndex);
   }
 
+  Future<void> _confirmDeleteDraft(BookingModel booking) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Draft Booking?'),
+        content: const Text('Are you sure you want to delete this draft booking? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed || !mounted) return;
+
+    try {
+      await _bookingService.deleteBooking(booking.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Draft booking deleted.')));
+      await _loadBookings();
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,6 +171,11 @@ class _BookingsPageState extends State<BookingsPage>
         itemCount: list.length,
         itemBuilder: (ctx, idx) {
           final item = list[idx];
+          final now = DateTime.now();
+          final activeAdvisories = item.activeAdvisories
+              .where((a) => a.endDateTime == null || a.endDateTime!.isAfter(now))
+              .toList();
+
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
             child: InkWell(
@@ -167,11 +206,24 @@ class _BookingsPageState extends State<BookingsPage>
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Chip(
-                          label: Text(
-                            item.status,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Chip(
+                              label: Text(
+                                item.status,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            if (item.status == 'Draft') ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                tooltip: 'Delete draft booking',
+                                onPressed: () => _confirmDeleteDraft(item),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -188,6 +240,49 @@ class _BookingsPageState extends State<BookingsPage>
                         color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
+                    if (activeAdvisories.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade400),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, size: 18, color: Colors.orange),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Advisory in ${activeAdvisories.first.district}: ${activeAdvisories.first.title}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _formatAlertTime(activeAdvisories.first.startDateTime, activeAdvisories.first.endDateTime),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange.shade900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -196,5 +291,21 @@ class _BookingsPageState extends State<BookingsPage>
         },
       ),
     );
+  }
+
+  static String _formatAlertTime(DateTime? start, DateTime? end) {
+    if (start == null && end == null) return '';
+    final now = DateTime.now();
+    final localStart = start?.toLocal();
+    final localEnd = end?.toLocal();
+    String fmt(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    if (localStart != null && localEnd != null) {
+      final prefix = localStart.isAfter(now) ? 'Upcoming' : 'Active Now';
+      return '$prefix · ${fmt(localStart)} – ${fmt(localEnd)}';
+    } else if (localEnd != null) {
+      return 'Until ${fmt(localEnd)}';
+    } else {
+      return 'From ${fmt(localStart!)}';
+    }
   }
 }

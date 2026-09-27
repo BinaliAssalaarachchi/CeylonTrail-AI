@@ -3,8 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../config/api_config.dart';
 import '../models/attraction_model.dart';
+import '../models/travel_alert_model.dart';
 import '../services/attraction_api_service.dart';
 import '../services/api_client.dart';
+import '../services/travel_alert_api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/auth_scope.dart';
 
@@ -18,8 +20,10 @@ class AttractionDetailPage extends StatefulWidget {
 
 class _AttractionDetailPageState extends State<AttractionDetailPage> {
   late AttractionApiService _service;
+  late TravelAlertApiService _alertService;
   AttractionModel? _attraction;
   AvailabilityModel? _availability;
+  List<TravelAlert> _districtAlerts = const [];
   bool _loading = true;
   bool _favoriteBusy = false;
   String? _error;
@@ -27,7 +31,9 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _service = AttractionApiService(ApiClient(storage: AuthScope.of(context).storage));
+    final client = ApiClient(storage: AuthScope.of(context).storage);
+    _service = AttractionApiService(client);
+    _alertService = TravelAlertApiService(client);
     if (_attraction == null && _error == null) _load();
   }
 
@@ -35,11 +41,40 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
     try {
       final attraction = await _service.getAttraction(widget.id);
       final availability = await _service.getAvailability(widget.id);
-      if (mounted) setState(() { _attraction = attraction; _availability = availability; });
+      final alertsPage = await _alertService
+          .fetchAlerts(status: TravelAlertStatus.active, district: attraction.district)
+          .catchError((_) => const TravelAlertPage(items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 1));
+
+      final activeAlerts = alertsPage.items.where((alert) =>
+        alert.endDateTime == null || alert.endDateTime!.isAfter(DateTime.now())
+      ).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _attraction = attraction;
+        _availability = availability;
+        _districtAlerts = activeAlerts;
+      });
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  static String _formatTime(DateTime? start, DateTime? end) {
+    if (start == null && end == null) return '';
+    final now = DateTime.now();
+    final localStart = start?.toLocal();
+    final localEnd = end?.toLocal();
+    String fmt(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    if (localStart != null && localEnd != null) {
+      final prefix = localStart.isAfter(now) ? 'Upcoming' : 'Active Now';
+      return '$prefix · ${fmt(localStart)} – ${fmt(localEnd)}';
+    } else if (localEnd != null) {
+      return 'Until ${fmt(localEnd)}';
+    } else {
+      return 'From ${fmt(localStart!)}';
     }
   }
 
@@ -92,6 +127,57 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
             Text('${attraction.category?.name ?? 'Experience'} · ${attraction.district}', style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 8),
             Text(attraction.price == 0 ? 'Free entry' : 'From LKR ${attraction.price.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
+            if (_districtAlerts.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade400, width: 1.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.warning_rounded, color: Colors.orange, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Active Travel Advisory in ${attraction.district}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ..._districtAlerts.map((alert) => Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.amber.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(alert.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 3),
+                          Text(
+                            _formatTime(alert.startDateTime, alert.endDateTime),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.orange.shade900),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(alert.description, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        ],
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
             Text(attraction.description, style: Theme.of(context).textTheme.bodyLarge),
             if (isTourist) ...[
@@ -100,8 +186,25 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
             ],
             const SizedBox(height: 18),
             _InfoSection(title: 'Address', child: Text(attraction.address)),
-            _InfoSection(title: 'Opening schedule', child: attraction.schedules.isEmpty ? const Text('No schedule information available.') : Column(children: attraction.schedules.map((schedule) => ListTile(contentPadding: EdgeInsets.zero, title: Text(schedule.dayOfWeek), trailing: Text(schedule.isClosed ? 'Closed' : '${_time(schedule.openingTime)} – ${_time(schedule.closingTime)}'))).toList())),
-            _InfoSection(title: 'Availability', child: _availability?.slots.isEmpty ?? true ? const Text('No availability data for the selected period.') : Column(children: _availability!.slots.map((slot) => ListTile(contentPadding: EdgeInsets.zero, title: Text(slot.date.toLocal().toString().split(' ').first), subtitle: Text('${_time(slot.startTime)} – ${_time(slot.endTime)}'), trailing: Text('${slot.availableCapacity}/${slot.capacity} available'))).toList())),
+            _InfoSection(
+              title: 'Availability',
+              child: () {
+                final futureSlots = (_availability?.slots ?? const [])
+                    .where((slot) => slot.availableCapacity > 0 && _isSlotInFuture(slot))
+                    .toList();
+                if (futureSlots.isEmpty) {
+                  return const Text('No upcoming availability for this experience.');
+                }
+                return Column(
+                  children: futureSlots.map((slot) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(slot.date.toLocal().toString().split(' ').first),
+                    subtitle: Text('${_time(slot.startTime)} – ${_time(slot.endTime)}'),
+                    trailing: Text('${slot.availableCapacity}/${slot.capacity} available'),
+                  )).toList(),
+                );
+              }(),
+            ),
           ],
         ),
       ),
@@ -111,6 +214,16 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
   Widget _errorState() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Unable to load this attraction.'), const SizedBox(height: 12), FilledButton(onPressed: () { setState(() { _loading = true; _error = null; }); _load(); }, child: const Text('Retry'))]));
   Widget _fallbackImage() => Container(height: 230, decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(CeylonRadii.card)), child: const Center(child: Icon(Icons.landscape_outlined, size: 64, color: CeylonColors.tea)));
   static String _time(String? value) => value == null ? '' : value.substring(0, value.length >= 5 ? 5 : value.length);
+
+  static bool _isSlotInFuture(ExperienceSlotModel slot) {
+    final now = DateTime.now();
+    final d = slot.date.toLocal();
+    final parts = slot.endTime.split(':');
+    final hour = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 23) : 23;
+    final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 59) : 59;
+    final slotEnd = DateTime(d.year, d.month, d.day, hour, minute);
+    return slotEnd.isAfter(now);
+  }
 }
 
 class _InfoSection extends StatelessWidget {

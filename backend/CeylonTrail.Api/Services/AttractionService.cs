@@ -664,6 +664,17 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
             return ServiceResult<bool>.Failure("Experience slot not found.", ServiceErrorCode.NotFound);
         }
 
+        var hasBookings = await dbContext.BookingItems.AnyAsync(
+            b => b.AvailabilitySlotId == slot.Id,
+            cancellationToken);
+
+        if (hasBookings || slot.AvailableCapacity < slot.Capacity)
+        {
+            return ServiceResult<bool>.Failure(
+                "Cannot delete this experience slot because it has active tourist bookings or reserved capacity.",
+                ServiceErrorCode.Conflict);
+        }
+
         dbContext.ExperienceSlots.Remove(slot);
 
         var availSlot = await dbContext.AvailabilitySlots
@@ -721,12 +732,13 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
             }
         }
 
-        if (changed)
+        var nowUtc = DateTime.UtcNow;
+        var visibleSlots = slots.Where(s =>
         {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        var visibleSlots = slots.Where(s => s.AvailableCapacity > 0).ToList();
+            if (s.AvailableCapacity <= 0) return false;
+            var slotEndUtc = DateTime.SpecifyKind(s.Date.ToDateTime(s.EndTime), DateTimeKind.Utc);
+            return slotEndUtc > nowUtc;
+        }).ToList();
 
         return ServiceResult<AvailabilityResponse>.Success(new AvailabilityResponse(
             attractionId,

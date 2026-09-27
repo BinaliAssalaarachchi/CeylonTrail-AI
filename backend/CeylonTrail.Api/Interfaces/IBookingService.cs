@@ -53,4 +53,10 @@ public interface IBookingService
     Task<(bool Succeeded, string? Error, AvailabilitySlotResponse? Response)> CreateAvailabilitySlotAsync(
         CreateAvailabilitySlotRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<(bool Succeeded, string? Error)> DeleteBookingAsync(
+        Guid bookingId,
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken = default);
 }

@@ -157,6 +157,22 @@ public sealed class TripService(
             return false;
         }
 
+        var workflows = await dbContext.AgentWorkflows
+            .Where(w => w.TripId == tripId)
+            .ToListAsync(cancellationToken);
+        if (workflows.Count > 0)
+        {
+            dbContext.AgentWorkflows.RemoveRange(workflows);
+        }
+
+        var bookings = await dbContext.Bookings
+            .Where(b => b.TripId == tripId)
+            .ToListAsync(cancellationToken);
+        foreach (var booking in bookings)
+        {
+            booking.TripId = null;
+        }
+
         dbContext.Trips.Remove(trip);
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;

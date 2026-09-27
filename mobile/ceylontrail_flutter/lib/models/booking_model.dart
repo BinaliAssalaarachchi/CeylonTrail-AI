@@ -1,3 +1,5 @@
+import 'travel_alert_model.dart';
+
 class AvailabilitySlotModel {
   const AvailabilitySlotModel({required this.id, required this.attractionId, required this.startTime, required this.endTime, required this.maxCapacity, required this.bookedCapacity, required this.availableCapacity, required this.pricePerPerson});
   final String id;
@@ -50,7 +52,20 @@ class CancellationModel {
 }
 
 class BookingModel {
-  const BookingModel({required this.id, required this.userId, this.tripId, required this.currentStatus, required this.totalAmount, this.qrCodeHash, required this.createdAt, required this.updatedAt, required this.items, required this.statusHistory, required this.cancellationRequests});
+  const BookingModel({
+    required this.id,
+    required this.userId,
+    this.tripId,
+    required this.currentStatus,
+    required this.totalAmount,
+    this.qrCodeHash,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.items,
+    required this.statusHistory,
+    required this.cancellationRequests,
+    this.activeAdvisories = const [],
+  });
   final String id;
   final String userId;
   final String? tripId;
@@ -62,6 +77,7 @@ class BookingModel {
   final List<BookingItemModel> items;
   final List<BookingHistoryModel> statusHistory;
   final List<CancellationModel> cancellationRequests;
+  final List<TravelAlert> activeAdvisories;
 
   String get status => currentStatus;
   CancellationModel? get cancellation => cancellationRequests.isEmpty ? null : cancellationRequests.last;
@@ -88,6 +104,9 @@ class BookingModel {
       return CancellationModel(
         id: map['id']?.toString() ?? '', reason: map['reason']?.toString() ?? '', status: map['status']?.toString() ?? '', refundAmount: (map['refundAmount'] as num?)?.toDouble(), requestedAt: DateTime.tryParse(map['requestedAt']?.toString() ?? '') ?? DateTime(1970),
       );
+    }).toList(),
+    activeAdvisories: (json['activeAdvisories'] as List<dynamic>? ?? const []).whereType<Map>().map((entry) {
+      return TravelAlert.fromJson(Map<String, dynamic>.from(entry));
     }).toList(),
   );
 }
