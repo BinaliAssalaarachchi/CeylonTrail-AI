@@ -83,6 +83,27 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(received.candidate_attractions[0].id, "a1")
         self.assertIn("closed allow-list", prompt)
 
+    def test_system_policy_describes_strict_gemini_json_contract(self):
+        provider = RecordingProvider(valid_output())
+        PlannerAgent(provider).generate(request())
+        prompt = provider.calls[0][1]
+
+        for required_text in (
+            "Return exactly one JSON object and nothing else",
+            "Do not use Markdown fences",
+            "dayNumber",
+            "attractionId",
+            "startTime",
+            "endTime",
+            "estimatedCost",
+            "Use estimatedCost, never cost",
+            "Do not output name",
+            "extra properties are rejected",
+            "status must be exactly",
+            '"Generated" or "NoPlan"',
+        ):
+            self.assertIn(required_text, prompt)
+
     def assert_invalid_output(self, output, **kwargs):
         with self.assertRaises(PlannerValidationError):
             PlannerAgent(RecordingProvider(output), max_retries=0).generate(request(**kwargs))
@@ -157,7 +178,7 @@ class PlannerTests(unittest.TestCase):
             if old is not None:
                 os.environ["GEMINI_API_KEY"] = old
 
-    def test_gemini_provider_uses_configured_model_and_structured_schema(self):
+    def test_gemini_provider_uses_configured_model_and_json_mime_without_full_schema(self):
         old_key = os.environ.get("GEMINI_API_KEY")
         old_model = os.environ.get("PLANNER_MODEL")
         os.environ["GEMINI_API_KEY"] = "test-key"
@@ -171,9 +192,7 @@ class PlannerTests(unittest.TestCase):
             call = client.models.calls[0]
             self.assertEqual(call["model"], "gemini-test-model")
             self.assertEqual(call["config"]["response_mime_type"], "application/json")
-            self.assertEqual(call["config"]["response_json_schema"], _gemini_output_schema())
-            self.assertNotIn("exclusiveMinimum", str(call["config"]["response_json_schema"]))
-            self.assertEqual(call["config"]["response_json_schema"]["required"], ["estimatedCost", "status"])
+            self.assertNotIn("response_json_schema", call["config"])
             self.assertEqual(call["config"]["automatic_function_calling"], {"disable": True})
             self.assertNotIn("tools", call["config"])
         finally:
@@ -185,6 +204,91 @@ class PlannerTests(unittest.TestCase):
                 os.environ.pop("PLANNER_MODEL", None)
             else:
                 os.environ["PLANNER_MODEL"] = old_model
+
+    def test_gemini_json_is_validated_by_planner_output_contract(self):
+        class Response:
+            parsed = None
+            text = json.dumps(valid_output())
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        result = PlannerAgent(provider, max_retries=0).generate(request())
+        self.assertEqual(result.estimated_cost, Decimal("2500"))
+
+    def test_gemini_missing_required_fields_fail_local_validation(self):
+        class Response:
+            parsed = None
+            text = json.dumps({"days": []})
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        with self.assertRaises(PlannerValidationError):
+            PlannerAgent(provider, max_retries=0).generate(request())
+
+    def test_gemini_400_provider_failure_is_not_retried(self):
+        class InvalidArgumentError(Exception):
+            status_code = 400
+
+        class Models:
+            calls = 0
+
+            def generate_content(self, **kwargs):
+                self.calls += 1
+                raise InvalidArgumentError("INVALID_ARGUMENT")
+
+        class Client:
+            models = Models()
+
+        client = Client()
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = client
+        with self.assertRaises(PlannerProviderError) as context:
+            provider.generate(request(), "policy")
+        self.assertFalse(context.exception.retryable)
+        self.assertEqual(client.models.calls, 1)
+
+    def test_gemini_schema_required_names_match_properties_recursively(self):
+        schema = _gemini_output_schema()
+
+        self.assertEqual(
+            {"days", "estimatedCost", "status", "message"},
+            set(schema["properties"]),
+        )
+        self.assertIn("estimatedCost", schema["required"])
+        self.assertIn("status", schema["required"])
+
+        def assert_consistent(node):
+            if not isinstance(node, dict):
+                return
+            if node.get("type") == "object":
+                properties = node.get("properties", {})
+                required = node.get("required", [])
+                self.assertTrue(set(required).issubset(properties.keys()))
+                for property_schema in properties.values():
+                    assert_consistent(property_schema)
+            for value in node.values():
+                if isinstance(value, (dict, list)):
+                    if isinstance(value, list):
+                        for item in value:
+                            assert_consistent(item)
+                    elif value is not node.get("properties"):
+                        assert_consistent(value)
+
+        assert_consistent(schema)
 
     def test_empty_sdk_parsed_value_falls_back_to_response_text(self):
         class Response:

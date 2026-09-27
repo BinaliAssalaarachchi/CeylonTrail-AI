@@ -26,7 +26,7 @@ def _sanitize_message(error: Exception) -> str:
 
 def _gemini_output_schema() -> dict[str, Any]:
     """Convert Pydantic JSON Schema to Gemini's supported JSON Schema subset."""
-    source = PlannerOutput.model_json_schema()
+    source = PlannerOutput.model_json_schema(by_alias=True, mode="serialization")
     definitions = source.pop("$defs", {})
     supported = {
         "type", "format", "title", "description", "enum", "items", "minItems",
@@ -57,6 +57,11 @@ def _gemini_output_schema() -> dict[str, Any]:
             for key, value in node.items()
             if key in supported
         }
+        if isinstance(node.get("properties"), dict):
+            result["properties"] = {
+                property_name: convert(property_schema)
+                for property_name, property_schema in node["properties"].items()
+            }
         return result
 
     return convert(source)
@@ -184,21 +189,23 @@ class GeminiPlannerModelProvider:
                 config={
                     "system_instruction": system_prompt,
                     "response_mime_type": "application/json",
-                    "response_json_schema": _gemini_output_schema(),
                     "automatic_function_calling": {"disable": True},
                 },
             )
         except Exception as error:
+            status_code = _status_code(error)
             message = str(error).lower()
             retryable = not any(
                 marker in message
                 for marker in ("401", "403", "api key", "quota", "resource exhausted")
             )
+            if status_code == 400:
+                retryable = False
             raise PlannerProviderError(
                 "Gemini Planner request failed.",
                 retryable=retryable,
                 stage="gemini_request",
-                status_code=_status_code(error),
+                status_code=status_code,
                 diagnostic_message=_sanitize_message(error),
                 provider_exception_type=type(error).__name__,
             ) from error
@@ -233,6 +240,6 @@ def create_planner_provider() -> PlannerModelProvider:
         return MissingPlannerProvider()
     return GeminiPlannerModelProvider(
         api_key=api_key,
-        model=os.getenv("PLANNER_MODEL", "gemini-3.6-flash").strip()
-        or "gemini-3.6-flash",
+        model=os.getenv("PLANNER_MODEL", "gemini-3.5-flash-lite").strip()
+        or "gemini-3.5-flash-lite",
     )
