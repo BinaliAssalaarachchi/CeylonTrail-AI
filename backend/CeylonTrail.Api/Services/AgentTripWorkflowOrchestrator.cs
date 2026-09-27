@@ -257,7 +257,7 @@ public sealed class AgentTripWorkflowOrchestrator(
                 status = bookingResult.Value.Status,
                 proposals = bookingResult.Value.Proposals,
                 issues = bookingResult.Value.Issues,
-                requiresApproval = bookingResult.Value.RequiresApproval,
+                requiresApproval = bookingResult.Value.Proposals.Count > 0,
                 summary = bookingResult.Value.Summary
             }),
             cancellationToken: cancellationToken);
@@ -291,6 +291,28 @@ public sealed class AgentTripWorkflowOrchestrator(
             return await FailStageAsync(workflowId, intelligenceStage.Stage!, "TravelIntelligenceFailed", intelligenceResult.Error ?? "Travel Intelligence failed safely.", cancellationToken);
         }
 
+        var approvalRequestId = intelligenceResult.ApprovalRequest?.Id;
+        if (bookingResult.Value.Proposals.Count > 0 && !approvalRequestId.HasValue)
+        {
+            var bookingApproval = await CreateBookingApprovalRequestAsync(
+                intelligenceResult.ValidationResultId.Value,
+                intelligenceResult.ExecutionId.Value,
+                touristId,
+                bookingResult.Value.Proposals,
+                cancellationToken);
+            if (!bookingApproval.Succeeded)
+            {
+                return await FailStageAsync(
+                    workflowId,
+                    intelligenceStage.Stage!,
+                    "BookingApprovalFailed",
+                    bookingApproval.Error ?? "The booking approval request could not be created.",
+                    cancellationToken);
+            }
+
+            approvalRequestId = bookingApproval.ApprovalRequestId;
+        }
+
         await workflowPersistence.CompleteStageAsync(
             workflowId,
             intelligenceStage.Stage!.Id,
@@ -298,15 +320,15 @@ public sealed class AgentTripWorkflowOrchestrator(
             {
                 validationResultId = intelligenceResult.ValidationResultId,
                 executionId = intelligenceResult.ExecutionId,
-                approvalRequestId = intelligenceResult.ApprovalRequest?.Id,
+                approvalRequestId,
                 requiresApproval = intelligenceResult.ApprovalRequest is not null
             }),
             intelligenceResult.ValidationResultId,
             intelligenceResult.ExecutionId,
-            intelligenceResult.ApprovalRequest?.Id,
+            approvalRequestId,
             cancellationToken);
 
-        if (intelligenceResult.ApprovalRequest is not null)
+        if (approvalRequestId.HasValue)
         {
             await workflowPersistence.TransitionAsync(workflowId, AgentWorkflowStatus.AwaitingApproval, AgentWorkflowAgentRole.TravelIntelligence, cancellationToken: cancellationToken);
         }
@@ -316,6 +338,54 @@ public sealed class AgentTripWorkflowOrchestrator(
         }
 
         return new(ToItineraryResponse(itinerary));
+    }
+
+    private async Task<(bool Succeeded, Guid? ApprovalRequestId, string? Error)> CreateBookingApprovalRequestAsync(
+        Guid validationResultId,
+        Guid executionId,
+        Guid touristId,
+        IReadOnlyList<BookingActionProposal> proposals,
+        CancellationToken cancellationToken)
+    {
+        var validation = await dbContext.ValidationResults
+            .AsNoTracking()
+            .SingleOrDefaultAsync(result => result.Id == validationResultId && result.CreatedByUserId == touristId, cancellationToken);
+        if (validation is null)
+        {
+            return (false, null, "The booking approval could not be correlated to the itinerary validation.");
+        }
+
+        var existing = await dbContext.ApprovalRequests
+            .SingleOrDefaultAsync(request =>
+                request.ValidationResultId == validationResultId &&
+                request.TravelIntelligenceExecutionId == executionId &&
+                request.RequestedByUserId == touristId &&
+                request.Status == ApprovalRequestStatus.Pending,
+                cancellationToken);
+        if (existing is not null)
+        {
+            return (true, existing.Id, null);
+        }
+
+        var now = DateTime.UtcNow;
+        var approval = new ApprovalRequest
+        {
+            Id = Guid.NewGuid(),
+            ValidationResultId = validationResultId,
+            TravelIntelligenceExecutionId = executionId,
+            RequestedByUserId = touristId,
+            Status = ApprovalRequestStatus.Pending,
+            RecommendedAction = ApprovalRecommendedAction.Proceed,
+            RiskLevel = validation.RiskLevel,
+            Summary = $"BookingAction produced {proposals.Count} booking proposal(s). Coordinator approval is required before execution.",
+            AffectedItemReferences = string.Join(", ", proposals.Select(proposal => proposal.AvailabilitySlotId).Distinct()),
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        dbContext.ApprovalRequests.Add(approval);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return (true, approval.Id, null);
     }
 
     private async Task<TripServiceResult<ItineraryResponse>> FailStageAsync(

@@ -48,16 +48,17 @@ public sealed class AgentWorkflowVisibilityService(ApplicationDbContext dbContex
             .AsNoTracking()
             .Where(candidate => candidate.ApprovalRequestId == approvalRequestId &&
                                 candidate.AgentRole == AgentWorkflowAgentRole.TravelIntelligence)
-            .Select(candidate => candidate.AgentWorkflowId)
+            .Select(candidate => new { candidate.AgentWorkflowId, WorkflowId = candidate.AgentWorkflow.WorkflowId })
             .SingleOrDefaultAsync(cancellationToken);
-        if (stage == Guid.Empty)
+        response.AgentWorkflowId = stage?.WorkflowId;
+        if (stage is null)
         {
             return;
         }
 
         var bookingStage = await dbContext.AgentWorkflowStages
             .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.AgentWorkflowId == stage && candidate.AgentRole == AgentWorkflowAgentRole.BookingAction, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.AgentWorkflowId == stage.AgentWorkflowId && candidate.AgentRole == AgentWorkflowAgentRole.BookingAction, cancellationToken);
         if (bookingStage is null)
         {
             return;

@@ -51,6 +51,56 @@ public sealed class AgentTripWorkflowOrchestratorTests
     }
 
     [Fact]
+    public async Task BookingProposalLeavesWorkflowAwaitingApprovalEvenWhenSafetyApprovalIsNotRequired()
+    {
+        await using var db = CreateDbContext();
+        var scenario = await CreateScenarioAsync(db);
+        var intelligence = new FakeIntelligence();
+        db.ValidationResults.Add(new ValidationResult
+        {
+            Id = intelligence.ValidationResultId,
+            CreatedByUserId = scenario.Tourist.Id,
+            RiskLevel = ValidationRiskLevel.Low,
+            CreatedAt = DateTime.UtcNow
+        });
+        var slot = new AvailabilitySlot
+        {
+            Id = Guid.NewGuid(),
+            AttractionId = scenario.Attraction.Id,
+            StartTime = DateTime.UtcNow.AddDays(1),
+            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
+            MaxCapacity = 40,
+            PricePerPerson = 1000m,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.AvailabilitySlots.Add(slot);
+        await db.SaveChangesAsync();
+        scenario.Booking.Proposals =
+        [new BookingActionProposal(
+            scenario.Attraction.Id,
+            slot.Id,
+            1,
+            1000m,
+            1000m,
+            slot.StartTime,
+            slot.EndTime,
+            "Available attraction")];
+
+        var orchestrator = CreateOrchestrator(db, scenario, intelligence);
+
+        await orchestrator.ExecuteAsync(scenario.Tourist.Id, scenario.Trip.Id);
+
+        var workflow = await db.AgentWorkflows.SingleAsync();
+        var approval = await db.ApprovalRequests.SingleAsync();
+        Assert.Equal(AgentWorkflowStatus.AwaitingApproval, workflow.Status);
+        Assert.Equal(ApprovalRequestStatus.Pending, approval.Status);
+        Assert.False(intelligence.ApprovalRequired);
+        Assert.Empty(db.Bookings);
+        Assert.Equal(approval.Id, (await db.AgentWorkflowStages.SingleAsync(stage => stage.AgentRole == AgentWorkflowAgentRole.TravelIntelligence)).ApprovalRequestId);
+    }
+
+    [Fact]
     public async Task PlannerFailureMarksPlannerStageFailedSafe()
     {
         await using var db = CreateDbContext();
@@ -185,28 +235,36 @@ public sealed class AgentTripWorkflowOrchestratorTests
 
     private sealed class FakeBooking : IBookingActionAgentService
     {
+        public IReadOnlyList<BookingActionProposal> Proposals { get; set; } = [];
+
         public Task<BookingActionAgentServiceResult> PrepareAsync(BookingActionAgentRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new BookingActionAgentServiceResult(Value: new BookingActionAgentResponse(
-                request.WorkflowId, request.TripId, "NoEligibleProposal", [],
-                [new BookingActionIssue("NoAvailability", "No M3 slot", null)], false, "No proposal.")));
+                request.WorkflowId,
+                request.TripId,
+                Proposals.Count > 0 ? "Prepared" : "NoEligibleProposal",
+                Proposals,
+                Proposals.Count > 0 ? [] : [new BookingActionIssue("NoAvailability", "No M3 slot", null)],
+                false,
+                Proposals.Count > 0 ? "Booking proposal prepared." : "No proposal.")));
     }
 
     private sealed class FakeIntelligence : IItineraryTravelIntelligenceWorkflowService
     {
         public bool ApprovalRequired { get; set; }
         public int CallCount { get; private set; }
+        public Guid ValidationResultId { get; } = Guid.NewGuid();
+        public Guid ExecutionId { get; } = Guid.NewGuid();
 
         public Task<ItineraryTravelIntelligenceWorkflowResult> ProcessAsync(Guid tripId, Guid touristId, CancellationToken cancellationToken = default)
         {
             CallCount++;
-            var validationId = Guid.NewGuid();
             return Task.FromResult(new ItineraryTravelIntelligenceWorkflowResult(
                 true,
                 null,
-                validationId,
-                Guid.NewGuid(),
+                ValidationResultId,
+                ExecutionId,
                 ApprovalRequired
-                    ? new ApprovalRequestResponse { Id = Guid.NewGuid(), ValidationResultId = validationId, RequestedByUserId = touristId, Status = ApprovalRequestStatus.Pending, Summary = "Review required" }
+                    ? new ApprovalRequestResponse { Id = Guid.NewGuid(), ValidationResultId = ValidationResultId, RequestedByUserId = touristId, Status = ApprovalRequestStatus.Pending, Summary = "Review required" }
                     : null));
         }
     }
