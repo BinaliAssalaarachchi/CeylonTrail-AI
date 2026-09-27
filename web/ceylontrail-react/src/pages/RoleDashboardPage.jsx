@@ -1,4 +1,5 @@
 import BookingManagement from '../components/BookingManagement'
+import OperationalAnalytics from '../components/OperationalAnalytics'
 
 export default function RoleDashboardPage({ title, description }) {
   return (
@@ -11,6 +12,7 @@ export default function RoleDashboardPage({ title, description }) {
 
       {/* Live Provider / Staff Booking Management Workspace */}
       <BookingManagement />
+      <OperationalAnalytics />
     </section>
   )
 }

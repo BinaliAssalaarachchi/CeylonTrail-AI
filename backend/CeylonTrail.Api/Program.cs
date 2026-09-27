@@ -58,6 +58,7 @@ builder.Services.AddScoped<IAgentWorkflowVisibilityService, AgentWorkflowVisibil
 builder.Services.AddScoped<ITravelIntelligenceExecutionPersistenceService, TravelIntelligenceExecutionPersistenceService>();
 builder.Services.AddScoped<ITravelIntelligenceExecutionQueryService, TravelIntelligenceExecutionQueryService>();
 builder.Services.AddScoped<ITouristTravelIntelligenceOutcomeService, TouristTravelIntelligenceOutcomeService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IAgentWorkflowPersistenceService, AgentWorkflowPersistenceService>();
 builder.Services.Configure<TravelIntelligenceOptions>(
     builder.Configuration.GetSection(TravelIntelligenceOptions.SectionName));
