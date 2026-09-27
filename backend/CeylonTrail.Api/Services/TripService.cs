@@ -1,6 +1,7 @@
 using CeylonTrail.Api.Data;
 using CeylonTrail.Api.DTOs.Attractions;
 using CeylonTrail.Api.DTOs.Planner;
+using CeylonTrail.Api.DTOs.Pagination;
 using CeylonTrail.Api.DTOs.Trips;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
@@ -446,6 +447,80 @@ public sealed class TripService(
             .ToListAsync(cancellationToken);
 
         return trips.Select(ToStaffTripResponse).ToList();
+    }
+
+    public async Task<PagedResponse<StaffTripResponse>> GetStaffTripsPageAsync(
+        StaffTripQuery request,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Trips.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim();
+            query = query.Where(trip =>
+                trip.Name.Contains(search) ||
+                trip.Preferences.Any(preference =>
+                    preference.PreferenceType == "Objective" && preference.Value.Contains(search)) ||
+                trip.Tourist.FirstName.Contains(search) ||
+                trip.Tourist.LastName.Contains(search) ||
+                trip.Tourist.Email.Contains(search));
+        }
+
+        if (request.Status.HasValue)
+        {
+            query = query.Where(trip => trip.Status == request.Status.Value);
+        }
+
+        if (request.DateFrom.HasValue)
+        {
+            query = query.Where(trip => trip.EndDate >= request.DateFrom.Value);
+        }
+
+        if (request.DateTo.HasValue)
+        {
+            query = query.Where(trip => trip.StartDate <= request.DateTo.Value);
+        }
+
+        query = ApplyTripOrdering(query, request.SortBy, request.SortDirection);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var page = request.Page;
+        var pageSize = request.PageSize;
+        var trips = await query
+            .Include(trip => trip.Itineraries)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResponse<StaffTripResponse>(
+            trips.Select(ToStaffTripResponse).ToList(),
+            totalCount,
+            page,
+            pageSize,
+            totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize));
+    }
+
+    private static IQueryable<Trip> ApplyTripOrdering(
+        IQueryable<Trip> query,
+        string sortBy,
+        string sortDirection)
+    {
+        var ascending = string.Equals(sortDirection, "asc", StringComparison.OrdinalIgnoreCase);
+        return (sortBy.ToLowerInvariant(), ascending) switch
+        {
+            ("name", true) => query.OrderBy(trip => trip.Name).ThenBy(trip => trip.Id),
+            ("name", false) => query.OrderByDescending(trip => trip.Name).ThenByDescending(trip => trip.Id),
+            ("startdate", true) => query.OrderBy(trip => trip.StartDate).ThenBy(trip => trip.Id),
+            ("startdate", false) => query.OrderByDescending(trip => trip.StartDate).ThenByDescending(trip => trip.Id),
+            ("enddate", true) => query.OrderBy(trip => trip.EndDate).ThenBy(trip => trip.Id),
+            ("enddate", false) => query.OrderByDescending(trip => trip.EndDate).ThenByDescending(trip => trip.Id),
+            ("status", true) => query.OrderBy(trip => trip.Status).ThenBy(trip => trip.Id),
+            ("status", false) => query.OrderByDescending(trip => trip.Status).ThenByDescending(trip => trip.Id),
+            ("createdat", true) => query.OrderBy(trip => trip.CreatedAt).ThenBy(trip => trip.Id),
+            ("createdat", false) => query.OrderByDescending(trip => trip.CreatedAt).ThenByDescending(trip => trip.Id),
+            ("updatedat", true) => query.OrderBy(trip => trip.UpdatedAt).ThenBy(trip => trip.Id),
+            _ => query.OrderByDescending(trip => trip.UpdatedAt).ThenByDescending(trip => trip.Id),
+        };
     }
 
     public async Task<TripServiceResult<StaffTripResponse>> GetStaffTripAsync(
