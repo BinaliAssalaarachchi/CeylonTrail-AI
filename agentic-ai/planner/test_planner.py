@@ -173,6 +173,7 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(call["config"]["response_mime_type"], "application/json")
             self.assertEqual(call["config"]["response_json_schema"], _gemini_output_schema())
             self.assertNotIn("exclusiveMinimum", str(call["config"]["response_json_schema"]))
+            self.assertEqual(call["config"]["response_json_schema"]["required"], ["estimatedCost", "status"])
             self.assertEqual(call["config"]["automatic_function_calling"], {"disable": True})
             self.assertNotIn("tools", call["config"])
         finally:
@@ -201,6 +202,130 @@ class PlannerTests(unittest.TestCase):
         provider._client = Client()
         result = provider.generate(request(), "policy")
         self.assertEqual(result["status"], "Generated")
+
+    def test_empty_json_response_is_provider_failure(self):
+        class Response:
+            parsed = {}
+            text = "{}"
+            candidates = []
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        with self.assertRaises(PlannerProviderError):
+            provider.generate(request(), "policy")
+
+    def test_missing_response_content_is_provider_failure(self):
+        class Response:
+            parsed = None
+            text = ""
+            candidates = []
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        with self.assertRaises(PlannerProviderError):
+            provider.generate(request(), "policy")
+
+    def test_malformed_json_is_provider_failure(self):
+        class Response:
+            parsed = None
+            text = "{not-json}"
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        with self.assertRaises(PlannerProviderError):
+            provider.generate(request(), "policy")
+
+    def test_non_object_json_is_provider_failure(self):
+        class Response:
+            parsed = None
+            text = "[1, 2, 3]"
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        with self.assertRaises(PlannerProviderError):
+            provider.generate(request(), "policy")
+
+    def test_nested_wrapper_is_not_unwrapped(self):
+        wrapped = {"plannerOutput": valid_output()}
+
+        class Response:
+            parsed = None
+            text = json.dumps(wrapped)
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        self.assertEqual(provider.generate(request(), "policy"), wrapped)
+
+    def test_valid_json_text_object_passes_through(self):
+        class Response:
+            parsed = None
+            text = json.dumps(valid_output())
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        self.assertEqual(provider.generate(request(), "policy"), valid_output())
+
+    def test_one_json_markdown_fence_is_supported(self):
+        class Response:
+            parsed = None
+            text = f"```json\n{json.dumps(valid_output())}\n```"
+
+        class Models:
+            def generate_content(self, **kwargs):
+                return Response()
+
+        class Client:
+            models = Models()
+
+        provider = GeminiPlannerModelProvider("test-key", "gemini-test-model")
+        provider._client = Client()
+        self.assertEqual(provider.generate(request(), "policy"), valid_output())
+
+    def test_output_contract_still_requires_estimated_cost_and_status(self):
+        with self.assertRaises(ValidationError):
+            PlannerOutput.model_validate({"days": []})
 
     def test_deterministic_fixture_is_explicitly_test_only(self):
         result = DeterministicPlannerFixture().generate(request())

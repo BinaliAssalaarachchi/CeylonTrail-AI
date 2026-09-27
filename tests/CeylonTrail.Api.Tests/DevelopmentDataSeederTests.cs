@@ -84,6 +84,77 @@ public sealed class DevelopmentDataSeederTests
         Assert.Empty(dbContext.AvailabilitySlots);
     }
 
+    [Fact]
+    public async Task SeedAsync_PreservesBookedDemoAttractionAndAvailabilitySlot()
+    {
+        await using var dbContext = CreateDbContext();
+        var passwordHasher = new PasswordHasher<User>();
+        await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
+
+        var provider = await dbContext.Users.SingleAsync(user => user.Email == "PROVIDER@TEST.COM");
+        var tourist = await dbContext.Users.SingleAsync(user => user.Email == "TOURIST@TEST.COM");
+        var category = await dbContext.Categories.SingleAsync(item => item.Name == "Historical & Cultural");
+        var attractionId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var slotId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var now = DateTime.UtcNow;
+        var attraction = new Attraction
+        {
+            Id = attractionId,
+            ProviderId = provider.Id,
+            CategoryId = category.Id,
+            Name = "Sigiriya Heritage Sunrise Trail",
+            Description = "Seeded demo attraction.",
+            District = "Matale",
+            Address = "Sigiriya, Matale, Sri Lanka",
+            Price = 6500m,
+            Status = "Approved",
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var slot = new AvailabilitySlot
+        {
+            Id = slotId,
+            AttractionId = attractionId,
+            StartTime = now.AddDays(7),
+            EndTime = now.AddDays(7).AddHours(2),
+            MaxCapacity = 40,
+            BookedCapacity = 1,
+            PricePerPerson = 6500m,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var bookingItem = new BookingItem
+        {
+            Id = Guid.NewGuid(),
+            AvailabilitySlotId = slotId,
+            NumberOfGuests = 1,
+            UnitPrice = 6500m,
+            SubTotal = 6500m
+        };
+        var booking = new Booking
+        {
+            Id = Guid.NewGuid(),
+            UserId = tourist.Id,
+            CurrentStatus = BookingStatus.Draft,
+            TotalAmount = 6500m,
+            CreatedAt = now,
+            UpdatedAt = now,
+            Items = [bookingItem]
+        };
+
+        dbContext.Attractions.Add(attraction);
+        dbContext.AvailabilitySlots.Add(slot);
+        dbContext.Bookings.Add(booking);
+        await dbContext.SaveChangesAsync();
+
+        await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
+
+        Assert.NotNull(await dbContext.Attractions.SingleOrDefaultAsync(item => item.Id == attractionId));
+        Assert.NotNull(await dbContext.AvailabilitySlots.SingleOrDefaultAsync(item => item.Id == slotId));
+        Assert.NotNull(await dbContext.BookingItems.SingleOrDefaultAsync(item => item.Id == bookingItem.Id));
+    }
+
     private static ApplicationDbContext CreateDbContext() => new(
         new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
