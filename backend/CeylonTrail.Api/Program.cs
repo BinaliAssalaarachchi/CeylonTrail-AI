@@ -4,9 +4,11 @@ using CeylonTrail.Api.Configuration;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using CeylonTrail.Api.Data;
+using CeylonTrail.Api.Health;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Middleware;
 using CeylonTrail.Api.Models;
@@ -118,24 +120,13 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<PostgreSqlHealthCheck>("postgresql", tags: new[] { "ready" });
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Logging.AddJsonConsole();
 
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddCors(options =>
-    {
-        options.AddPolicy("ReactDevelopment", policy =>
-        {
-            policy.SetIsOriginAllowed(_ => true)
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials();
-        });
-    });
-}
+CorsConfiguration.AddConfiguredPolicy(builder.Services, builder.Configuration);
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -192,14 +183,23 @@ if (!app.Environment.IsDevelopment() || app.Urls.Any(url => url.StartsWith("http
 {
     app.UseHttpsRedirection();
 }
-if (app.Environment.IsDevelopment())
-{
-    app.UseCors("ReactDevelopment");
-}
+app.UseCors(CorsConfiguration.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => false,
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new { status = report.Status.ToString() });
+    },
+});
 
 var summaries = new[]
 {
