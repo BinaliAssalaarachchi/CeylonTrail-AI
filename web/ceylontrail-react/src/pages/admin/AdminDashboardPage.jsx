@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAdminAttractions } from '../../api/attractions'
+import OperationalAnalytics from '../../components/OperationalAnalytics'
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0, underReview: 0 })
@@ -77,6 +78,7 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
       </div>
+      <OperationalAnalytics />
     </section>
   )
 }
