@@ -1,4 +1,5 @@
 using CeylonTrail.Api.DTOs.Trips;
+using CeylonTrail.Api.DTOs.Pagination;
 
 namespace CeylonTrail.Api.Interfaces;
 
@@ -63,6 +64,10 @@ public interface ITripService
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<StaffTripResponse>> GetStaffTripsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<PagedResponse<StaffTripResponse>> GetStaffTripsPageAsync(
+        StaffTripQuery query,
         CancellationToken cancellationToken = default);
 
     Task<TripServiceResult<StaffTripResponse>> GetStaffTripAsync(

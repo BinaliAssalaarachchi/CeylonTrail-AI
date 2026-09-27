@@ -1,4 +1,5 @@
 using CeylonTrail.Api.DTOs.Bookings;
+using CeylonTrail.Api.DTOs.Pagination;
 
 namespace CeylonTrail.Api.Interfaces;
 
@@ -14,6 +15,14 @@ public interface IBookingService
         CancellationToken cancellationToken = default);  
 
     Task<List<BookingResponse>> GetProviderBookingsAsync(
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken = default);
+
+    Task<PagedResponse<BookingResponse>> GetProviderBookingsPageAsync(
+        Guid requestingUserId,
+        string requestingRole,
+        BookingQuery query,
         CancellationToken cancellationToken = default);
 
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> GetBookingByIdAsync(

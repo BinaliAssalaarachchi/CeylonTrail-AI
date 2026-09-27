@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CeylonTrail.Api.DTOs.Bookings;
+using CeylonTrail.Api.DTOs.Pagination;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -47,7 +48,25 @@ public sealed class BookingsController(IBookingService bookingService) : Control
     [ProducesResponseType(typeof(List<BookingResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<BookingResponse>>> GetProviderBookings(CancellationToken cancellationToken)
     {
-        var bookings = await bookingService.GetProviderBookingsAsync(cancellationToken);
+        var bookings = await bookingService.GetProviderBookingsAsync(
+            GetCurrentUserId(),
+            GetCurrentUserRole(),
+            cancellationToken);
+        return Ok(bookings);
+    }
+
+    [HttpGet("/api/provider/bookings/query")]
+    [Authorize(Roles = $"{nameof(UserRole.TourismProvider)},{nameof(UserRole.TravelCoordinator)},{nameof(UserRole.Administrator)}")]
+    [ProducesResponseType(typeof(PagedResponse<BookingResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResponse<BookingResponse>>> QueryProviderBookings(
+        [FromQuery] BookingQuery query,
+        CancellationToken cancellationToken)
+    {
+        var bookings = await bookingService.GetProviderBookingsPageAsync(
+            GetCurrentUserId(),
+            GetCurrentUserRole(),
+            query,
+            cancellationToken);
         return Ok(bookings);
     }
 
