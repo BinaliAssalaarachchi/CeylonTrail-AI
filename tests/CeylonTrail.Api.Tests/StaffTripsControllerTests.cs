@@ -96,6 +96,12 @@ public sealed class StaffTripsControllerTests
             return Task.FromResult(false);
         }
 
+        public Task<TripServiceResult<bool>> DeleteTripWithResultAsync(Guid touristId, Guid tripId, CancellationToken cancellationToken = default)
+        {
+            Mutated = true;
+            return Task.FromResult(new TripServiceResult<bool>(NotFound: true));
+        }
+
         public Task<TripServiceResult<TripPreferenceResponse>> AddPreferenceAsync(Guid touristId, Guid tripId, AddTripPreferenceRequest request, CancellationToken cancellationToken = default)
         {
             Mutated = true;
