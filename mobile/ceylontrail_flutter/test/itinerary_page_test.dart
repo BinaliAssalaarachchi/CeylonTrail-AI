@@ -36,10 +36,14 @@ class _TripApi extends TripApiService {
 class _WorkflowSource implements AgentWorkflowSource {
   _WorkflowSource(this.workflow);
 
-  final AgentWorkflow? workflow;
+  AgentWorkflow? workflow;
+  var fetchCount = 0;
 
   @override
-  Future<AgentWorkflow?> fetchWorkflow(String tripId) async => workflow;
+  Future<AgentWorkflow?> fetchWorkflow(String tripId) async {
+    fetchCount++;
+    return workflow;
+  }
 }
 
 Itinerary _itinerary() => Itinerary(
@@ -59,15 +63,21 @@ Itinerary _itinerary() => Itinerary(
       ],
     );
 
-AgentWorkflow _workflow(AgentWorkflowStatus status) => AgentWorkflow(
+AgentWorkflow _workflow(
+  AgentWorkflowStatus status, {
+  String? reviewStatus,
+  bool? executionSucceeded,
+  String? bookingId,
+  String safeMessage = '',
+}) => AgentWorkflow(
       workflowId: 'workflow-1',
       tripId: 'trip-1',
       status: status,
       requiresApproval: status == AgentWorkflowStatus.awaitingApproval,
-      reviewStatus: status == AgentWorkflowStatus.awaitingApproval ? 'Pending' : null,
-      executionSucceeded: null,
-      bookingId: null,
-      safeMessage: status == AgentWorkflowStatus.failedSafe ? 'Workflow failed safely.' : '',
+      reviewStatus: reviewStatus ?? (status == AgentWorkflowStatus.awaitingApproval ? 'Pending' : null),
+      executionSucceeded: executionSucceeded,
+      bookingId: bookingId,
+      safeMessage: safeMessage,
       stages: const [
         AgentWorkflowStage(sequence: 4, agentRole: 'TravelIntelligence', status: 'Completed', summary: 'Safety complete.'),
         AgentWorkflowStage(sequence: 2, agentRole: 'Destination', status: 'Completed', summary: 'Destination complete.'),
@@ -110,12 +120,69 @@ void main() {
     expect(find.text('Review: Pending'), findsOneWidget);
   });
 
+  testWidgets('refreshes workflow and displays completed booking state', (tester) async {
+    final source = _WorkflowSource(_workflow(AgentWorkflowStatus.awaitingApproval));
+    await tester.pumpWidget(MaterialApp(
+      home: ItineraryPage(
+        api: _TripApi(itinerary: _itinerary()),
+        tripId: 'trip-1',
+        workflowSource: source,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Status: Awaiting approval'), findsOneWidget);
+    expect(source.fetchCount, 1);
+
+    source.workflow = _workflow(
+      AgentWorkflowStatus.completed,
+      executionSucceeded: true,
+      bookingId: 'booking-1',
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, 300));
+    await tester.pumpAndSettle();
+
+    expect(source.fetchCount, 2);
+    expect(find.text('Status: Completed'), findsOneWidget);
+    expect(find.text('Booking execution succeeded · Booking booking-1'), findsOneWidget);
+    expect(find.textContaining('Planner:'), findsOneWidget);
+    expect(find.textContaining('Destination:'), findsOneWidget);
+    expect(find.textContaining('BookingAction:'), findsOneWidget);
+    expect(find.textContaining('TravelIntelligence:'), findsOneWidget);
+  });
+
+  testWidgets('displays rejected and cancelled workflow state after refresh', (tester) async {
+    final source = _WorkflowSource(_workflow(AgentWorkflowStatus.awaitingApproval));
+    await tester.pumpWidget(MaterialApp(
+      home: ItineraryPage(
+        api: _TripApi(itinerary: _itinerary()),
+        tripId: 'trip-1',
+        workflowSource: source,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    source.workflow = _workflow(
+      AgentWorkflowStatus.cancelled,
+      reviewStatus: 'Rejected',
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, 300));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Status: Cancelled'), findsOneWidget);
+    expect(find.text('Review: Rejected'), findsOneWidget);
+  });
+
   testWidgets('displays failed-safe workflow state', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: ItineraryPage(
         api: _TripApi(itinerary: _itinerary()),
         tripId: 'trip-1',
-        workflowSource: _WorkflowSource(_workflow(AgentWorkflowStatus.failedSafe)),
+        workflowSource: _WorkflowSource(_workflow(
+          AgentWorkflowStatus.failedSafe,
+          executionSucceeded: false,
+          safeMessage: 'Workflow failed safely.',
+        )),
       ),
     ));
     await tester.pumpAndSettle();
