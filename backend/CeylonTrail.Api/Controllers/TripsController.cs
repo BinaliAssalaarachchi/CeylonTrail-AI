@@ -89,9 +89,18 @@ public sealed class TripsController(
             return Unauthorized();
         }
 
-        return await tripService.DeleteTripAsync(touristId, id, cancellationToken)
-            ? NoContent()
-            : NotFound();
+        var result = await tripService.DeleteTripWithResultAsync(touristId, id, cancellationToken);
+        if (result.NotFound)
+        {
+            return NotFound();
+        }
+
+        if (result.Conflict)
+        {
+            return Conflict(new { message = result.Error });
+        }
+
+        return result.Value == true ? NoContent() : BadRequest(new { message = result.Error });
     }
 
     [HttpPost("{id:guid}/preferences")]

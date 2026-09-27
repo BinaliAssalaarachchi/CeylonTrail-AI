@@ -142,10 +142,16 @@ public sealed class TripService(
         Guid touristId,
         Guid tripId,
         CancellationToken cancellationToken = default)
+        => (await DeleteTripWithResultAsync(touristId, tripId, cancellationToken)).Value == true;
+
+    public async Task<TripServiceResult<bool>> DeleteTripWithResultAsync(
+        Guid touristId,
+        Guid tripId,
+        CancellationToken cancellationToken = default)
     {
         if (tripId == Guid.Empty)
         {
-            return false;
+            return new TripServiceResult<bool>(NotFound: true);
         }
 
         var trip = await dbContext.Trips
@@ -155,12 +161,21 @@ public sealed class TripService(
 
         if (trip is null)
         {
-            return false;
+            return new TripServiceResult<bool>(NotFound: true);
+        }
+
+        var hasWorkflow = await dbContext.AgentWorkflows
+            .AnyAsync(workflow => workflow.TripId == tripId, cancellationToken);
+        if (hasWorkflow)
+        {
+            return new TripServiceResult<bool>(
+                Error: "A trip with persisted agent workflow records cannot be deleted.",
+                Conflict: true);
         }
 
         dbContext.Trips.Remove(trip);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+        return new TripServiceResult<bool>(true);
     }
 
     public async Task<TripServiceResult<TripPreferenceResponse>> AddPreferenceAsync(

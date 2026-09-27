@@ -152,7 +152,7 @@ public sealed class ApprovedWorkflowActionExecutor(
             var accepted = await bookingService.AcceptBookingAsync(
                 bookingResult.Response.Id,
                 decidedByUserId,
-                cancellationToken);
+                cancellationToken: cancellationToken);
             if (!accepted.Succeeded || accepted.Response is null)
             {
                 dbContext.ChangeTracker.Clear();

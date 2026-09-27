@@ -664,6 +664,15 @@ public sealed class AttractionService(ApplicationDbContext dbContext) : IAttract
             return ServiceResult<bool>.Failure("Experience slot not found.", ServiceErrorCode.NotFound);
         }
 
+        var hasBookings = await dbContext.BookingItems
+            .AnyAsync(item => item.AvailabilitySlotId == slot.Id, cancellationToken);
+        if (hasBookings)
+        {
+            return ServiceResult<bool>.Failure(
+                "Cannot delete an experience slot referenced by a booking.",
+                ServiceErrorCode.Conflict);
+        }
+
         dbContext.ExperienceSlots.Remove(slot);
 
         var availSlot = await dbContext.AvailabilitySlots
