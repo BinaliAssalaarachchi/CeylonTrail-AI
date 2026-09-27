@@ -34,12 +34,14 @@ public interface IBookingService
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> AcceptBookingAsync(
         Guid bookingId,
         Guid changedBy,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default);
 
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> RejectBookingAsync(
         Guid bookingId,
         Guid changedBy,
         RejectBookingRequest request,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default);
 
     Task<(bool Succeeded, string? Error, BookingResponse? Response)> CancelBookingAsync(
@@ -61,5 +63,7 @@ public interface IBookingService
 
     Task<(bool Succeeded, string? Error, AvailabilitySlotResponse? Response)> CreateAvailabilitySlotAsync(
         CreateAvailabilitySlotRequest request,
+        Guid requestingUserId,
+        string requestingRole,
         CancellationToken cancellationToken = default);
 }

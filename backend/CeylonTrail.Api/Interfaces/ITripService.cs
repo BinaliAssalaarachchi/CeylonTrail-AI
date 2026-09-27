@@ -7,7 +7,8 @@ public sealed record TripServiceResult<T>(
     T? Value = default,
     string? Error = null,
     bool NotFound = false,
-    bool ServiceUnavailable = false);
+    bool ServiceUnavailable = false,
+    bool Conflict = false);
 
 public interface ITripService
 {
@@ -32,6 +33,11 @@ public interface ITripService
         CancellationToken cancellationToken = default);
 
     Task<bool> DeleteTripAsync(
+        Guid touristId,
+        Guid tripId,
+        CancellationToken cancellationToken = default);
+
+    Task<TripServiceResult<bool>> DeleteTripWithResultAsync(
         Guid touristId,
         Guid tripId,
         CancellationToken cancellationToken = default);

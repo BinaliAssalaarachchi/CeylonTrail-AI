@@ -296,10 +296,9 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "Booking not found.", null);
         }
 
-        // Authorization check: Tourist can only see their own booking
-        if (requestingRole == nameof(UserRole.Tourist) && booking.UserId != requestingUserId)
+        if (!await CanAccessBookingAsync(booking, requestingUserId, requestingRole, cancellationToken))
         {
-            return (false, "Unauthorized access to this booking.", null);
+            return (false, "Booking not found.", null);
         }
 
         return (true, null, MapToResponse(booking));
@@ -308,6 +307,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     public async Task<(bool Succeeded, string? Error, BookingResponse? Response)> AcceptBookingAsync(
         Guid bookingId,
         Guid changedBy,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default)
     {
         var booking = await dbContext.Bookings
@@ -317,6 +317,13 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
 
         if (booking == null)
+        {
+            return (false, "Booking not found.", null);
+        }
+
+        if (requestingRole is not null &&
+            (requestingRole == nameof(UserRole.Tourist) ||
+             !await CanAccessBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
         {
             return (false, "Booking not found.", null);
         }
@@ -373,6 +380,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         Guid bookingId,
         Guid changedBy,
         RejectBookingRequest request,
+        string? requestingRole = null,
         CancellationToken cancellationToken = default)
     {
         var booking = await dbContext.Bookings
@@ -382,6 +390,13 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
 
         if (booking == null)
+        {
+            return (false, "Booking not found.", null);
+        }
+
+        if (requestingRole is not null &&
+            (requestingRole == nameof(UserRole.Tourist) ||
+             !await CanAccessBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
         {
             return (false, "Booking not found.", null);
         }
@@ -520,9 +535,9 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "Booking not found.", null);
         }
 
-        if (requestingRole == nameof(UserRole.Tourist) && booking.UserId != requestingUserId)
+        if (!await CanAccessBookingAsync(booking, requestingUserId, requestingRole, cancellationToken))
         {
-            return (false, "Unauthorized access to this booking history.", null);
+            return (false, "Booking not found.", null);
         }
 
         var history = booking.StatusHistory
@@ -630,10 +645,15 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
 
     public async Task<(bool Succeeded, string? Error, AvailabilitySlotResponse? Response)> CreateAvailabilitySlotAsync(
         CreateAvailabilitySlotRequest request,
+        Guid requestingUserId,
+        string requestingRole,
         CancellationToken cancellationToken = default)
     {
-        var attractionExists = await dbContext.Attractions.AnyAsync(a => a.Id == request.AttractionId, cancellationToken);
-        if (!attractionExists)
+        var attraction = await dbContext.Attractions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(a => a.Id == request.AttractionId, cancellationToken);
+        if (attraction is null ||
+            (requestingRole == nameof(UserRole.TourismProvider) && attraction.ProviderId != requestingUserId))
         {
             return (false, "Attraction not found.", null);
         }
@@ -669,6 +689,35 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             slot.AvailableCapacity,
             slot.PricePerPerson
         ));
+    }
+
+    private async Task<bool> CanAccessBookingAsync(
+        Booking booking,
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken)
+    {
+        if (requestingRole == nameof(UserRole.Tourist))
+        {
+            return booking.UserId == requestingUserId;
+        }
+
+        if (requestingRole is nameof(UserRole.TravelCoordinator) or nameof(UserRole.Administrator))
+        {
+            return true;
+        }
+
+        if (requestingRole != nameof(UserRole.TourismProvider))
+        {
+            return false;
+        }
+
+        return await dbContext.BookingItems
+            .Where(item => item.BookingId == booking.Id)
+            .AnyAsync(item => item.AvailabilitySlot != null &&
+                              item.AvailabilitySlot.Attraction != null &&
+                              item.AvailabilitySlot.Attraction.ProviderId == requestingUserId,
+                cancellationToken);
     }
 
     private static BookingResponse MapToResponse(Booking booking)
