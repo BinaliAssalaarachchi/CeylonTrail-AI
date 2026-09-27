@@ -21,6 +21,7 @@ class BookingDetailPage extends StatefulWidget {
 class _BookingDetailPageState extends State<BookingDetailPage> {
   late BookingModel _currentBooking;
   bool _isCancelling = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -30,6 +31,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
   Color _getStatusColor(String status) {
     switch (status.toUpperCase()) {
+      case 'DRAFT':
+        return Colors.brown.shade400;
       case 'PENDING':
         return Colors.orange;
       case 'CONFIRMED':
@@ -39,6 +42,49 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         return Colors.red;
       default:
         return Colors.grey;
+    }
+  }
+
+  Future<void> _showDeleteDraftDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Draft Booking?'),
+        content: const Text('Are you sure you want to delete this draft booking? This will remove it from both your bookings and provider records.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() => _isDeleting = true);
+      try {
+        await widget.bookingService.deleteBooking(_currentBooking.id);
+        widget.onBookingUpdated();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Draft booking deleted.')),
+          );
+          Navigator.of(context).pop();
+        }
+      } catch (err) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(err.toString())),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isDeleting = false);
+      }
     }
   }
 
@@ -112,9 +158,25 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   Widget build(BuildContext context) {
     final canCancel = _currentBooking.status == 'Pending' ||
         _currentBooking.status == 'Confirmed';
+    final now = DateTime.now();
+    final activeAdvisories = _currentBooking.activeAdvisories
+        .where((a) => a.endDateTime == null || a.endDateTime!.isAfter(now))
+        .toList();
+
+    final isDraft = _currentBooking.status == 'Draft';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reservation Details')),
+      appBar: AppBar(
+        title: const Text('Reservation Details'),
+        actions: [
+          if (isDraft)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: 'Delete Draft Booking',
+              onPressed: _isDeleting ? null : _showDeleteDraftDialog,
+            ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -170,7 +232,101 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            // Active Travel Advisory & Current Situation Panel
+            if (activeAdvisories.isNotEmpty) ...[
+              Card(
+                color: Colors.amber.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.amber.shade400, width: 1.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_rounded, color: Colors.orange, size: 22),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Destination Advisory (${activeAdvisories.length})',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Current situation in the destination district for this booking:',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 10),
+                      ...activeAdvisories.map((advisory) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    advisory.title,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    advisory.district,
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _formatAlertTime(advisory.startDateTime, advisory.endDateTime),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(advisory.description, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                            if (advisory.source != null && advisory.source!.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Source: ${advisory.source}',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                              ),
+                            ],
+                          ],
+                        ),
+                      )),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Itemized line items
             Text('Reserved Items', style: Theme.of(context).textTheme.titleMedium),
@@ -216,6 +372,18 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
             const SizedBox(height: 24),
 
+            if (isDraft)
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                  onPressed: _isDeleting ? null : _showDeleteDraftDialog,
+                  icon: const Icon(Icons.delete_outline),
+                  label: Text(_isDeleting ? 'Deleting...' : 'Delete Draft Booking'),
+                ),
+              ),
+
             if (canCancel)
               SizedBox(
                 width: double.infinity,
@@ -231,5 +399,21 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         ),
       ),
     );
+  }
+
+  static String _formatAlertTime(DateTime? start, DateTime? end) {
+    if (start == null && end == null) return '';
+    final now = DateTime.now();
+    final localStart = start?.toLocal();
+    final localEnd = end?.toLocal();
+    String fmt(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    if (localStart != null && localEnd != null) {
+      final prefix = localStart.isAfter(now) ? 'Upcoming' : 'Active Now';
+      return '$prefix · ${fmt(localStart)} – ${fmt(localEnd)}';
+    } else if (localEnd != null) {
+      return 'Until ${fmt(localEnd)}';
+    } else {
+      return 'From ${fmt(localStart!)}';
+    }
   }
 }

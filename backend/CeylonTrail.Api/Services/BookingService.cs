@@ -1,6 +1,7 @@
 using CeylonTrail.Api.Data;
 using CeylonTrail.Api.DTOs.Bookings;
 using CeylonTrail.Api.DTOs.Pagination;
+using CeylonTrail.Api.DTOs.TravelAlerts;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -126,7 +127,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "The selected slot was modified by another booking. Please try again.", null);
         }
 
-        return (true, null, MapToResponse(booking));
+        var advisories = await GetActiveAdvisoriesForBookingAsync(booking, cancellationToken);
+        return (true, null, MapToResponse(booking, advisories));
     }
 
     public async Task<List<BookingResponse>> GetTouristBookingsAsync(
@@ -142,7 +144,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return bookings.Select(MapToResponse).ToList();
+        var advisoryMap = await GetActiveAdvisoriesForBookingsAsync(bookings, cancellationToken);
+        return bookings.Select(b => MapToResponse(b, advisoryMap.GetValueOrDefault(b.Id))).ToList();
     }
 
     public async Task<List<BookingResponse>> GetProviderBookingsAsync(
@@ -161,7 +164,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return bookings.Select(MapToResponse).ToList();
+        var advisoryMap = await GetActiveAdvisoriesForBookingsAsync(bookings, cancellationToken);
+        return bookings.Select(b => MapToResponse(b, advisoryMap.GetValueOrDefault(b.Id))).ToList();
     }
 
     public async Task<PagedResponse<BookingResponse>> GetProviderBookingsPageAsync(
@@ -233,7 +237,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .ToListAsync(cancellationToken);
 
         return new PagedResponse<BookingResponse>(
-            bookings.Select(MapToResponse).ToList(),
+            bookings.Select(b => MapToResponse(b, null)).ToList(),
             totalCount,
             request.Page,
             request.PageSize,
@@ -301,7 +305,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "Booking not found.", null);
         }
 
-        return (true, null, MapToResponse(booking));
+        var advisories = await GetActiveAdvisoriesForBookingAsync(booking, cancellationToken);
+        return (true, null, MapToResponse(booking, advisories));
     }
 
     public async Task<(bool Succeeded, string? Error, BookingResponse? Response)> AcceptBookingAsync(
@@ -373,7 +378,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return (true, null, MapToResponse(booking));
+        var advisories = await GetActiveAdvisoriesForBookingAsync(booking, cancellationToken);
+        return (true, null, MapToResponse(booking, advisories));
     }
 
     public async Task<(bool Succeeded, string? Error, BookingResponse? Response)> RejectBookingAsync(
@@ -438,7 +444,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return (true, null, MapToResponse(booking));
+        var advisories = await GetActiveAdvisoriesForBookingAsync(booking, cancellationToken);
+        return (true, null, MapToResponse(booking, advisories));
     }
 
     public async Task<(bool Succeeded, string? Error, BookingResponse? Response)> CancelBookingAsync(
@@ -516,7 +523,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return (true, null, MapToResponse(booking));
+        var advisories = await GetActiveAdvisoriesForBookingAsync(booking, cancellationToken);
+        return (true, null, MapToResponse(booking, advisories));
     }
 
     public async Task<(bool Succeeded, string? Error, List<BookingHistoryResponse>? Response)> GetBookingHistoryAsync(
@@ -627,7 +635,9 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             query = query.Where(s => s.AttractionId == attractionId.Value);
         }
 
+        var nowUtc = DateTime.UtcNow;
         var slots = await query
+            .Where(s => s.EndTime > nowUtc)
             .OrderBy(s => s.StartTime)
             .ToListAsync(cancellationToken);
 
@@ -691,6 +701,39 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         ));
     }
 
+    public async Task<(bool Succeeded, string? Error)> DeleteBookingAsync(
+        Guid bookingId,
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken = default)
+    {
+        var booking = await dbContext.Bookings
+            .Include(b => b.Items)
+            .Include(b => b.StatusHistory)
+            .Include(b => b.CancellationRequests)
+            .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
+
+        if (booking == null)
+        {
+            return (false, "Booking not found.");
+        }
+
+        // Ownership check: Tourists can only delete their own booking
+        if (requestingRole == nameof(UserRole.Tourist) && booking.UserId != requestingUserId)
+        {
+            return (false, "You cannot delete another user's booking.");
+        }
+
+        if (booking.CurrentStatus != BookingStatus.Draft && requestingRole != nameof(UserRole.Administrator))
+        {
+            return (false, "Only draft bookings can be deleted.");
+        }
+
+        dbContext.Bookings.Remove(booking);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return (true, null);
+    }
+
     private async Task<bool> CanAccessBookingAsync(
         Booking booking,
         Guid requestingUserId,
@@ -720,7 +763,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 cancellationToken);
     }
 
-    private static BookingResponse MapToResponse(Booking booking)
+    private static BookingResponse MapToResponse(Booking booking, List<TravelAlertResponse>? advisories = null)
     {
         return new BookingResponse(
             booking.Id,
@@ -749,7 +792,99 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 cr.Reason,
                 cr.Status.ToString(),
                 cr.RefundAmount,
-                cr.RequestedAt)).ToList()
+                cr.RequestedAt)).ToList(),
+            advisories ?? new List<TravelAlertResponse>()
         );
+    }
+
+    private async Task<List<TravelAlertResponse>> GetActiveAdvisoriesForBookingAsync(
+        Booking booking,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await GetActiveAdvisoriesForBookingsAsync([booking], cancellationToken);
+        return result.TryGetValue(booking.Id, out var list) ? list : new List<TravelAlertResponse>();
+    }
+
+    private async Task<Dictionary<Guid, List<TravelAlertResponse>>> GetActiveAdvisoriesForBookingsAsync(
+        IEnumerable<Booking> bookings,
+        CancellationToken cancellationToken = default)
+    {
+        var bookingList = bookings.ToList();
+        var result = new Dictionary<Guid, List<TravelAlertResponse>>();
+        if (bookingList.Count == 0)
+        {
+            return result;
+        }
+
+        var slotIds = bookingList
+            .SelectMany(b => b.Items)
+            .Select(i => i.AvailabilitySlotId)
+            .Distinct()
+            .ToList();
+
+        if (slotIds.Count == 0)
+        {
+            foreach (var b in bookingList)
+            {
+                result[b.Id] = new List<TravelAlertResponse>();
+            }
+            return result;
+        }
+
+        var slots = await dbContext.AvailabilitySlots
+            .AsNoTracking()
+            .Include(s => s.Attraction)
+            .Where(s => slotIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var activeAlerts = await dbContext.TravelAlerts
+            .AsNoTracking()
+            .Where(a => a.Status == TravelAlertStatus.Active && a.EndDateTime > now)
+            .ToListAsync(cancellationToken);
+
+        foreach (var booking in bookingList)
+        {
+            var matchedAlerts = new List<TravelAlert>();
+            foreach (var item in booking.Items)
+            {
+                if (!slots.TryGetValue(item.AvailabilitySlotId, out var slot) ||
+                    slot.Attraction == null ||
+                    string.IsNullOrWhiteSpace(slot.Attraction.District))
+                {
+                    continue;
+                }
+
+                var district = slot.Attraction.District.Trim();
+                var alertsForSlot = activeAlerts.Where(alert =>
+                    string.Equals(alert.District.Trim(), district, StringComparison.OrdinalIgnoreCase) &&
+                    alert.StartDateTime <= slot.EndTime &&
+                    alert.EndDateTime >= slot.StartTime);
+
+                matchedAlerts.AddRange(alertsForSlot);
+            }
+
+            result[booking.Id] = matchedAlerts
+                .DistinctBy(a => a.Id)
+                .Select(alert => new TravelAlertResponse
+                {
+                    Id = alert.Id,
+                    Title = alert.Title,
+                    Description = alert.Description,
+                    AlertType = alert.AlertType,
+                    Severity = alert.Severity,
+                    District = alert.District,
+                    StartDateTime = alert.StartDateTime,
+                    EndDateTime = alert.EndDateTime,
+                    Status = alert.Status,
+                    Source = alert.Source,
+                    CreatedByUserId = alert.CreatedByUserId,
+                    CreatedAt = alert.CreatedAt,
+                    UpdatedAt = alert.UpdatedAt
+                })
+                .ToList();
+        }
+
+        return result;
     }
 }
