@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using CeylonTrail.Api.Configuration;
+using CeylonTrail.Api.Controllers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -71,6 +72,13 @@ builder.Services.Configure<DestinationAgentOptions>(
 builder.Services.Configure<BookingActionAgentOptions>(
     builder.Configuration.GetSection(BookingActionAgentOptions.SectionName));
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IImageProxyDnsResolver, SystemImageProxyDnsResolver>();
+builder.Services.AddHttpClient("ImageProxy")
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        MaxAutomaticRedirections = 0
+    });
 builder.Services.AddHttpClient<ITravelIntelligenceService, TravelIntelligenceService>((serviceProvider, client) =>
 {
     var options = serviceProvider
