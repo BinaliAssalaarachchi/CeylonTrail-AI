@@ -103,7 +103,10 @@ class _ItineraryPageState extends State<ItineraryPage> {
                 ),
               ),
             )
-          : ListView(
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(CeylonSpacing.md),
               children: [
                 Row(
@@ -157,6 +160,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
                   )),
               ],
             ),
+            ),
     );
   }
 }
@@ -190,6 +194,10 @@ class _WorkflowSummary extends StatelessWidget {
             if (value.safeMessage.isNotEmpty) Text(value.safeMessage),
             if (value.requiresApproval) const Text('Approval required'),
             if (value.reviewStatus != null) Text('Review: ${value.reviewStatus}'),
+            if (value.executionSucceeded == true)
+              Text('Booking execution succeeded${value.bookingId == null ? '' : ' · Booking ${value.bookingId}'}'),
+            if (value.executionSucceeded == false)
+              const Text('Booking execution failed safely.'),
             const SizedBox(height: CeylonSpacing.sm),
             ...([...value.stages]..sort((a, b) => a.sequence.compareTo(b.sequence))).map(
               (stage) => Padding(
