@@ -1,10 +1,14 @@
 """HTTP boundary tests for the internal Travel Intelligence service."""
 
 from uuid import uuid4
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from travel_intelligence.api import app
+import travel_intelligence.api as travel_api
+from travel_intelligence.agent import DeterministicExecutionError
+
+app = travel_api.app
 
 
 client = TestClient(app)
@@ -72,3 +76,18 @@ def test_analyze_critical_validation_is_safe():
     assert body["recommendedAction"] == "Reschedule"
     assert body["requiresHumanApproval"] is True
     assert body["recommendedAction"] != "Proceed"
+
+
+def test_analyze_deterministic_execution_failure_returns_safe_503():
+    with patch.object(
+        travel_api.agent,
+        "analyze",
+        side_effect=DeterministicExecutionError("internal sensitive detail"),
+    ):
+        response = client.post("/travel-intelligence/analyze", json=valid_payload())
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Travel Intelligence analysis is temporarily unavailable."
+    }
+    assert "internal sensitive detail" not in response.text
