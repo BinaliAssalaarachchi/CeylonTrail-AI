@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI, HTTPException
 
-from .agent import TravelIntelligenceAgent
+from .agent import DeterministicExecutionError, TravelIntelligenceAgent
 from .providers import create_recommendation_provider
 from .schemas import TravelRecommendationOutput, TravelValidationInput
 
@@ -25,6 +25,11 @@ def health() -> dict[str, str]:
 def analyze(validation: TravelValidationInput) -> TravelRecommendationOutput:
     try:
         return agent.analyze(validation)
+    except DeterministicExecutionError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Travel Intelligence analysis is temporarily unavailable.",
+        ) from error
     except Exception as error:
         raise HTTPException(
             status_code=500,
