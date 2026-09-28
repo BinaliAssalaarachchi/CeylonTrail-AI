@@ -453,7 +453,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
             entity.Property(preference => preference.Value)
                 .IsRequired()
-                .HasMaxLength(200);
+                .HasMaxLength(500);
 
             entity.HasOne(preference => preference.Trip)
                 .WithMany(trip => trip.Preferences)

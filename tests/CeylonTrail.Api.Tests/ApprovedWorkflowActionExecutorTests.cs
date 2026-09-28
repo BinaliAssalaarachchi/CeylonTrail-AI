@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CeylonTrail.Api.Data;
 using CeylonTrail.Api.DTOs.BookingAction;
+using CeylonTrail.Api.DTOs.Bookings;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
 using CeylonTrail.Api.Services;
@@ -22,8 +23,13 @@ public sealed class ApprovedWorkflowActionExecutorTests
 
         Assert.True(result.Succeeded);
         Assert.True(result.Response!.ExecutionSucceeded);
-        var booking = Assert.Single(db.Bookings.Include(item => item.Items));
+        var booking = Assert.Single(db.Bookings
+            .Include(item => item.Items)
+            .Include(item => item.StatusHistory));
         Assert.Equal(BookingStatus.Confirmed, booking.CurrentStatus);
+        Assert.Contains(booking.StatusHistory, history =>
+            history.PreviousStatus == BookingStatus.Draft &&
+            history.NewStatus == BookingStatus.Confirmed);
         Assert.Equal(state.Trip.Id, booking.TripId);
         Assert.Equal(state.Tourist.Id, booking.UserId);
         Assert.Equal(1, booking.Items.Single().NumberOfGuests);
@@ -183,6 +189,38 @@ public sealed class ApprovedWorkflowActionExecutorTests
         Assert.True(second.Succeeded);
         Assert.Equal(first.Response.BookingId, second.Response!.BookingId);
         Assert.Single(db.Bookings);
+    }
+
+    [Fact]
+    public async Task RetryWithPartiallyCreatedDraftFinishesTheSameBooking()
+    {
+        await using var db = CreateDbContext();
+        var state = await CreateStateAsync(db);
+        var draft = await new BookingService(db).CreateBookingAsync(
+            state.Tourist.Id,
+            new CreateBookingRequest
+            {
+                TripId = state.Trip.Id,
+                Items = new()
+                {
+                    new BookingItemRequest
+                    {
+                        AvailabilitySlotId = state.Slot.Id,
+                        NumberOfGuests = 1
+                    }
+                }
+            });
+
+        Assert.True(draft.Succeeded);
+        var result = await DecideAsync(db, state, ApprovalDecisionType.Approved);
+
+        Assert.True(result.Response!.ExecutionSucceeded);
+        var booking = Assert.Single(db.Bookings.Include(item => item.StatusHistory));
+        Assert.Equal(draft.Response!.Id, booking.Id);
+        Assert.Equal(BookingStatus.Confirmed, booking.CurrentStatus);
+        Assert.Contains(booking.StatusHistory, history =>
+            history.PreviousStatus == BookingStatus.Draft &&
+            history.NewStatus == BookingStatus.Confirmed);
     }
 
     [Fact]

@@ -9,6 +9,6 @@ public sealed class AddTripPreferenceRequest
     public string PreferenceType { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(200, MinimumLength = 1)]
+    [StringLength(500, MinimumLength = 1)]
     public string Value { get; set; } = string.Empty;
 }

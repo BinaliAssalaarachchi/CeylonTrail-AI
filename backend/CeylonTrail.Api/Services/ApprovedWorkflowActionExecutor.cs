@@ -126,32 +126,45 @@ public sealed class ApprovedWorkflowActionExecutor(
             : null;
         try
         {
-            var bookingResult = await bookingService.CreateBookingAsync(
+            var existingDraft = await FindMatchingDraftBookingAsync(
                 workflow.RequestedByUserId,
-                new CreateBookingRequest
-                {
-                    TripId = workflow.TripId,
-                    Items = proposals.Select(proposal => new BookingItemRequest
-                    {
-                        AvailabilitySlotId = proposal.AvailabilitySlotId,
-                        NumberOfGuests = proposal.GuestCount
-                    }).ToList()
-                },
+                workflow.TripId,
+                proposals,
+                authoritativeTotal,
                 cancellationToken);
-            if (!bookingResult.Succeeded || bookingResult.Response is null)
+            var bookingId = existingDraft?.Id;
+            if (!bookingId.HasValue)
             {
-                dbContext.ChangeTracker.Clear();
-                if (transaction is not null)
+                var bookingResult = await bookingService.CreateBookingAsync(
+                    workflow.RequestedByUserId,
+                    new CreateBookingRequest
+                    {
+                        TripId = workflow.TripId,
+                        Items = proposals.Select(proposal => new BookingItemRequest
+                        {
+                            AvailabilitySlotId = proposal.AvailabilitySlotId,
+                            NumberOfGuests = proposal.GuestCount
+                        }).ToList()
+                    },
+                    cancellationToken);
+                if (!bookingResult.Succeeded || bookingResult.Response is null)
                 {
-                    await transaction.RollbackAsync(cancellationToken);
+                    dbContext.ChangeTracker.Clear();
+                    if (transaction is not null)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                    }
+
+                    return await FailAsync(workflow, bookingStage, bookingResult.Error ?? "Authoritative booking creation failed.", cancellationToken);
                 }
 
-                return await FailAsync(workflow, bookingStage, bookingResult.Error ?? "Authoritative booking creation failed.", cancellationToken);
+                bookingId = bookingResult.Response.Id;
             }
 
             var accepted = await bookingService.AcceptBookingAsync(
-                bookingResult.Response.Id,
+                bookingId.Value,
                 decidedByUserId,
+                requestingRole: null,
                 cancellationToken: cancellationToken);
             if (!accepted.Succeeded || accepted.Response is null)
             {
@@ -212,6 +225,30 @@ public sealed class ApprovedWorkflowActionExecutor(
 
             return await FailAsync(workflow, bookingStage, "The approved booking could not be executed safely.", cancellationToken);
         }
+    }
+
+    private async Task<Booking?> FindMatchingDraftBookingAsync(
+        Guid touristId,
+        Guid tripId,
+        IReadOnlyCollection<BookingActionProposal> proposals,
+        decimal authoritativeTotal,
+        CancellationToken cancellationToken)
+    {
+        var proposalBySlot = proposals.ToDictionary(proposal => proposal.AvailabilitySlotId);
+        var candidates = await dbContext.Bookings
+            .Include(booking => booking.Items)
+            .Include(booking => booking.StatusHistory)
+            .Where(booking => booking.UserId == touristId &&
+                              booking.TripId == tripId &&
+                              booking.CurrentStatus == BookingStatus.Draft &&
+                              booking.TotalAmount == authoritativeTotal)
+            .ToListAsync(cancellationToken);
+
+        return candidates.FirstOrDefault(booking =>
+            booking.Items.Count == proposalBySlot.Count &&
+            booking.Items.All(item =>
+                proposalBySlot.TryGetValue(item.AvailabilitySlotId, out var proposal) &&
+                item.NumberOfGuests == proposal.GuestCount));
     }
 
     private async Task<(AgentWorkflow Workflow, AgentWorkflowStage ApprovalStage, AgentWorkflowStage BookingStage)?> LoadCorrelationAsync(

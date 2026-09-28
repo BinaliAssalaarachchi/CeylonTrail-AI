@@ -223,6 +223,25 @@ public sealed class TripServiceTests
         Assert.Equal(trip.Id, dbContext.TripPreferences.Single().TripId);
     }
 
+    [Fact]
+    public async Task AddPreference_AllowsLongTripObjective()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new TripService(dbContext);
+        var touristId = Guid.NewGuid();
+        var trip = await SeedTripAsync(dbContext, touristId, "Objective trip");
+        var objective = new string('x', 224);
+
+        var result = await service.AddPreferenceAsync(
+            touristId,
+            trip.Id,
+            new AddTripPreferenceRequest { PreferenceType = "Objective", Value = objective });
+
+        Assert.Null(result.Error);
+        Assert.Equal(objective, result.Value!.Value);
+        Assert.Equal(objective, dbContext.TripPreferences.Single().Value);
+    }
+
     [Theory]
     [InlineData("", "Wildlife")]
     [InlineData("Interest", "")]
