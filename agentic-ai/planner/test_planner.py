@@ -1,12 +1,15 @@
 import json
 import os
+import tempfile
 import unittest
 from decimal import Decimal
+from pathlib import Path
 
 from pydantic import ValidationError
 
+from config import load_dotenv_file
 from planner.agent import DeterministicPlannerFixture, PlannerAgent, PlannerError, PlannerValidationError
-from planner.providers import GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, _gemini_output_schema, create_planner_provider
+from planner.providers import FallbackPlannerModelProvider, GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, _gemini_output_schema, create_planner_provider
 from planner.schemas import PlannerInput, PlannerOutput
 
 
@@ -178,11 +181,79 @@ class PlannerTests(unittest.TestCase):
             if old is not None:
                 os.environ["GEMINI_API_KEY"] = old
 
-    def test_gemini_provider_uses_configured_model_and_json_mime_without_full_schema(self):
+    def test_local_dotenv_loads_values_without_overwriting_process_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / ".env"
+            env_file.write_text(
+                "GEMINI_API_KEY=local-secret\nGEMINI_MODEL=local-model\n",
+                encoding="utf-8",
+            )
+            old_key = os.environ.get("GEMINI_API_KEY")
+            old_model = os.environ.get("GEMINI_MODEL")
+            try:
+                os.environ["GEMINI_API_KEY"] = "deployment-secret"
+                os.environ["GEMINI_MODEL"] = "deployment-model"
+                load_dotenv_file(env_file)
+                self.assertEqual(os.environ["GEMINI_API_KEY"], "deployment-secret")
+                self.assertEqual(os.environ["GEMINI_MODEL"], "deployment-model")
+            finally:
+                if old_key is None:
+                    os.environ.pop("GEMINI_API_KEY", None)
+                else:
+                    os.environ["GEMINI_API_KEY"] = old_key
+                if old_model is None:
+                    os.environ.pop("GEMINI_MODEL", None)
+                else:
+                    os.environ["GEMINI_MODEL"] = old_model
+
+    def test_gemini_model_is_preferred_with_legacy_planner_model_fallback(self):
         old_key = os.environ.get("GEMINI_API_KEY")
+        old_model = os.environ.get("GEMINI_MODEL")
+        old_planner_model = os.environ.get("PLANNER_MODEL")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        os.environ["GEMINI_MODEL"] = "gemini-configured-model"
+        os.environ["PLANNER_MODEL"] = "legacy-model"
+        try:
+            provider = create_planner_provider()
+            self.assertEqual(provider.model, "gemini-configured-model")
+        finally:
+            for name, value in (("GEMINI_API_KEY", old_key), ("GEMINI_MODEL", old_model), ("PLANNER_MODEL", old_planner_model)):
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+    def test_model_fallback_only_handles_retryable_provider_failures(self):
+        class RetryableProvider:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, planner_request, system_prompt):
+                self.calls += 1
+                raise PlannerProviderError("model unavailable", retryable=True, status_code=503)
+
+        class SuccessfulProvider:
+            def generate(self, planner_request, system_prompt):
+                return valid_output()
+
+        first = RetryableProvider()
+        result = FallbackPlannerModelProvider([first, SuccessfulProvider()]).generate(request(), "policy")
+        self.assertEqual(result["status"], "Generated")
+        self.assertEqual(first.calls, 1)
+
+        class NonRetryableProvider:
+            def generate(self, planner_request, system_prompt):
+                raise PlannerProviderError("invalid request", retryable=False, status_code=400)
+
+        with self.assertRaises(PlannerProviderError):
+            FallbackPlannerModelProvider([NonRetryableProvider(), SuccessfulProvider()]).generate(request(), "policy")
+
+    def test_gemini_provider_uses_configured_model_and_strict_output_schema(self):
+        old_key = os.environ.get("GEMINI_API_KEY")
+        old_gemini_model = os.environ.get("GEMINI_MODEL")
         old_model = os.environ.get("PLANNER_MODEL")
         os.environ["GEMINI_API_KEY"] = "test-key"
-        os.environ["PLANNER_MODEL"] = "gemini-test-model"
+        os.environ["GEMINI_MODEL"] = "gemini-test-model"
         try:
             provider = create_planner_provider()
             self.assertIsInstance(provider, GeminiPlannerModelProvider)
@@ -192,7 +263,7 @@ class PlannerTests(unittest.TestCase):
             call = client.models.calls[0]
             self.assertEqual(call["model"], "gemini-test-model")
             self.assertEqual(call["config"]["response_mime_type"], "application/json")
-            self.assertNotIn("response_json_schema", call["config"])
+            self.assertEqual(call["config"]["response_schema"], _gemini_output_schema())
             self.assertEqual(call["config"]["automatic_function_calling"], {"disable": True})
             self.assertNotIn("tools", call["config"])
         finally:
@@ -200,6 +271,10 @@ class PlannerTests(unittest.TestCase):
                 os.environ.pop("GEMINI_API_KEY", None)
             else:
                 os.environ["GEMINI_API_KEY"] = old_key
+            if old_gemini_model is None:
+                os.environ.pop("GEMINI_MODEL", None)
+            else:
+                os.environ["GEMINI_MODEL"] = old_gemini_model
             if old_model is None:
                 os.environ.pop("PLANNER_MODEL", None)
             else:

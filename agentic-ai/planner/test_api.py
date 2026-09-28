@@ -22,6 +22,19 @@ def valid_payload():
     }
 
 
+def aspnet_generated_payload_with_long_objective():
+    payload = valid_payload()
+    payload["preferences"] = [{
+        "type": "Objective",
+        "value": (
+            "Plan a one-day cultural heritage trip to Sigiriya on 3 October 2026 "
+            "within LKR 60,000. Prioritize approved attractions and currently "
+            "available bookable experiences. Include the Sigiriya Heritage Sunrise Trail where suitable."
+        ),
+    }]
+    return payload
+
+
 class FakeProvider:
     def generate(self, request, system_prompt):
         return {
@@ -43,6 +56,20 @@ def test_generate_with_mocked_provider():
     planner_api.planner_agent = PlannerAgent(FakeProvider())
     try:
         response = client.post("/planner/generate", json=valid_payload())
+    finally:
+        planner_api.planner_agent = original
+    assert response.status_code == 200
+    assert response.json()["status"] == "Generated"
+
+
+def test_actual_aspnet_payload_shape_accepts_500_character_objective():
+    original = planner_api.planner_agent
+    planner_api.planner_agent = PlannerAgent(FakeProvider())
+    try:
+        response = client.post(
+            "/planner/generate",
+            json=aspnet_generated_payload_with_long_objective(),
+        )
     finally:
         planner_api.planner_agent = original
     assert response.status_code == 200

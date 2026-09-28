@@ -65,8 +65,7 @@ The internal FastAPI service exposes:
 
 Start it from the repository root with:
 
-    cd agentic-ai
-    uvicorn travel_intelligence.api:app --host 127.0.0.1 --port 8001
+    uvicorn travel_intelligence.api:app --app-dir agentic-ai --host 127.0.0.1 --port 8001
 
 ASP.NET finds it through TravelIntelligence:BaseUrl and
 TravelIntelligence:TimeoutSeconds configuration. The intended flow is:
@@ -91,13 +90,20 @@ Endpoints:
 
 Start it independently on port 8002:
 
-    cd agentic-ai
-    uvicorn planner.api:app --host 127.0.0.1 --port 8002
+    uvicorn planner.api:app --app-dir agentic-ai --host 127.0.0.1 --port 8002
 
 Configuration variables:
 
     GEMINI_API_KEY   Required for actual generation
-    PLANNER_MODEL    Optional Gemini model name; defaults to gemini-3.5-flash-lite
+    GEMINI_MODEL     Optional Gemini model name; defaults to gemini-3.5-flash-lite
+    PLANNER_MODELS   Optional comma-separated fallback model list
+
+For local development, put those values in `agentic-ai/.env` (the file is
+ignored by Git). Existing process/deployment environment variables take
+precedence over `.env`; `PLANNER_MODEL` remains supported as a legacy fallback.
+`PLANNER_MODELS` is used only for retryable provider/model failures; strict
+request, output, and deterministic validation failures are never hidden by a
+fallback model.
 
 The Planner uses Gemini structured JSON output followed by deterministic
 schema and trusted-context validation. ASP.NET calls it through
@@ -112,6 +118,40 @@ district, category, budget, and date/availability filtering and its final
 output is checked against the trusted source records. ASP.NET exposes the
 client-facing `POST /api/attractions/recommendations`; React and Flutter never
 call the Python service directly.
+
+### Development/demo data
+
+Development startup seeds a small idempotent Sri Lankan dataset through
+`DevelopmentDataSeeder`: eight approved active attractions across historical,
+nature, adventure, and coastal categories, with weekly schedules and one
+future experience/availability slot per attraction. The controlled Sigiriya
+record remains stable at attraction
+`55555555-5555-5555-5555-555555555555`, slot
+`77777777-7777-7777-7777-777777777777`, and authoritative price LKR 6500.
+The seeder does not create bookings and never overwrites existing records.
+Public Discover results come from `GET /api/attractions` and are limited to
+approved, active records; staff management uses the protected operational
+routes.
+
+### Local startup order
+
+1. Start PostgreSQL and apply the existing EF migrations.
+2. Start the four internal services from the repository root:
+
+       uvicorn travel_intelligence.api:app --app-dir agentic-ai --host 127.0.0.1 --port 8001
+       uvicorn planner.api:app --app-dir agentic-ai --host 127.0.0.1 --port 8002
+       uvicorn destination.api:app --app-dir agentic-ai --host 127.0.0.1 --port 8003
+       uvicorn bookings.api:app --app-dir agentic-ai --host 127.0.0.1 --port 8004
+
+3. Start ASP.NET Core with its configured PostgreSQL connection and JWT
+   signing key. Its health endpoints are `/health` and `/health/ready`; Swagger
+   is available at `/swagger` in Development.
+
+The golden approval flow has two phases: itinerary generation persists a
+proposal and reaches `AwaitingApproval` without a confirmed booking; an
+authorized coordinator or administrator then approves or rejects it through
+ASP.NET. Approval reloads current attraction, slot, capacity, and price state
+before creating or reusing the authoritative booking.
 
 ### Human approval workflow
 

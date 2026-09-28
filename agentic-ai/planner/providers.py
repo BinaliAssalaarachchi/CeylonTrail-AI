@@ -4,9 +4,13 @@ import json
 import os
 import re
 from copy import deepcopy
-from typing import Any, Protocol
+from typing import Any, Protocol, Sequence
 
+from config import load_local_environment
 from .schemas import PlannerInput, PlannerOutput
+
+
+load_local_environment()
 
 
 def _status_code(error: Exception) -> int | None:
@@ -189,6 +193,11 @@ class GeminiPlannerModelProvider:
                 config={
                     "system_instruction": system_prompt,
                     "response_mime_type": "application/json",
+                    # Enforce the same strict output contract locally validated
+                    # by PlannerOutput. Prompt-only formatting guidance was not
+                    # sufficient for Gemini: live responses omitted required
+                    # fields and introduced aliases such as `cost`.
+                    "response_schema": _gemini_output_schema(),
                     "automatic_function_calling": {"disable": True},
                 },
             )
@@ -234,12 +243,34 @@ class GeminiPlannerModelProvider:
         return _json_text(text, response)
 
 
+class FallbackPlannerModelProvider:
+    """Try configured Gemini models only when the provider itself fails."""
+
+    def __init__(self, providers: Sequence[GeminiPlannerModelProvider]):
+        self.providers = list(providers)
+
+    def generate(self, request: PlannerInput, system_prompt: str) -> Any:
+        last_error: PlannerProviderError | None = None
+        for provider in self.providers:
+            try:
+                return provider.generate(request, system_prompt)
+            except PlannerProviderError as error:
+                last_error = error
+                if not error.retryable:
+                    raise
+        if last_error is not None:
+            raise last_error
+        raise PlannerProviderError("No Planner models are configured.", retryable=False)
+
+
 def create_planner_provider() -> PlannerModelProvider:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         return MissingPlannerProvider()
-    return GeminiPlannerModelProvider(
-        api_key=api_key,
-        model=os.getenv("PLANNER_MODEL", "gemini-3.5-flash-lite").strip()
-        or "gemini-3.5-flash-lite",
-    )
+    configured_models = os.getenv("PLANNER_MODELS", "").strip()
+    models = [model.strip() for model in configured_models.split(",") if model.strip()]
+    if not models:
+        models = [(os.getenv("GEMINI_MODEL") or os.getenv("PLANNER_MODEL") or "gemini-3.5-flash-lite").strip()]
+
+    providers = [GeminiPlannerModelProvider(api_key=api_key, model=model) for model in models]
+    return providers[0] if len(providers) == 1 else FallbackPlannerModelProvider(providers)

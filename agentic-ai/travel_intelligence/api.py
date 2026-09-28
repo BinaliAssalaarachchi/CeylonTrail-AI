@@ -2,9 +2,12 @@
 
 from fastapi import FastAPI, HTTPException
 
+from config import load_local_environment
 from .agent import DeterministicExecutionError, TravelIntelligenceAgent
 from .providers import create_recommendation_provider
 from .schemas import TravelRecommendationOutput, TravelValidationInput
+
+load_local_environment()
 
 app = FastAPI(
     title="CeylonTrail Travel Intelligence Internal Service",

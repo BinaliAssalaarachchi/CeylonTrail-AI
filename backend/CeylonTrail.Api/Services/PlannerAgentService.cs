@@ -22,6 +22,21 @@ public sealed class PlannerAgentService(
     {
         try
         {
+            logger.LogInformation(
+                "Sending Planner request for trip {TripId}: dates {StartDate} to {EndDate}, duration {Duration}, " +
+                "budget {Budget}, interests {InterestCount}, regions {RegionCount}, preferences {PreferenceCount}, " +
+                "maxPreferenceLength {MaxPreferenceLength}, candidates {CandidateCount}.",
+                request.TripId,
+                request.StartDate,
+                request.EndDate,
+                request.Duration,
+                request.Budget,
+                request.Interests.Count,
+                request.PreferredRegions.Count,
+                request.Preferences.Count,
+                request.Preferences.Count == 0 ? 0 : request.Preferences.Max(item => item.Value.Length),
+                request.CandidateAttractions.Count);
+
             using var response = await httpClient.PostAsJsonAsync(
                 "planner/generate",
                 request,
@@ -30,10 +45,15 @@ public sealed class PlannerAgentService(
 
             if (!response.IsSuccessStatusCode)
             {
+                var responseBody = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim();
+                if (responseBody.Length > 4000)
+                    responseBody = responseBody[..4000];
+
                 logger.LogWarning(
-                    "Planner Agent returned HTTP {StatusCode} for trip {TripId}.",
+                    "Planner Agent returned HTTP {StatusCode} for trip {TripId}. Response: {ResponseBody}",
                     (int)response.StatusCode,
-                    request.TripId);
+                    request.TripId,
+                    responseBody);
                 return new PlannerAgentServiceResult(
                     Error: "Planner Agent rejected the itinerary request.",
                     ServiceUnavailable: (int)response.StatusCode >= 500 || (int)response.StatusCode == 429);

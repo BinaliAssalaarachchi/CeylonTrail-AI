@@ -35,3 +35,22 @@ jobs:
 
       - name: Run backend tests
         run: dotnet test tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj --configuration Release --no-build --no-restore
+
+  agentic-ai:
+    name: Agent contract and deterministic tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install agent dependencies
+        run: python -m pip install --disable-pip-version-check -r agentic-ai/requirements.txt
+
+      - name: Run agent tests without external provider credentials
+        run: python -m unittest discover -s agentic-ai -p "test_*.py"

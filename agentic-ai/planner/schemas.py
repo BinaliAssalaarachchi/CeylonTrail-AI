@@ -11,7 +11,9 @@ class PlannerPreference(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     type: str = Field(min_length=1, max_length=50)
-    value: str = Field(min_length=1, max_length=200)
+    # TripPreference.Value is authoritative and supports the persisted
+    # objective text up to 500 characters.
+    value: str = Field(min_length=1, max_length=500)
 
 
 class CandidateAttraction(BaseModel):
