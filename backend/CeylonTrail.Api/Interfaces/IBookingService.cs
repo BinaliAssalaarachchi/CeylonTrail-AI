@@ -66,4 +66,10 @@ public interface IBookingService
         Guid requestingUserId,
         string requestingRole,
         CancellationToken cancellationToken = default);
+
+    Task<(bool Succeeded, string? Error)> DeleteBookingAsync(
+        Guid bookingId,
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken = default);
 }

@@ -38,6 +38,10 @@ class BookingApiService {
     );
     return BookingModel.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
+
+  Future<void> deleteBooking(String bookingId) async {
+    await _client.delete('/api/bookings/$bookingId');
+  }
 }
 
 Map<String, dynamic> createBookingPayload({String? tripId, required String availabilitySlotId, required int numberOfGuests}) => {

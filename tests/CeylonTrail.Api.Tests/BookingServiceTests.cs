@@ -525,6 +525,52 @@ public sealed class BookingServiceTests
         Assert.Equal(10, dbSlotAfterReject.AvailableCapacity);
     }
 
+    [Fact]
+    public async Task CreateBooking_WhenActiveAdvisoryExistsForSlotDateAndDistrict_IncludesAdvisoryInResponse()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50.00m);
+        var alert = new TravelAlert
+        {
+            Id = Guid.NewGuid(),
+            Title = "Heavy Monsoon Rain",
+            Description = "Flash flooding warning in Kandy",
+            AlertType = TravelAlertType.Weather,
+            Severity = TravelAlertSeverity.High,
+            District = "Kandy",
+            StartDateTime = DateTime.UtcNow.AddHours(-1),
+            EndDateTime = DateTime.UtcNow.AddHours(5),
+            Status = TravelAlertStatus.Active,
+            CreatedByUserId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        dbContext.AvailabilitySlots.Add(slot);
+        dbContext.TravelAlerts.Add(alert);
+        await dbContext.SaveChangesAsync();
+
+        var service = new BookingService(dbContext);
+        var touristId = Guid.NewGuid();
+
+        var request = new CreateBookingRequest
+        {
+            Items = new List<BookingItemRequest>
+            {
+                new() { AvailabilitySlotId = slot.Id, NumberOfGuests = 2, UnitPrice = 50.00m }
+            }
+        };
+
+        var result = await service.CreateBookingAsync(touristId, request);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.Response);
+        Assert.NotNull(result.Response!.ActiveAdvisories);
+        Assert.Single(result.Response.ActiveAdvisories!);
+        Assert.Equal("Heavy Monsoon Rain", result.Response.ActiveAdvisories![0].Title);
+        Assert.Equal(TravelAlertSeverity.High, result.Response.ActiveAdvisories![0].Severity);
+    }
+
     private static AvailabilitySlot CreateSlot(int capacity, decimal price)
     {
         var attractionId = Guid.NewGuid();

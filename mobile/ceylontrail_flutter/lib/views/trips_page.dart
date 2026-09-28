@@ -45,6 +45,44 @@ class _TripsPageState extends State<TripsPage> {
     }
   }
 
+  Future<void> _confirmDelete(Trip trip) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete trip?'),
+        content: Text('Are you sure you want to delete "${trip.name.isEmpty ? 'this trip' : trip.name}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed || !mounted) return;
+
+    try {
+      await _service!.deleteTrip(trip.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Trip deleted.')));
+      await _load();
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete trip.')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('My Trips')),
@@ -86,16 +124,20 @@ class _TripsPageState extends State<TripsPage> {
       itemCount: _trips.length,
       itemBuilder: (context, index) => Padding(
         padding: const EdgeInsets.only(bottom: CeylonSpacing.md),
-        child: _TripCard(trip: _trips[index]),
+        child: _TripCard(
+          trip: _trips[index],
+          onDelete: () => _confirmDelete(_trips[index]),
+        ),
       ),
     );
   }
 }
 
 class _TripCard extends StatelessWidget {
-  const _TripCard({required this.trip});
+  const _TripCard({required this.trip, required this.onDelete});
 
   final Trip trip;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -111,12 +153,18 @@ class _TripCard extends StatelessWidget {
               children: [
                 Expanded(child: Text(trip.name.isEmpty ? 'Unnamed trip' : trip.name, style: Theme.of(context).textTheme.titleLarge)),
                 if (trip.status.isNotEmpty) Chip(label: Text(_label(trip.status))),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 20, color: CeylonColors.inkMuted),
+                  tooltip: 'Delete trip',
+                  onPressed: onDelete,
+                ),
               ],
             ),
             const SizedBox(height: CeylonSpacing.sm),
             Text(_dateRange(trip), style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: CeylonSpacing.sm),
-            Text('Budget: ${trip.budget.toStringAsFixed(2)}', style: Theme.of(context).textTheme.bodyMedium),
+            Text('Budget: LKR ${trip.budget.toStringAsFixed(2)}', style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: CeylonSpacing.md),
             Row(
               children: [

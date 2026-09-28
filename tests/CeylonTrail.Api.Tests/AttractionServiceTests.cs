@@ -328,6 +328,60 @@ public sealed class AttractionServiceTests
         Assert.Equal(ServiceErrorCode.Forbidden, result.ErrorCode);
     }
 
+    [Fact]
+    public async Task DeleteSlotAsync_FailsWithConflict_WhenSlotHasBookingsOrReducedAvailableCapacity()
+    {
+        await using var dbContext = CreateDbContext();
+        var provider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        await dbContext.SaveChangesAsync();
+        var service = new AttractionService(dbContext);
+
+        var created = await service.CreateAsync(CreateRequest(category.Id), provider.Id);
+        var slotResult = await service.AddSlotAsync(created.Value!.Id, new CreateExperienceSlotRequest
+        {
+            Date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(17, 0),
+            Capacity = 10,
+            AvailableCapacity = 5 // 5 spots booked
+        }, provider.Id);
+
+        Assert.True(slotResult.Succeeded);
+
+        var deleteResult = await service.DeleteSlotAsync(created.Value.Id, slotResult.Value!.Id, provider.Id);
+
+        Assert.False(deleteResult.Succeeded);
+        Assert.Equal(ServiceErrorCode.Conflict, deleteResult.ErrorCode);
+        Assert.Contains("active tourist bookings or reserved capacity", deleteResult.Error);
+    }
+
+    [Fact]
+    public async Task DeleteSlotAsync_Succeeds_WhenSlotHasNoBookings()
+    {
+        await using var dbContext = CreateDbContext();
+        var provider = AddUser(dbContext, UserRole.TourismProvider);
+        var category = AddCategory(dbContext);
+        await dbContext.SaveChangesAsync();
+        var service = new AttractionService(dbContext);
+
+        var created = await service.CreateAsync(CreateRequest(category.Id), provider.Id);
+        var slotResult = await service.AddSlotAsync(created.Value!.Id, new CreateExperienceSlotRequest
+        {
+            Date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(17, 0),
+            Capacity = 10,
+            AvailableCapacity = 10
+        }, provider.Id);
+
+        Assert.True(slotResult.Succeeded);
+
+        var deleteResult = await service.DeleteSlotAsync(created.Value.Id, slotResult.Value!.Id, provider.Id);
+
+        Assert.True(deleteResult.Succeeded);
+    }
+
     private static CreateAttractionRequest CreateRequest(Guid categoryId) => new()
     {
         CategoryId = categoryId,

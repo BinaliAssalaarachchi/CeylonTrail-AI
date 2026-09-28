@@ -219,6 +219,8 @@ export default function BookingManagement() {
                                 </ul>
                             </div>
 
+
+
                             {/* Cancellation reason note if cancelled */}
                             {cancellation && (
                                 <div className="cancellation-alert">

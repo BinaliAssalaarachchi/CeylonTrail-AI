@@ -36,7 +36,11 @@ class _TravelAlertsPageState extends State<TravelAlertsPage> {
         district: _district, severity: _severity, status: _status,
       );
       if (!mounted) return;
-      setState(() { _alerts = result.items; _loading = false; });
+      final now = DateTime.now();
+      final filtered = result.items.where((alert) =>
+        _status != TravelAlertStatus.active || alert.endDateTime == null || alert.endDateTime!.isAfter(now)
+      ).toList();
+      setState(() { _alerts = filtered; _loading = false; });
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() { _error = error.message; _loading = false; });
@@ -395,8 +399,30 @@ String _label(Object value) {
   return raw.replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (match) => '${match.group(1)} ${match.group(2)}');
 }
 
-String _dateRange(TravelAlert alert) => '${_date(alert.startDateTime)} – ${_date(alert.endDateTime)}';
-String _date(DateTime? value) => value == null ? 'Date unavailable' : '${value.day}/${value.month}/${value.year}';
+String _formatDateTime(DateTime dt) {
+  final day = dt.day.toString().padLeft(2, '0');
+  final month = dt.month.toString().padLeft(2, '0');
+  final year = dt.year;
+  final hour = dt.hour.toString().padLeft(2, '0');
+  final min = dt.minute.toString().padLeft(2, '0');
+  return '$day/$month/$year $hour:$min';
+}
+
+String _dateRange(TravelAlert alert) {
+  final now = DateTime.now();
+  final localStart = alert.startDateTime?.toLocal();
+  final localEnd = alert.endDateTime?.toLocal();
+  if (localStart == null && localEnd == null) return 'Date unavailable';
+  if (localStart != null && localEnd != null) {
+    final prefix = localStart.isAfter(now) ? 'Upcoming' : 'Active';
+    return '$prefix · ${_formatDateTime(localStart)} – ${_formatDateTime(localEnd)}';
+  } else if (localEnd != null) {
+    return 'Until ${_formatDateTime(localEnd)}';
+  } else {
+    return 'From ${_formatDateTime(localStart!)}';
+  }
+}
+
 Color _severityColor(TravelAlertSeverity severity) => switch (severity) {
   TravelAlertSeverity.low => CeylonColors.tea,
   TravelAlertSeverity.medium => CeylonColors.amber,
