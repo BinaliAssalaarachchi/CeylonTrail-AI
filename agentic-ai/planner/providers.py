@@ -3,10 +3,10 @@
 import json
 import os
 import re
-from copy import deepcopy
 from typing import Any, Protocol, Sequence
 
 from config import load_local_environment
+from pydantic import ValidationError
 from .schemas import PlannerInput, PlannerOutput
 
 
@@ -26,49 +26,6 @@ def _sanitize_message(error: Exception) -> str:
     message = re.sub(r"AIza[0-9A-Za-z_-]{20,}", "[REDACTED_KEY]", message)
     message = re.sub(r"(?i)(authorization|api[-_ ]?key|token)\s*[:=]\s*[^ ,;]+", r"\1=[REDACTED]", message)
     return message[:500] or "No provider message supplied."
-
-
-def _gemini_output_schema() -> dict[str, Any]:
-    """Convert Pydantic JSON Schema to Gemini's supported JSON Schema subset."""
-    source = PlannerOutput.model_json_schema(by_alias=True, mode="serialization")
-    definitions = source.pop("$defs", {})
-    supported = {
-        "type", "format", "title", "description", "enum", "items", "minItems",
-        "maxItems", "minimum", "maximum", "properties", "additionalProperties", "required",
-    }
-
-    def convert(node: Any) -> Any:
-        if isinstance(node, list):
-            return [convert(item) for item in node]
-        if not isinstance(node, dict):
-            return node
-        reference = node.get("$ref")
-        if reference:
-            definition_name = reference.rsplit("/", 1)[-1]
-            return convert(deepcopy(definitions[definition_name]))
-        alternatives = node.get("anyOf")
-        if alternatives:
-            non_null = [item for item in alternatives if item.get("type") != "null"]
-            has_null = len(non_null) != len(alternatives)
-            if len(non_null) == 1:
-                result = convert(non_null[0])
-                if has_null and isinstance(result, dict) and isinstance(result.get("type"), str):
-                    result["type"] = [result["type"], "null"]
-                return result
-            return {"anyOf": [convert(item) for item in alternatives]}
-        result = {
-            key: convert(value)
-            for key, value in node.items()
-            if key in supported
-        }
-        if isinstance(node.get("properties"), dict):
-            result["properties"] = {
-                property_name: convert(property_schema)
-                for property_name, property_schema in node["properties"].items()
-            }
-        return result
-
-    return convert(source)
 
 
 def _response_metadata(response: Any) -> str:
@@ -187,20 +144,41 @@ class GeminiPlannerModelProvider:
         client = self._client_or_raise()
         contents = json.dumps(request.model_dump(mode="json", by_alias=True))
         try:
+            from google.genai import types
+
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_json_schema=PlannerOutput.model_json_schema(
+                    by_alias=True, mode="serialization"
+                ),
+                automatic_function_calling={"disable": True},
+            )
+        except ImportError as error:
+            raise PlannerConfigurationError(
+                "The google-genai dependency is not installed."
+            ) from error
+        except ValidationError as error:
+            raise PlannerConfigurationError(
+                "The Planner structured-output configuration is invalid."
+            ) from error
+        try:
             response = client.models.generate_content(
                 model=self.model,
                 contents=contents,
-                config={
-                    "system_instruction": system_prompt,
-                    "response_mime_type": "application/json",
-                    # Enforce the same strict output contract locally validated
-                    # by PlannerOutput. Prompt-only formatting guidance was not
-                    # sufficient for Gemini: live responses omitted required
-                    # fields and introduced aliases such as `cost`.
-                    "response_schema": _gemini_output_schema(),
-                    "automatic_function_calling": {"disable": True},
-                },
+                config=config,
             )
+        except ValidationError as error:
+            # google-genai constructs its request/configuration schema before
+            # sending HTTP.  This is a local configuration failure, so trying
+            # another model cannot help and would hide the real defect.
+            raise PlannerProviderError(
+                "Gemini Planner structured-output configuration is invalid.",
+                retryable=False,
+                stage="provider_configuration",
+                diagnostic_message=_sanitize_message(error),
+                provider_exception_type=type(error).__name__,
+            ) from error
         except Exception as error:
             status_code = _status_code(error)
             message = str(error).lower()

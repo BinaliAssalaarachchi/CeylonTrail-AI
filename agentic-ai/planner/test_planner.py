@@ -5,11 +5,12 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
+from google.genai import types
 from pydantic import ValidationError
 
 from config import load_dotenv_file
 from planner.agent import DeterministicPlannerFixture, PlannerAgent, PlannerError, PlannerValidationError
-from planner.providers import FallbackPlannerModelProvider, GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, _gemini_output_schema, create_planner_provider
+from planner.providers import FallbackPlannerModelProvider, GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, create_planner_provider
 from planner.schemas import PlannerInput, PlannerOutput
 
 
@@ -245,8 +246,18 @@ class PlannerTests(unittest.TestCase):
             def generate(self, planner_request, system_prompt):
                 raise PlannerProviderError("invalid request", retryable=False, status_code=400)
 
+        class ShouldNotBeCalledProvider:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, planner_request, system_prompt):
+                self.calls += 1
+                return valid_output()
+
+        second = ShouldNotBeCalledProvider()
         with self.assertRaises(PlannerProviderError):
-            FallbackPlannerModelProvider([NonRetryableProvider(), SuccessfulProvider()]).generate(request(), "policy")
+            FallbackPlannerModelProvider([NonRetryableProvider(), second]).generate(request(), "policy")
+        self.assertEqual(second.calls, 0)
 
     def test_gemini_provider_uses_configured_model_and_strict_output_schema(self):
         old_key = os.environ.get("GEMINI_API_KEY")
@@ -262,10 +273,16 @@ class PlannerTests(unittest.TestCase):
             provider.generate(request(), "policy")
             call = client.models.calls[0]
             self.assertEqual(call["model"], "gemini-test-model")
-            self.assertEqual(call["config"]["response_mime_type"], "application/json")
-            self.assertEqual(call["config"]["response_schema"], _gemini_output_schema())
-            self.assertEqual(call["config"]["automatic_function_calling"], {"disable": True})
-            self.assertNotIn("tools", call["config"])
+            config = call["config"]
+            self.assertIsInstance(config, types.GenerateContentConfig)
+            self.assertEqual(config.response_mime_type, "application/json")
+            self.assertIsNone(config.response_schema)
+            self.assertEqual(
+                config.response_json_schema,
+                PlannerOutput.model_json_schema(by_alias=True, mode="serialization"),
+            )
+            self.assertTrue(config.automatic_function_calling.disable)
+            self.assertIsNone(config.tools)
         finally:
             if old_key is None:
                 os.environ.pop("GEMINI_API_KEY", None)
@@ -336,34 +353,60 @@ class PlannerTests(unittest.TestCase):
         self.assertFalse(context.exception.retryable)
         self.assertEqual(client.models.calls, 1)
 
-    def test_gemini_schema_required_names_match_properties_recursively(self):
-        schema = _gemini_output_schema()
-
+    def test_gemini_json_schema_preserves_nullable_notes_and_message(self):
+        schema = PlannerOutput.model_json_schema(by_alias=True, mode="serialization")
+        notes = schema["$defs"]["PlannerItem"]["properties"]["notes"]
+        message = schema["properties"]["message"]
+        self.assertEqual(notes["anyOf"][-1]["type"], "null")
+        self.assertEqual(message["anyOf"][-1]["type"], "null")
         self.assertEqual(
-            {"days", "estimatedCost", "status", "message"},
-            set(schema["properties"]),
+            schema["properties"]["days"]["items"]["$ref"],
+            "#/$defs/PlannerDay",
         )
-        self.assertIn("estimatedCost", schema["required"])
-        self.assertIn("status", schema["required"])
 
-        def assert_consistent(node):
-            if not isinstance(node, dict):
-                return
-            if node.get("type") == "object":
-                properties = node.get("properties", {})
-                required = node.get("required", [])
-                self.assertTrue(set(required).issubset(properties.keys()))
-                for property_schema in properties.values():
-                    assert_consistent(property_schema)
-            for value in node.values():
-                if isinstance(value, (dict, list)):
-                    if isinstance(value, list):
-                        for item in value:
-                            assert_consistent(item)
-                    elif value is not node.get("properties"):
-                        assert_consistent(value)
+    def test_nullable_structured_output_values_pass_planner_contract(self):
+        output = valid_output()
+        output["days"][0]["items"][0]["notes"] = None
+        output["message"] = None
 
-        assert_consistent(schema)
+        result = PlannerAgent(RecordingProvider(output), max_retries=0).generate(request())
+        self.assertIsNone(result.days[0].items[0].notes)
+        self.assertIsNone(result.message)
+
+    def test_extra_structured_output_fields_fail_final_planner_validation(self):
+        output = valid_output()
+        output["unexpected"] = "must be rejected"
+
+        with self.assertRaises(PlannerValidationError):
+            PlannerAgent(RecordingProvider(output), max_retries=0).generate(request())
+
+    def test_configuration_failure_does_not_fallback_to_another_model(self):
+        class ConfigurationFailureProvider:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, planner_request, system_prompt):
+                self.calls += 1
+                raise PlannerProviderError(
+                    "invalid structured-output schema",
+                    retryable=False,
+                    stage="provider_configuration",
+                )
+
+        class SuccessfulProvider:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, planner_request, system_prompt):
+                self.calls += 1
+                return valid_output()
+
+        first = ConfigurationFailureProvider()
+        second = SuccessfulProvider()
+        with self.assertRaises(PlannerProviderError):
+            FallbackPlannerModelProvider([first, second]).generate(request(), "policy")
+        self.assertEqual(first.calls, 1)
+        self.assertEqual(second.calls, 0)
 
     def test_empty_sdk_parsed_value_falls_back_to_response_text(self):
         class Response:
