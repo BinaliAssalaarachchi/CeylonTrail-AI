@@ -13,6 +13,48 @@ from .schemas import PlannerInput, PlannerOutput
 load_local_environment()
 
 
+# Keep this schema deliberately limited to the JSON Schema subset accepted by
+# Gemini structured output.  PlannerOutput remains the authoritative contract
+# after the response is parsed and validated locally.
+GEMINI_PLANNER_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "days": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "dayNumber": {"type": "integer"},
+                    "date": {"type": "string"},
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "attractionId": {"type": "string"},
+                                "startTime": {"type": "string"},
+                                "endTime": {"type": "string"},
+                                "estimatedCost": {"type": "number"},
+                            },
+                            "required": [
+                                "attractionId",
+                                "startTime",
+                                "endTime",
+                                "estimatedCost",
+                            ],
+                        },
+                    },
+                },
+                "required": ["dayNumber", "date", "items"],
+            },
+        },
+        "estimatedCost": {"type": "number"},
+        "status": {"type": "string"},
+    },
+    "required": ["days", "estimatedCost", "status"],
+}
+
+
 def _status_code(error: Exception) -> int | None:
     for source in (error, getattr(error, "response", None)):
         value = getattr(source, "status_code", None)
@@ -149,9 +191,7 @@ class GeminiPlannerModelProvider:
             config = types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
-                response_json_schema=PlannerOutput.model_json_schema(
-                    by_alias=True, mode="serialization"
-                ),
+                response_json_schema=GEMINI_PLANNER_RESPONSE_SCHEMA,
                 automatic_function_calling={"disable": True},
             )
         except ImportError as error:

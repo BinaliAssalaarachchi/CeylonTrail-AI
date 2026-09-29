@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from config import load_dotenv_file
 from planner.agent import DeterministicPlannerFixture, PlannerAgent, PlannerError, PlannerValidationError
-from planner.providers import FallbackPlannerModelProvider, GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, create_planner_provider
+from planner.providers import FallbackPlannerModelProvider, GEMINI_PLANNER_RESPONSE_SCHEMA, GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, create_planner_provider
 from planner.schemas import PlannerInput, PlannerOutput
 
 
@@ -259,7 +259,7 @@ class PlannerTests(unittest.TestCase):
             FallbackPlannerModelProvider([NonRetryableProvider(), second]).generate(request(), "policy")
         self.assertEqual(second.calls, 0)
 
-    def test_gemini_provider_uses_configured_model_and_strict_output_schema(self):
+    def test_gemini_provider_uses_configured_model_and_gemini_compatible_schema(self):
         old_key = os.environ.get("GEMINI_API_KEY")
         old_gemini_model = os.environ.get("GEMINI_MODEL")
         old_model = os.environ.get("PLANNER_MODEL")
@@ -277,7 +277,8 @@ class PlannerTests(unittest.TestCase):
             self.assertIsInstance(config, types.GenerateContentConfig)
             self.assertEqual(config.response_mime_type, "application/json")
             self.assertIsNone(config.response_schema)
-            self.assertEqual(
+            self.assertEqual(config.response_json_schema, GEMINI_PLANNER_RESPONSE_SCHEMA)
+            self.assertNotEqual(
                 config.response_json_schema,
                 PlannerOutput.model_json_schema(by_alias=True, mode="serialization"),
             )
@@ -353,16 +354,36 @@ class PlannerTests(unittest.TestCase):
         self.assertFalse(context.exception.retryable)
         self.assertEqual(client.models.calls, 1)
 
-    def test_gemini_json_schema_preserves_nullable_notes_and_message(self):
-        schema = PlannerOutput.model_json_schema(by_alias=True, mode="serialization")
-        notes = schema["$defs"]["PlannerItem"]["properties"]["notes"]
-        message = schema["properties"]["message"]
-        self.assertEqual(notes["anyOf"][-1]["type"], "null")
-        self.assertEqual(message["anyOf"][-1]["type"], "null")
+    def test_gemini_request_schema_is_explicit_and_uses_supported_subset(self):
+        forbidden = {
+            "$defs", "$ref", "additionalProperties", "pattern", "format",
+            "title", "default", "anyOf", "oneOf", "allOf",
+        }
+
+        def walk(value):
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    self.assertNotIn(key, forbidden)
+                    walk(child)
+            elif isinstance(value, list):
+                for child in value:
+                    walk(child)
+
+        walk(GEMINI_PLANNER_RESPONSE_SCHEMA)
+        self.assertEqual(GEMINI_PLANNER_RESPONSE_SCHEMA["required"], ["days", "estimatedCost", "status"])
+        day_schema = GEMINI_PLANNER_RESPONSE_SCHEMA["properties"]["days"]["items"]
+        self.assertEqual(day_schema["required"], ["dayNumber", "date", "items"])
+        item_schema = day_schema["properties"]["items"]["items"]
         self.assertEqual(
-            schema["properties"]["days"]["items"]["$ref"],
-            "#/$defs/PlannerDay",
+            item_schema["required"],
+            ["attractionId", "startTime", "endTime", "estimatedCost"],
         )
+        self.assertEqual(item_schema["properties"]["estimatedCost"], {"type": "number"})
+
+    def test_gemini_schema_omits_nullable_optional_notes_and_message(self):
+        self.assertNotIn("message", GEMINI_PLANNER_RESPONSE_SCHEMA["properties"])
+        item_properties = GEMINI_PLANNER_RESPONSE_SCHEMA["properties"]["days"]["items"]["properties"]["items"]["items"]["properties"]
+        self.assertNotIn("notes", item_properties)
 
     def test_nullable_structured_output_values_pass_planner_contract(self):
         output = valid_output()
