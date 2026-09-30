@@ -17,6 +17,12 @@ class FakeAuthApi implements AuthApi {
     calls++;
     return response;
   }
+
+  @override
+  Future<AuthResponse> register({required String firstName, required String lastName, required String email, required String password}) async {
+    calls++;
+    return response;
+  }
 }
 
 class FakeAuthStorage implements AuthSessionStorage {
@@ -73,5 +79,15 @@ void main() {
     await service.logout();
     expect(service.isAuthenticated, isFalse);
     expect(storage.session, isNull);
+  });
+
+  test('AuthService persists the session returned by Tourist registration', () async {
+    final storage = FakeAuthStorage();
+    final api = FakeAuthApi(AuthResponse(token: 'registered-jwt', expiresAt: DateTime.utc(2030), user: user));
+    final service = AuthService(api: api, storage: storage);
+
+    expect(await service.register(firstName: 'Nimal', lastName: 'Perera', email: user.email, password: 'ValidPassword123!'), isTrue);
+    expect(service.user?.role, 'Tourist');
+    expect(storage.session?.token, 'registered-jwt');
   });
 }

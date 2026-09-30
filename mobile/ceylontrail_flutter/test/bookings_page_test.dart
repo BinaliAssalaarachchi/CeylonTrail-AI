@@ -43,9 +43,8 @@ void main() {
   });
 }
 
-BookingModel _booking(String id, String status) => BookingModel(
+  BookingModel _booking(String id, String status) => BookingModel(
       id: id,
-      userId: 'user-1',
       currentStatus: status,
       totalAmount: 6500,
       createdAt: DateTime.utc(2026, 9, 26),
