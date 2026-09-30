@@ -134,6 +134,7 @@ public sealed class BookingsController(IBookingService bookingService) : Control
 
     // 7. POST /api/bookings/{id}/cancel (Cancel a booking - Tourist or Admin)
     [HttpPost("{id:guid}/cancel")]
+    [Authorize(Roles = $"{nameof(UserRole.Tourist)},{nameof(UserRole.Administrator)}")]
     [ProducesResponseType(typeof(BookingResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<BookingResponse>> Cancel(
@@ -155,6 +156,7 @@ public sealed class BookingsController(IBookingService bookingService) : Control
 
     // 8. DELETE /api/bookings/{id} (Delete draft booking)
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = $"{nameof(UserRole.Tourist)},{nameof(UserRole.Administrator)}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

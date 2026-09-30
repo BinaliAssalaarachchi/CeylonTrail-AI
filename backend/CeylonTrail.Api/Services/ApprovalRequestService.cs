@@ -158,7 +158,8 @@ public sealed class ApprovalRequestService(
 
         if (request.Status != ApprovalRequestStatus.Pending || request.Decision is not null)
         {
-            if (request.Status == ApprovalRequestStatus.Approved &&
+            if (decision == ApprovalDecisionType.Approved &&
+                request.Status == ApprovalRequestStatus.Approved &&
                 request.Decision?.Decision == ApprovalDecisionType.Approved &&
                 approvedWorkflowActionExecutor is not null)
             {
