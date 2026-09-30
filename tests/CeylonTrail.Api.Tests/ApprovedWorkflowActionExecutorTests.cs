@@ -189,6 +189,40 @@ public sealed class ApprovedWorkflowActionExecutorTests
         Assert.True(second.Succeeded);
         Assert.Equal(first.Response.BookingId, second.Response!.BookingId);
         Assert.Single(db.Bookings);
+        Assert.Equal(1, db.AvailabilitySlots.Single().BookedCapacity);
+        Assert.Single(db.BookingStatusHistories.Where(history => history.NewStatus == BookingStatus.Confirmed));
+    }
+
+    [Fact]
+    public async Task AlreadyClaimedWorkflowCannotExecuteApprovalAgain()
+    {
+        await using var db = CreateDbContext();
+        var state = await CreateStateAsync(db);
+        state.Workflow.Status = AgentWorkflowStatus.Running;
+        await db.SaveChangesAsync();
+
+        var result = await DecideAsync(db, state, ApprovalDecisionType.Approved);
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Response!.ExecutionSucceeded);
+        Assert.Empty(db.Bookings);
+        Assert.Equal(AgentWorkflowStatus.Running, db.AgentWorkflows.Single().Status);
+    }
+
+    [Fact]
+    public async Task ApprovalThenRejectionCannotProduceContradictoryFinalStates()
+    {
+        await using var db = CreateDbContext();
+        var state = await CreateStateAsync(db);
+
+        var approved = await DecideAsync(db, state, ApprovalDecisionType.Approved);
+        var rejected = await DecideAsync(db, state, ApprovalDecisionType.Rejected);
+
+        Assert.True(approved.Succeeded);
+        Assert.False(rejected.Succeeded);
+        Assert.Equal(ApprovalRequestStatus.Approved, db.ApprovalRequests.Single().Status);
+        Assert.Single(db.ApprovalDecisions);
+        Assert.Equal(ApprovalDecisionType.Approved, db.ApprovalDecisions.Single().Decision);
     }
 
     [Fact]

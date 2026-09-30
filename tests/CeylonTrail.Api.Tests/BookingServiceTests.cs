@@ -73,6 +73,85 @@ public sealed class BookingServiceTests
     }
 
     [Fact]
+    public async Task Provider_CannotManageBookingContainingAnotherProvidersItem()
+    {
+        await using var dbContext = CreateDbContext();
+        var providerA = Guid.NewGuid();
+        var providerB = Guid.NewGuid();
+        var tourist = Guid.NewGuid();
+        var first = CreateSlot(10, 50m);
+        var second = CreateSlot(10, 75m);
+        first.Attraction!.ProviderId = providerA;
+        second.Attraction!.ProviderId = providerB;
+        dbContext.AvailabilitySlots.AddRange(first, second);
+        var booking = new Booking
+        {
+            Id = Guid.NewGuid(), UserId = tourist, CurrentStatus = BookingStatus.Draft,
+            Items =
+            [
+                new() { Id = Guid.NewGuid(), AvailabilitySlotId = first.Id, NumberOfGuests = 1, UnitPrice = 50m, SubTotal = 50m },
+                new() { Id = Guid.NewGuid(), AvailabilitySlotId = second.Id, NumberOfGuests = 1, UnitPrice = 75m, SubTotal = 75m }
+            ],
+            TotalAmount = 125m
+        };
+        dbContext.Bookings.Add(booking);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).AcceptBookingAsync(
+            booking.Id, providerA, nameof(UserRole.TourismProvider));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(BookingStatus.Draft, booking.CurrentStatus);
+    }
+
+    [Fact]
+    public async Task Provider_CannotCancelOrDeleteTouristBooking()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+        var tourist = Guid.NewGuid();
+        var provider = Guid.NewGuid();
+        var service = new BookingService(dbContext);
+        var created = await service.CreateBookingAsync(tourist, new CreateBookingRequest
+        {
+            Items = [new BookingItemRequest { AvailabilitySlotId = slot.Id, NumberOfGuests = 1 }]
+        });
+
+        var cancel = await service.CancelBookingAsync(
+            created.Response!.Id, provider, nameof(UserRole.TourismProvider),
+            new CancelBookingRequest { Reason = "Not permitted" });
+        var delete = await service.DeleteBookingAsync(
+            created.Response.Id, provider, nameof(UserRole.TourismProvider));
+
+        Assert.False(cancel.Succeeded);
+        Assert.False(delete.Succeeded);
+        Assert.NotNull(await dbContext.Bookings.FindAsync(created.Response.Id));
+    }
+
+    [Fact]
+    public async Task CreateBooking_RejectsDuplicateAvailabilitySlots()
+    {
+        await using var dbContext = CreateDbContext();
+        var slot = CreateSlot(10, 50m);
+        dbContext.AvailabilitySlots.Add(slot);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new BookingService(dbContext).CreateBookingAsync(Guid.NewGuid(), new CreateBookingRequest
+        {
+            Items =
+            [
+                new BookingItemRequest { AvailabilitySlotId = slot.Id, NumberOfGuests = 1 },
+                new BookingItemRequest { AvailabilitySlotId = slot.Id, NumberOfGuests = 1 }
+            ]
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("unique availability slots", result.Error);
+    }
+
+    [Fact]
     public async Task CreateAvailabilitySlot_RejectsProviderForAnotherProvidersAttraction()
     {
         await using var dbContext = CreateDbContext();
