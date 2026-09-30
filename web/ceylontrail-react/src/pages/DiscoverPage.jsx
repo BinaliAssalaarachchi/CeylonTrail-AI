@@ -138,7 +138,7 @@ export default function DiscoverPage() {
                   {attr.price ? `LKR ${Number(attr.price).toLocaleString('en-LK')}` : 'Free Entry'}
                 </strong>
                 <Link to="/bookings" className="button button-secondary-light" style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}>
-                  Book →
+                  View booking operations →
                 </Link>
               </div>
             </article>

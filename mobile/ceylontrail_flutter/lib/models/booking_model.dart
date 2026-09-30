@@ -54,11 +54,9 @@ class CancellationModel {
 class BookingModel {
   const BookingModel({
     required this.id,
-    required this.userId,
     this.tripId,
     required this.currentStatus,
     required this.totalAmount,
-    this.qrCodeHash,
     required this.createdAt,
     required this.updatedAt,
     required this.items,
@@ -67,11 +65,9 @@ class BookingModel {
     this.activeAdvisories = const [],
   });
   final String id;
-  final String userId;
   final String? tripId;
   final String currentStatus;
   final double totalAmount;
-  final String? qrCodeHash;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<BookingItemModel> items;
@@ -83,9 +79,9 @@ class BookingModel {
   CancellationModel? get cancellation => cancellationRequests.isEmpty ? null : cancellationRequests.last;
 
   factory BookingModel.fromJson(Map<String, dynamic> json) => BookingModel(
-    id: json['id']?.toString() ?? '', userId: (json['userId'] ?? json['touristId'])?.toString() ?? '', tripId: json['tripId']?.toString(),
+    id: json['id']?.toString() ?? '', tripId: json['tripId']?.toString(),
     currentStatus: (json['currentStatus'] ?? json['status'])?.toString() ?? '', totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
-    qrCodeHash: json['qrCodeHash'] as String?, createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime(1970), updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime(1970),
+    createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime(1970), updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime(1970),
     items: (json['items'] as List<dynamic>? ?? const []).whereType<Map>().map((item) {
       final map = Map<String, dynamic>.from(item);
       return BookingItemModel(

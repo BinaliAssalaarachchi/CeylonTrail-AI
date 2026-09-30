@@ -27,7 +27,7 @@ public sealed class AuthenticationService(
 
         if (!Enum.TryParse<UserRole>(request.Role, ignoreCase: true, out var role) ||
             !Enum.IsDefined(role) ||
-            (role != UserRole.Tourist && role != UserRole.TourismProvider))
+            role != UserRole.Tourist)
         {
             return (false, "The requested role is not available for public registration.", null);
         }

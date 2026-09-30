@@ -43,6 +43,11 @@ public sealed class ApprovedWorkflowActionExecutor(
             return new(true, BookingId: existingBookingId, AlreadyExecuted: true);
         }
 
+        if (workflow.Status == AgentWorkflowStatus.Running)
+        {
+            return new(false, "This approval action is already being executed.");
+        }
+
         if (workflow.Status != AgentWorkflowStatus.AwaitingApproval)
         {
             return await FailAsync(workflow, bookingStage, "The AgentWorkflow is not awaiting approval.", cancellationToken);
@@ -124,6 +129,32 @@ public sealed class ApprovedWorkflowActionExecutor(
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
             : null;
+
+        var claimed = await ClaimWorkflowExecutionAsync(workflow.Id, cancellationToken);
+        if (!claimed)
+        {
+            dbContext.ChangeTracker.Clear();
+            var current = await LoadCorrelationAsync(approvalRequest, cancellationToken);
+            if (current is not null &&
+                current.Value.Workflow.Status == AgentWorkflowStatus.Completed &&
+                TryGetExecutionBookingId(current.Value.BookingStage.OutputSnapshotJson, out var completedBookingId))
+            {
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                return new(true, BookingId: completedBookingId, AlreadyExecuted: true);
+            }
+
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
+            return new(false, "This approval action is already being executed or has already reached a terminal state.");
+        }
+
         try
         {
             var existingDraft = await FindMatchingDraftBookingAsync(
@@ -225,6 +256,33 @@ public sealed class ApprovedWorkflowActionExecutor(
 
             return await FailAsync(workflow, bookingStage, "The approved booking could not be executed safely.", cancellationToken);
         }
+    }
+
+    private async Task<bool> ClaimWorkflowExecutionAsync(Guid workflowId, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.IsRelational())
+        {
+            return await dbContext.AgentWorkflows
+                .Where(workflow => workflow.Id == workflowId &&
+                                   workflow.Status == AgentWorkflowStatus.AwaitingApproval)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(workflow => workflow.Status, AgentWorkflowStatus.Running)
+                    .SetProperty(workflow => workflow.UpdatedAt, DateTime.UtcNow), cancellationToken) == 1;
+        }
+
+        // The in-memory provider cannot model database row locking. This branch
+        // preserves unit-test behavior; PostgreSQL uses the atomic conditional update above.
+        var workflow = await dbContext.AgentWorkflows
+            .SingleOrDefaultAsync(candidate => candidate.Id == workflowId, cancellationToken);
+        if (workflow is null || workflow.Status != AgentWorkflowStatus.AwaitingApproval)
+        {
+            return false;
+        }
+
+        workflow.Status = AgentWorkflowStatus.Running;
+        workflow.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     private async Task<Booking?> FindMatchingDraftBookingAsync(

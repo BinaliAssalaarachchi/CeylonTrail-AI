@@ -20,6 +20,11 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "A booking must contain at least one item.", null);
         }
 
+        if (request.Items.Count > 100 || request.Items.Select(item => item.AvailabilitySlotId).Distinct().Count() != request.Items.Count)
+        {
+            return (false, "A booking must contain no more than 100 unique availability slots.", null);
+        }
+
         // A supplied trip must exist and belong to the authenticated tourist.
         // Return the same safe not-found result for both cases so ownership is not disclosed.
         Guid? tripId = null;
@@ -328,7 +333,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
 
         if (requestingRole is not null &&
             (requestingRole == nameof(UserRole.Tourist) ||
-             !await CanAccessBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
+             !await CanManageBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
         {
             return (false, "Booking not found.", null);
         }
@@ -352,6 +357,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 }
 
                 slot.BookedCapacity += item.NumberOfGuests;
+                slot.RowVersion = Guid.NewGuid().ToByteArray();
                 slot.UpdatedAt = DateTime.UtcNow;
 
                 var expSlot = await dbContext.ExperienceSlots
@@ -377,7 +383,15 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             Reason = "Booking accepted by provider/staff."
         });
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            dbContext.ChangeTracker.Clear();
+            return (false, "The selected availability changed during confirmation. Please try again.", null);
+        }
         var advisories = await GetActiveAdvisoriesForBookingAsync(booking, cancellationToken);
         return (true, null, MapToResponse(booking, advisories));
     }
@@ -402,9 +416,14 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
 
         if (requestingRole is not null &&
             (requestingRole == nameof(UserRole.Tourist) ||
-             !await CanAccessBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
+             !await CanManageBookingAsync(booking, changedBy, requestingRole, cancellationToken)))
         {
             return (false, "Booking not found.", null);
+        }
+
+        if (booking.CurrentStatus is BookingStatus.Rejected or BookingStatus.Cancelled)
+        {
+            return (false, $"Cannot reject booking in '{booking.CurrentStatus}' status.", null);
         }
 
         var previousStatus = booking.CurrentStatus;
@@ -421,6 +440,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 if (slot != null)
                 {
                     slot.BookedCapacity = Math.Max(0, slot.BookedCapacity - item.NumberOfGuests);
+                    slot.RowVersion = Guid.NewGuid().ToByteArray();
                     slot.UpdatedAt = DateTime.UtcNow;
 
                     var expSlot = await dbContext.ExperienceSlots
@@ -466,10 +486,20 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "Booking not found.", null);
         }
 
+        if (requestingRole is not (nameof(UserRole.Tourist) or nameof(UserRole.Administrator)))
+        {
+            return (false, "Only the booking owner or an administrator can cancel a booking.", null);
+        }
+
         // Ownership check: Tourists can only cancel their own booking
         if (requestingRole == nameof(UserRole.Tourist) && booking.UserId != requestingUserId)
         {
             return (false, "You cannot cancel another user's booking.", null);
+        }
+
+        if (booking.CurrentStatus is BookingStatus.Cancelled or BookingStatus.Rejected)
+        {
+            return (false, $"Cannot cancel booking in '{booking.CurrentStatus}' status.", null);
         }
 
         var previousStatus = booking.CurrentStatus;
@@ -486,6 +516,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 if (slot != null)
                 {
                     slot.BookedCapacity = Math.Max(0, slot.BookedCapacity - item.NumberOfGuests);
+                    slot.RowVersion = Guid.NewGuid().ToByteArray();
                     slot.UpdatedAt = DateTime.UtcNow;
 
                     var expSlot = await dbContext.ExperienceSlots
@@ -718,6 +749,11 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             return (false, "Booking not found.");
         }
 
+        if (requestingRole is not (nameof(UserRole.Tourist) or nameof(UserRole.Administrator)))
+        {
+            return (false, "Only the booking owner or an administrator can delete a booking.");
+        }
+
         // Ownership check: Tourists can only delete their own booking
         if (requestingRole == nameof(UserRole.Tourist) && booking.UserId != requestingUserId)
         {
@@ -763,15 +799,37 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 cancellationToken);
     }
 
+    private async Task<bool> CanManageBookingAsync(
+        Booking booking,
+        Guid requestingUserId,
+        string requestingRole,
+        CancellationToken cancellationToken)
+    {
+        if (requestingRole is nameof(UserRole.TravelCoordinator) or nameof(UserRole.Administrator))
+        {
+            return true;
+        }
+
+        if (requestingRole != nameof(UserRole.TourismProvider))
+        {
+            return false;
+        }
+
+        return await dbContext.BookingItems
+            .Where(item => item.BookingId == booking.Id)
+            .AllAsync(item => item.AvailabilitySlot != null &&
+                              item.AvailabilitySlot.Attraction != null &&
+                              item.AvailabilitySlot.Attraction.ProviderId == requestingUserId,
+                cancellationToken);
+    }
+
     private static BookingResponse MapToResponse(Booking booking, List<TravelAlertResponse>? advisories = null)
     {
         return new BookingResponse(
             booking.Id,
-            booking.UserId,
             booking.TripId,
             booking.CurrentStatus.ToString(),
             booking.TotalAmount,
-            booking.QrCodeHash,
             booking.CreatedAt,
             booking.UpdatedAt,
             booking.Items.Select(i => new BookingItemResponse(

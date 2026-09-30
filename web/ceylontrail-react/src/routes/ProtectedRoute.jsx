@@ -6,6 +6,8 @@ export default function ProtectedRoute({ allowedRoles }) {
   const location = useLocation()
   if (isLoading) return <div className="route-status">Restoring your session…</div>
   if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location }} />
-  if (allowedRoles && !allowedRoles.includes(user.role)) return <Navigate to="/unauthorized" replace />
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to={user.role === 'Tourist' ? '/tourist-access' : '/unauthorized'} replace />
+  }
   return <Outlet />
 }

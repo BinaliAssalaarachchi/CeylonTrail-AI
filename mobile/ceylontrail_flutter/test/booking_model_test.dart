@@ -5,11 +5,9 @@ void main() {
   test('parses the current booking response contract', () {
     final booking = BookingModel.fromJson({
       'id': 'booking-1',
-      'userId': 'user-1',
       'tripId': null,
       'currentStatus': 'Draft',
       'totalAmount': 2500.0,
-      'qrCodeHash': null,
       'createdAt': '2026-09-25T08:00:00Z',
       'updatedAt': '2026-09-25T08:00:00Z',
       'items': [
@@ -19,7 +17,6 @@ void main() {
       'cancellationRequests': [],
     });
 
-    expect(booking.userId, 'user-1');
     expect(booking.currentStatus, 'Draft');
     expect(booking.items.single.availabilitySlotId, 'slot-1');
     expect(booking.items.single.numberOfGuests, 2);

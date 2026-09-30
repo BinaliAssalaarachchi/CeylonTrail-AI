@@ -99,10 +99,10 @@ void main() {
 
     expect(find.text('Itinerary'), findsOneWidget);
     expect(find.text('Status: Completed'), findsOneWidget);
-    expect(find.textContaining('Planner:'), findsOneWidget);
-    expect(find.textContaining('Destination:'), findsOneWidget);
-    expect(find.textContaining('BookingAction:'), findsOneWidget);
-    expect(find.textContaining('TravelIntelligence:'), findsOneWidget);
+    expect(find.textContaining('Preparing your itinerary:'), findsOneWidget);
+    expect(find.textContaining('Finding suitable places:'), findsOneWidget);
+    expect(find.textContaining('Checking bookable experiences:'), findsOneWidget);
+    expect(find.textContaining('Completing travel and safety checks:'), findsOneWidget);
   });
 
   testWidgets('displays awaiting approval workflow state', (tester) async {
@@ -144,11 +144,11 @@ void main() {
 
     expect(source.fetchCount, 2);
     expect(find.text('Status: Completed'), findsOneWidget);
-    expect(find.text('Booking execution succeeded · Booking booking-1'), findsOneWidget);
-    expect(find.textContaining('Planner:'), findsOneWidget);
-    expect(find.textContaining('Destination:'), findsOneWidget);
-    expect(find.textContaining('BookingAction:'), findsOneWidget);
-    expect(find.textContaining('TravelIntelligence:'), findsOneWidget);
+    expect(find.text('Your booking was confirmed.'), findsOneWidget);
+    expect(find.textContaining('Preparing your itinerary:'), findsOneWidget);
+    expect(find.textContaining('Finding suitable places:'), findsOneWidget);
+    expect(find.textContaining('Checking bookable experiences:'), findsOneWidget);
+    expect(find.textContaining('Completing travel and safety checks:'), findsOneWidget);
   });
 
   testWidgets('displays rejected and cancelled workflow state after refresh', (tester) async {

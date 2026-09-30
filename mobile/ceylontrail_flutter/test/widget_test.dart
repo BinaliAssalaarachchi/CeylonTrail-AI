@@ -21,6 +21,9 @@ class WidgetFakeApi implements AuthApi {
           isActive: true,
         ),
       );
+
+  @override
+  Future<AuthResponse> register({required String firstName, required String lastName, required String email, required String password}) => login(email: email, password: password);
 }
 
 class WidgetFakeStorage implements AuthSessionStorage {

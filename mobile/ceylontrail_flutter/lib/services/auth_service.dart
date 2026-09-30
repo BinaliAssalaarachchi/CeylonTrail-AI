@@ -56,6 +56,39 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<bool> register({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+  }) async {
+    _error = null;
+    _status = AuthStatus.restoring;
+    notifyListeners();
+    try {
+      final response = await _api.register(
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        password: password,
+      );
+      await _storage.write(
+        token: response.token,
+        expiresAt: response.expiresAt,
+        user: response.user,
+      );
+      _user = response.user;
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return true;
+    } catch (error) {
+      _error = error.toString();
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _storage.clear();
     _user = null;

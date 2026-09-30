@@ -94,7 +94,7 @@ public sealed class AuthenticationServiceTests
     }
 
     [Fact]
-    public async Task PublicRegistration_AllowsTourismProvider()
+    public async Task PublicRegistration_RejectsTourismProvider()
     {
         await using var dbContext = CreateDbContext();
         var service = CreateService(dbContext);
@@ -108,8 +108,9 @@ public sealed class AuthenticationServiceTests
             Role = nameof(UserRole.TourismProvider)
         });
 
-        Assert.True(result.Succeeded);
-        Assert.Equal(UserRole.TourismProvider, dbContext.Users.Single().Role);
+        Assert.False(result.Succeeded);
+        Assert.Equal("The requested role is not available for public registration.", result.Error);
+        Assert.Empty(dbContext.Users);
     }
 
     private static ApplicationDbContext CreateDbContext() => new(

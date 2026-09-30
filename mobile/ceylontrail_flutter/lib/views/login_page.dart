@@ -188,6 +188,11 @@ class _LoginPageState extends State<LoginPage> {
                               )
                             : const Text('Sign in'),
                       ),
+                      const SizedBox(height: CeylonSpacing.sm),
+                      TextButton(
+                        onPressed: _isSubmitting ? null : () => context.go('/register'),
+                        child: const Text('Create account'),
+                      ),
                     ],
                   ),
                 ),

@@ -29,11 +29,9 @@ public record CancellationRequestResponse(
 
 public record BookingResponse(
     Guid Id,
-    Guid UserId,
     Guid? TripId,
     string CurrentStatus,
     decimal TotalAmount,
-    string? QrCodeHash,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<BookingItemResponse> Items,

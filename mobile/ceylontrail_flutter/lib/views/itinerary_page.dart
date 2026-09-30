@@ -188,14 +188,14 @@ class _WorkflowSummary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('AI workflow', style: Theme.of(context).textTheme.titleLarge),
+            Text('Journey progress', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: CeylonSpacing.sm),
             Text('Status: ${_workflowStatusLabel(value.status)}'),
             if (value.safeMessage.isNotEmpty) Text(value.safeMessage),
             if (value.requiresApproval) const Text('Approval required'),
             if (value.reviewStatus != null) Text('Review: ${value.reviewStatus}'),
             if (value.executionSucceeded == true)
-              Text('Booking execution succeeded${value.bookingId == null ? '' : ' · Booking ${value.bookingId}'}'),
+              const Text('Your booking was confirmed.'),
             if (value.executionSucceeded == false)
               const Text('Booking execution failed safely.'),
             const SizedBox(height: CeylonSpacing.sm),
@@ -203,7 +203,7 @@ class _WorkflowSummary extends StatelessWidget {
               (stage) => Padding(
                 padding: const EdgeInsets.only(bottom: CeylonSpacing.sm),
                 child: Text(
-                  '${stage.agentRole}: ${stage.status}${stage.summary.isEmpty ? '' : ' · ${stage.summary}'}',
+                  '${_stageLabel(stage.agentRole)}: ${stage.status}${stage.summary.isEmpty ? '' : ' - ${stage.summary}'}',
                 ),
               ),
             ),
@@ -213,6 +213,14 @@ class _WorkflowSummary extends StatelessWidget {
     );
   }
 }
+
+String _stageLabel(String agentRole) => switch (agentRole) {
+  'Planner' => 'Preparing your itinerary',
+  'Destination' => 'Finding suitable places',
+  'BookingAction' => 'Checking bookable experiences',
+  'TravelIntelligence' => 'Completing travel and safety checks',
+  _ => 'Checking your journey',
+};
 
 String _workflowStatusLabel(AgentWorkflowStatus status) => switch (status) {
   AgentWorkflowStatus.awaitingApproval => 'Awaiting approval',
