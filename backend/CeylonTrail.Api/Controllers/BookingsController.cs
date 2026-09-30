@@ -3,7 +3,7 @@ using CeylonTrail.Api.DTOs.Bookings;
 using CeylonTrail.Api.DTOs.Pagination;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization; 
 using Microsoft.AspNetCore.Mvc;
 
 namespace CeylonTrail.Api.Controllers;
