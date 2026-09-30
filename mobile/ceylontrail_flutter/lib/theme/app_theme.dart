@@ -8,8 +8,8 @@ class CeylonColors {
   static const teal = Color(0xFF028090);
   static const mint = Color(0xFFD8F3DC);
   static const ivory = Color(0xFFFDFBF7);
-  static const canvas = Color(0xFFF7F7FF);
-  static const surfaceSoft = Color(0xFFF0F2FC);
+  static const canvas = Color(0xFFF6F3ED);
+  static const surfaceSoft = Color(0xFFF0EEE7);
   static const ink = Color(0xFF171C25);
   static const inkMuted = Color(0xFF59645F);
   static const outline = Color(0xFFC0C8C3);
@@ -126,6 +126,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: CeylonColors.ivory,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(CeylonRadii.card),

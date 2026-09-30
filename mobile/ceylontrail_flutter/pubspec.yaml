@@ -65,6 +65,9 @@ flutter:
   assets:
     - assets/images/tea-country-hero.jpg
     - assets/images/sigiriya-hero.png
+    - assets/images/ella-hills.jpg
+    - assets/images/mirissa-coast.jpg
+    - assets/images/yala-wildlife.jpg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
