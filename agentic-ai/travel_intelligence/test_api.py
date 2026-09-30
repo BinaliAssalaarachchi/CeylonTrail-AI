@@ -6,7 +6,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import travel_intelligence.api as travel_api
-from travel_intelligence.agent import DeterministicExecutionError
+from travel_intelligence.agent import DeterministicExecutionError, TravelIntelligenceAgent
 
 app = travel_api.app
 
@@ -33,8 +33,21 @@ def test_health_endpoint():
     assert response.json()["status"] == "ok"
 
 
-def test_analyze_valid_request_uses_structured_output():
-    response = client.post("/travel-intelligence/analyze", json=valid_payload())
+def test_analyze_valid_request_uses_structured_output_with_provider_fallback():
+    class FailingProvider:
+        name = "test-provider"
+        model = "test-model"
+
+        def recommend(self, validation, system_policy):
+            raise RuntimeError("provider unavailable")
+
+    with patch.object(
+        travel_api,
+        "agent",
+        TravelIntelligenceAgent(FailingProvider()),
+    ):
+        response = client.post("/travel-intelligence/analyze", json=valid_payload())
+
     assert response.status_code == 200
     body = response.json()
     assert body["recommendedAction"] == "Proceed"
