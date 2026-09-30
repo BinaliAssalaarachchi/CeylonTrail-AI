@@ -156,8 +156,11 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final canCancel = _currentBooking.status == 'Pending' ||
-        _currentBooking.status == 'Confirmed';
+    final canCancel = {
+      'PendingAI',
+      'PendingHumanApproval',
+      'Confirmed',
+    }.contains(_currentBooking.status);
     final now = DateTime.now();
     final activeAdvisories = _currentBooking.activeAdvisories
         .where((a) => a.endDateTime == null || a.endDateTime!.isAfter(now))

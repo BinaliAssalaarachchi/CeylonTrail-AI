@@ -8,6 +8,7 @@ import 'theme/app_theme.dart';
 import 'views/home_page.dart';
 import 'views/bookings_page.dart';
 import 'views/login_page.dart';
+import 'views/register_page.dart';
 import 'views/discover_page.dart';
 import 'views/attraction_detail_page.dart';
 import 'views/booking_page.dart';
@@ -100,9 +101,10 @@ class CeylonTrailApp extends StatelessWidget {
     refreshListenable: authService,
     redirect: (context, state) {
       final isLogin = state.matchedLocation == '/login';
+      final isAuthEntry = isLogin || state.matchedLocation == '/register';
       if (authService.status == AuthStatus.restoring) return null;
-      if (!authService.isAuthenticated && !isLogin) return '/login';
-      if (authService.isAuthenticated && isLogin) return '/';
+      if (!authService.isAuthenticated && !isAuthEntry) return '/login';
+      if (authService.isAuthenticated && isAuthEntry) return '/';
       if (state.matchedLocation.startsWith('/trips') &&
           authService.user?.role != 'Tourist')
         return '/';
@@ -110,6 +112,7 @@ class CeylonTrailApp extends StatelessWidget {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
       GoRoute(
         path: '/favorites',
         builder: (context, state) => const FavoritesPage(),

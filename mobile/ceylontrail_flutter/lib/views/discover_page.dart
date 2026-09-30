@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../models/attraction_model.dart';
 import '../services/attraction_api_service.dart';
 import '../services/api_client.dart';
-import '../theme/app_theme.dart';
 import '../widgets/attraction_card.dart';
 import '../widgets/auth_scope.dart';
 
