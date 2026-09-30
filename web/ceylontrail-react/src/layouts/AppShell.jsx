@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
+import TouristAccessPage from '../pages/TouristAccessPage'
 
 const roleLinks = {
   TourismProvider: { label: 'Provider workspace', to: '/provider' },
@@ -30,9 +31,11 @@ function BrandMark() {
 
 export default function AppShell() {
   const { user, logout } = useAuth()
+  if (user.role === 'Tourist') return <TouristAccessPage />
   const roleLink = roleLinks[user.role]
   const canManageOperations = ['TravelCoordinator', 'Administrator'].includes(user.role)
   const canViewAdvisories = ['Tourist', 'TourismProvider'].includes(user.role)
+  const canUseStaffBookingOperations = ['TourismProvider', 'TravelCoordinator', 'Administrator'].includes(user.role)
   const attractionRoute = user.role === 'TourismProvider' ? '/provider/attractions' : user.role === 'Administrator' ? '/admin/attractions' : null
   return (
     <div className="app-shell">
@@ -47,10 +50,12 @@ export default function AppShell() {
           {roleLink && <NavLink className="nav-link" to={roleLink.to}><span className="nav-icon">◇</span><span>{roleLink.label}</span></NavLink>}
           {canManageOperations && <NavLink className="nav-link" to="/trip-planning"><span className="nav-icon">TR</span><span>Trip planning</span></NavLink>}
           <div className="nav-divider" /><p className="nav-section-label">Platform modules</p>
-          <NavLink className="nav-link" to="/bookings"><span className="nav-icon">BK</span><span>Bookings</span></NavLink>
+          {canUseStaffBookingOperations && <NavLink className="nav-link" to="/bookings"><span className="nav-icon">BK</span><span>Bookings</span></NavLink>}
           {canViewAdvisories && <NavLink className="nav-link" to="/travel-advisories"><span className="nav-icon">TA</span><span>Travel Advisories</span></NavLink>}
           {canManageOperations && <><NavLink className="nav-link" to="/travel-alerts"><span className="nav-icon">OP</span><span>Travel Operations</span></NavLink><NavLink className="nav-link" to="/ai-operations"><span className="nav-icon">AI</span><span>AI Operations</span></NavLink></>}
-          {attractionRoute ? <NavLink className="nav-link" to={attractionRoute}><span className="nav-icon">AT</span><span>Discover / Attractions</span></NavLink> : <span className="nav-link nav-link-disabled" aria-disabled="true"><span className="nav-icon">AT</span><span>Discover</span></span>}
+          {attractionRoute
+            ? <NavLink className="nav-link" to={attractionRoute}><span className="nav-icon">AT</span><span>Discover / Attractions</span></NavLink>
+            : canManageOperations && <NavLink className="nav-link" to="/discover"><span className="nav-icon">AT</span><span>Discover</span></NavLink>}
         </nav>
         <div className="sidebar-footer">
           <div className="protocol-note"><span className="protocol-icon">◬</span><span><strong>Shared platform</strong><small>All workspace modules unlocked.</small></span></div>

@@ -192,11 +192,7 @@ export default function BookingManagement() {
                             </div>
 
                             <div className="booking-meta">
-                                {isStaffOrProvider && (
-                                    <p><strong>User ID:</strong> {(b.userId || b.touristId)?.substring(0, 8)}...</p>
-                                )}
                                 <p><strong>Date:</strong> {b.createdAt ? new Date(b.createdAt).toLocaleString() : 'N/A'}</p>
-                                {b.qrCodeHash && <p><strong>Ticket QR:</strong> {b.qrCodeHash.substring(0, 12)}...</p>}
                             </div>
 
                             {/* Line items breakdown */}

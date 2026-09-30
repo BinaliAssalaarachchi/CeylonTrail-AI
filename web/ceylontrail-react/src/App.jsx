@@ -23,6 +23,7 @@ import PendingAttractionsPage from './pages/admin/PendingAttractionsPage'
 import AdminAttractionDetailsPage from './pages/admin/AdminAttractionDetailsPage'
 
 import DiscoverPage from './pages/DiscoverPage'
+import TouristAccessPage from './pages/TouristAccessPage'
 
 function App() {
   return (
@@ -31,11 +32,18 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <Route element={<ProtectedRoute allowedRoles={['Tourist']} />}>
+            <Route path="/tourist-access" element={<TouristAccessPage />} />
+          </Route>
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route path="/" element={<HomePage />} />
-              <Route path="/discover" element={<DiscoverPage />} />
-              <Route path="/bookings" element={<RoleDashboardPage title="Reservation & Booking Operations" description="Manage incoming reservations, accept or reject requests, and track status histories." />} />
+              <Route element={<ProtectedRoute allowedRoles={['TourismProvider', 'TravelCoordinator', 'Administrator']} />}>
+                <Route path="/discover" element={<DiscoverPage />} />
+              </Route>
+              <Route element={<ProtectedRoute allowedRoles={['TourismProvider', 'TravelCoordinator', 'Administrator']} />}>
+                <Route path="/bookings" element={<RoleDashboardPage title="Reservation & Booking Operations" description="Manage incoming reservations, accept or reject requests, and track status histories." />} />
+              </Route>
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
                 <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />
                 <Route path="/trip-planning/:id" element={<ItineraryReviewPage />} />
