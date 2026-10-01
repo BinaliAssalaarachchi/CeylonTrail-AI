@@ -63,11 +63,14 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/tea-country-hero.jpg
-    - assets/images/sigiriya-hero.png
-    - assets/images/ella-hills.jpg
-    - assets/images/mirissa-coast.jpg
-    - assets/images/yala-wildlife.jpg
+    - assets/images/destinations/arugam_bay/
+    - assets/images/destinations/bentota/
+    - assets/images/destinations/ella/
+    - assets/images/destinations/galle_fort/
+    - assets/images/destinations/kandy/
+    - assets/images/destinations/sigiriya/
+    - assets/images/destinations/sinharaja/
+    - assets/images/destinations/udawalawe/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

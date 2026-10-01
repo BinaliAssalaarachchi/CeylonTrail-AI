@@ -1418,3 +1418,43 @@ h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.
   box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
 }
 
+.dashboard-hero { isolation: isolate; background: var(--color-forest-deep); }
+.dashboard-hero::before { position: absolute; z-index: -2; inset: 0; background: url('/images/tea-country-hero.jpg') center / cover; opacity: .32; content: ''; }
+.dashboard-hero::after { position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, rgba(0,36,26,.98), rgba(14,59,46,.7) 60%, rgba(14,59,46,.2)); content: ''; }
+.experience-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+.experience-card { overflow: hidden; border: 1px solid var(--color-outline-soft); border-radius: var(--radius-xl); background: var(--color-surface); box-shadow: var(--shadow-soft); transition: transform var(--transition), box-shadow var(--transition); }
+.experience-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-card); }
+.experience-image-wrap { position: relative; height: 190px; overflow: hidden; background: var(--color-mint); }
+.experience-image { width: 100%; height: 100%; object-fit: cover; transition: transform 400ms ease; }
+.experience-card:hover .experience-image { transform: scale(1.04); }
+.experience-image-wrap::after { position: absolute; inset: 35% 0 0; background: linear-gradient(transparent, rgba(0,36,26,.6)); content: ''; pointer-events: none; }
+.experience-location { position: absolute; z-index: 1; bottom: 14px; left: 15px; padding: 5px 9px; border: 1px solid rgba(255,255,255,.3); border-radius: var(--radius-pill); background: rgba(0,36,26,.65); color: #fff; font-size: .68rem; font-weight: 700; }
+.experience-image-mark { position: absolute; z-index: 1; top: 13px; right: 15px; color: #fff; font-size: 1rem; }
+.experience-body { padding: 18px 18px 10px; }
+.experience-category { color: var(--color-tea); font-size: .65rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.experience-body h3 { margin: 7px 0 6px; color: var(--color-forest); font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; }
+.experience-body p { min-height: 42px; margin: 0; color: var(--color-ink-muted); font-size: .8rem; line-height: 1.55; }
+.experience-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 18px; padding: 13px 0 17px; border-top: 1px solid var(--color-outline-soft); }
+.experience-footer strong { color: var(--color-forest); font-size: .78rem; }
+.experience-link { color: var(--color-tea); font-size: .72rem; font-weight: 800; text-decoration: none; }
+.experience-link:hover { color: var(--color-forest); }
+.discover-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.discover-actions { display: flex; gap: 10px; }
+.discover-filters { margin-bottom: 24px; }
+
+@media (max-width: 760px) {
+  .sidebar { position: fixed; inset: auto 0 0; z-index: 20; min-height: auto; height: 68px; flex-direction: row; align-items: center; padding: 8px 12px; border-top: 1px solid var(--color-outline-soft); border-right: 0; }
+  .sidebar .brand-link, .sidebar .workspace-note, .sidebar .sidebar-footer, .sidebar .nav-divider, .sidebar .nav-section-label { display: none; }
+  .primary-nav { width: 100%; flex-direction: row; justify-content: space-around; gap: 4px; }
+  .nav-link { min-height: 48px; flex: 1; flex-direction: column; justify-content: center; gap: 3px; padding: 5px; font-size: .58rem; text-align: center; }
+  .nav-link:hover, .nav-link.active { transform: none; }
+  .nav-link .nav-icon { font-size: .85rem; }
+  .shell-content { padding-bottom: 68px; }
+  .topbar { min-height: 62px; padding: 0 18px; }
+  .topbar-context span:not(.topbar-kicker), .account-copy { display: none; }
+  .main-content { padding: 26px 16px 40px; }
+  .discover-heading { align-items: flex-start; flex-direction: column; }
+  .discover-actions { width: 100%; }
+  .discover-actions .button { width: 100%; }
+  .experience-grid { grid-template-columns: 1fr; }
+}

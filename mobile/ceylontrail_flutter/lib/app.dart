@@ -53,7 +53,10 @@ class ProfilePage extends StatelessWidget {
                       child: _IdentityCard(user: user, initials: initials),
                     ),
                     const SizedBox(height: 0),
-                    const _ProfileSectionLabel('Your travel space'),
+                    _ProfileSectionLabel(
+                      'Your travel space',
+                      color: isWide ? Colors.white : CeylonColors.forest,
+                    ),
                     const SizedBox(height: 10),
                     _ShortcutCard(
                       icon: Icons.bookmark_outline,
@@ -184,11 +187,18 @@ class _IdentityCard extends StatelessWidget {
 }
 
 class _ProfileSectionLabel extends StatelessWidget {
-  const _ProfileSectionLabel(this.label);
+  const _ProfileSectionLabel(this.label, {required this.color});
   final String label;
+  final Color color;
 
   @override
-  Widget build(BuildContext context) => Text(label, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 18));
+  Widget build(BuildContext context) => Text(
+    label,
+    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+      color: color,
+      fontSize: 18,
+    ),
+  );
 }
 
 class _ShortcutCard extends StatelessWidget {

@@ -88,6 +88,12 @@ class AppTheme {
         foregroundColor: CeylonColors.forest,
         elevation: 0,
         centerTitle: false,
+        titleTextStyle: TextStyle(
+          color: CeylonColors.forest,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Playfair Display',
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -123,9 +129,21 @@ class AppTheme {
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(48),
+          foregroundColor: CeylonColors.forest,
+          side: const BorderSide(color: CeylonColors.outline),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(CeylonRadii.field),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
       cardTheme: CardThemeData(
         color: CeylonColors.ivory,
-        elevation: 0,
+        elevation: 2,
+        shadowColor: const Color(0x160E3B2E),
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
