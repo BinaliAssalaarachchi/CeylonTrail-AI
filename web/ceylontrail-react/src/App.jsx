@@ -60,7 +60,7 @@ function App() {
                 <Route path="/provider/attractions/:id/availability" element={<AttractionAvailabilityPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator']} />}>
-                <Route path="/coordinator" element={<RoleDashboardPage title="Travel Coordinator Dashboard" description="Coordinate journeys, review operational work, and keep traveller plans moving." />} />
+                <Route path="/coordinator" element={<RoleDashboardPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['Administrator']} />}>
                 <Route path="/administrator" element={<AdminDashboardPage />} />

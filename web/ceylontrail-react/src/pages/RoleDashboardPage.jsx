@@ -1,113 +1,43 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import BookingManagement from '../components/BookingManagement'
-import OperationalAnalytics from '../components/OperationalAnalytics'
-import StatusBadge from '../components/attractions/StatusBadge'
+import { getTravelIntelligenceExecutions } from '../api/travelIntelligenceExecutions'
+import { getReportOverview } from '../api/reports'
+import { getStaffTrips } from '../api/trips'
+import { getTravelAlerts } from '../api/travelAlerts'
 import { getMyAttractions } from '../api/attractions'
 import { getProviderBookings } from '../api/bookings'
+import StatusBadge from '../components/attractions/StatusBadge'
 import { useAuth } from '../context/useAuth'
 import { primaryAttractionImageFor } from '../utils/attractionImages'
 
-function formatDate(value, options = { day: 'numeric', month: 'short', year: 'numeric' }) {
-  if (!value) return ''
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(undefined, options).format(date)
-}
+const dateFormat = new Intl.DateTimeFormat('en-LK', { day: 'numeric', month: 'short', year: 'numeric' })
+function date(value) { if (!value) return 'Date not available'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 'Date not available' : dateFormat.format(parsed) }
+function label(value) { return value?.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Not available' }
+function imageFor(value) { return primaryAttractionImageFor(value) || '/images/tea-country-hero.jpg' }
+function Status({ children, tone = '' }) { return <span className={`ops-status ${tone}`}>{children}</span> }
+function Summary({ label: title, value, detail, href }) { return <Link className="ops-summary-card" to={href}><span>{title}</span><strong>{value}</strong><small>{detail}</small></Link> }
+function PanelHeading({ eyebrow, title, copy, link, linkText }) { return <div className="ops-panel-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p>{copy}</p></div><Link className="text-link" to={link}>{linkText} <span aria-hidden="true">→</span></Link></div> }
+function State({ text }) { return <div className="ops-state">{text}</div> }
 
-function formatPrice(value) {
-  return `LKR ${Number(value || 0).toLocaleString('en-LK', { maximumFractionDigits: 2 })}`
-}
-
-function imageForAttraction(attraction) {
-  const mappedImage = primaryAttractionImageFor(attraction.name)
-  if (mappedImage) return mappedImage
-  const image = attraction.images?.find((item) => item?.isPrimary && item?.imageUrl) || attraction.images?.find((item) => item?.imageUrl)
-  return image?.imageUrl || '/images/tea-country-hero.jpg'
+function CoordinatorDashboard() {
+  const [data, setData] = useState({ trips: [], executions: [], alerts: [], report: null })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => { let current = true; Promise.allSettled([getStaffTrips(), getTravelIntelligenceExecutions({ page: 1, pageSize: 20 }), getTravelAlerts({ status: 'Active', page: 1, pageSize: 20 }), getReportOverview()]).then((results) => { if (!current) return; const value = (index, fallback) => results[index].status === 'fulfilled' ? results[index].value : fallback; setData({ trips: value(0, []), executions: value(1, { items: [] }).items || [], alerts: value(2, { items: [] }).items || [], report: value(3, null) }); if (results.every((result) => result.status === 'rejected')) setError('Unable to load coordinator operations right now.') }).finally(() => current && setLoading(false)); return () => { current = false } }, [])
+  const pending = useMemo(() => data.executions.filter((item) => item.approval?.status === 'Pending'), [data.executions])
+  return <section className="ops-dashboard" aria-labelledby="coordinator-title">
+    <div className="ops-hero coordinator-hero"><div><p className="eyebrow eyebrow-on-dark">Travel coordinator</p><h1 id="coordinator-title">Coordinate every journey with confidence.</h1><p>Review AI-assisted travel plans, resolve actions that need human approval, and keep traveller journeys moving safely.</p></div><Link className="button provider-hero-action" to="/ai-operations">Review AI operations <span aria-hidden="true">→</span></Link></div>
+    {error && <p className="form-error notice-error" role="alert">{error}</p>}
+    <div className="ops-summary-grid"><Summary label="Awaiting approval" value={loading ? '—' : pending.length} detail="Human decisions needed" href="/ai-operations" /><Summary label="Active journeys" value={loading ? '—' : (data.report?.totalTrips ?? data.trips.length)} detail="From operations reporting" href="/trip-planning" /><Summary label="Confirmed bookings" value={loading ? '—' : (data.report?.bookingsByStatus?.Confirmed ?? '—')} detail="Reported platform total" href="/bookings" /><Summary label="Active travel alerts" value={loading ? '—' : (data.report?.activeTravelAlerts ?? data.alerts.length)} detail="Current advisories" href="/travel-alerts" /></div>
+    <section className="ops-panel attention-panel"><PanelHeading eyebrow="Human oversight" title="Needs your attention" copy="AI-assisted actions remain paused until a coordinator makes the decision." link="/ai-operations" linkText="Open review queue" />{loading ? <State text="Loading approval work…" /> : pending.length === 0 ? <State text="No pending approval actions." /> : <div className="ops-list">{pending.slice(0, 5).map((item) => <Link className="ops-list-row" to="/ai-operations" key={item.executionId}><div><strong>{label(item.recommendedAction)}</strong><span>{item.summary || 'Travel intelligence recommendation'}</span></div><div><Status tone="warning">Awaiting review</Status><small>{date(item.startedAt)}</small></div><span className="row-arrow" aria-hidden="true">→</span></Link>)}</div>}</section>
+    <div className="ops-two-column"><section className="ops-panel"><PanelHeading eyebrow="Journey register" title="Current journeys" copy="Keep an eye on trips as plans and bookings progress." link="/trip-planning" linkText="View all trips" />{loading ? <State text="Loading journeys…" /> : data.trips.length === 0 ? <State text="No journeys are available to monitor." /> : <div className="journey-grid">{data.trips.slice(0, 4).map((trip) => <Link className="journey-card" to={`/trip-planning/${trip.id}`} key={trip.id}><img src={imageFor(trip.name)} alt="" /><div><Status>{label(trip.status)}</Status><h3>{trip.name || 'Unnamed journey'}</h3><p>{date(trip.startDate)} – {date(trip.endDate)}</p><span>{trip.hasItinerary ? 'Itinerary available' : 'Itinerary not generated'} <b>→</b></span></div></Link>)}</div>}</section><section className="ops-panel intelligence-panel"><PanelHeading eyebrow="Travel intelligence" title="Live advisories" copy="Alerts that may affect journeys across Sri Lanka." link="/travel-alerts" linkText="Manage alerts" />{loading ? <State text="Loading advisories…" /> : data.alerts.length === 0 ? <State text="No active advisories returned." /> : <div className="alert-stack">{data.alerts.slice(0, 4).map((alert) => <Link to="/travel-alerts" className="alert-row" key={alert.id}><span className={`alert-severity severity-${alert.severity?.toLowerCase()}`}>{alert.severity}</span><div><strong>{alert.title}</strong><span>{alert.district} · ends {date(alert.endDateTime)}</span></div></Link>)}</div>}</section></div>
+  </section>
 }
 
 function ProviderDashboard() {
-  const { user } = useAuth()
-  const [attractions, setAttractions] = useState([])
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let mounted = true
-    Promise.all([getMyAttractions({ page: 1, pageSize: 100 }), getProviderBookings()])
-      .then(([attractionResult, bookingResult]) => {
-        if (!mounted) return
-        setAttractions(attractionResult?.items || [])
-        setBookings(Array.isArray(bookingResult) ? bookingResult : [])
-      })
-      .catch((requestError) => {
-        if (mounted) setError(requestError.response?.data?.message || 'Unable to load your provider dashboard.')
-      })
-      .finally(() => mounted && setLoading(false))
-    return () => { mounted = false }
-  }, [])
-
-  const slotLookup = useMemo(() => new Map(attractions.flatMap((attraction) => (attraction.experienceSlots || []).map((slot) => [slot.id, { ...slot, attraction }]))), [attractions])
-  const confirmedCount = bookings.filter((booking) => (booking.currentStatus || booking.status || '').toLowerCase() === 'confirmed').length
-  const publishedCount = attractions.filter((attraction) => attraction.status === 'Approved' && attraction.isActive).length
-
-  const reservations = useMemo(() => bookings
-    .slice()
-    .sort((first, second) => new Date(second.createdAt || 0) - new Date(first.createdAt || 0))
-    .slice(0, 5)
-    .map((booking) => {
-      const items = booking.items || []
-      const linkedItems = items.map((item) => ({ item, slot: slotLookup.get(item.availabilitySlotId) })).filter(({ slot }) => slot)
-      const names = [...new Set(linkedItems.map(({ slot }) => slot.attraction.name))]
-      const guests = items.reduce((total, item) => total + (item.numberOfGuests ?? item.quantity ?? 0), 0)
-      const firstSlot = linkedItems[0]?.slot
-      return {
-        ...booking,
-        experienceName: names.length === 1 ? names[0] : names.length > 1 ? `${names[0]} + ${names.length - 1} more` : 'Experience details unavailable',
-        guests,
-        date: firstSlot?.date ? `${formatDate(`${firstSlot.date}T00:00:00`)}${firstSlot.startTime ? ` · ${firstSlot.startTime.slice(0, 5)}` : ''}` : '',
-      }
-    }), [bookings, slotLookup])
-
-  return (
-    <section className="provider-ops-dashboard" aria-labelledby="provider-dashboard-title">
-      <div className="provider-dashboard-hero"><div><p className="eyebrow eyebrow-on-dark">Tourism provider</p><h1 id="provider-dashboard-title">Welcome back, {user.firstName || 'Provider'}</h1><p>Manage your experiences and keep upcoming reservations on track.</p></div><Link className="button button-primary provider-hero-action" to="/provider/attractions">Manage experiences <span aria-hidden="true">→</span></Link></div>
-      {error && <p className="form-error notice-error" role="alert">{error}</p>}
-
-      <div className="provider-summary-grid" aria-label="Provider summary">
-        <article className="provider-summary-card"><span className="provider-summary-icon">AT</span><span>My experiences</span><strong>{loading ? '—' : attractions.length}</strong><small>Provider-owned listings</small></article>
-        <article className="provider-summary-card"><span className="provider-summary-icon">BK</span><span>Confirmed reservations</span><strong>{loading ? '—' : confirmedCount}</strong><small>Across your experiences</small></article>
-        <article className="provider-summary-card"><span className="provider-summary-icon">✓</span><span>Published experiences</span><strong>{loading ? '—' : publishedCount}</strong><small>Approved and active</small></article>
-      </div>
-
-      <section className="provider-dashboard-section" aria-labelledby="provider-experiences-title"><div className="provider-dashboard-section-heading"><div><p className="eyebrow">Your catalogue</p><h2 id="provider-experiences-title">My experiences</h2><p>Manage the experiences travellers can discover and book.</p></div><Link className="text-link" to="/provider/attractions">View all experiences <span aria-hidden="true">→</span></Link></div>
-        {loading && <div className="provider-dashboard-state">Loading your experiences…</div>}
-        {!loading && !error && attractions.length === 0 && <div className="provider-dashboard-empty"><h3>No experiences yet</h3><p>Create your first experience to start building your provider catalogue.</p><Link className="button button-primary" to="/provider/attractions/create">Create an experience</Link></div>}
-        {!loading && attractions.length > 0 && <div className="provider-experience-preview">{attractions.slice(0, 4).map((attraction) => <Link className="provider-experience-card" to={`/provider/attractions/${attraction.id}/edit`} key={attraction.id}><div className="provider-experience-image"><img src={imageForAttraction(attraction)} alt="" loading="lazy" onError={(event) => { event.currentTarget.src = '/images/tea-country-hero.jpg' }} /></div><div className="provider-experience-copy"><div className="provider-experience-topline"><span>{attraction.category?.name || 'Experience'}</span><StatusBadge status={attraction.status} /></div><h3>{attraction.name}</h3><p>{attraction.district || 'Sri Lanka'} · {formatPrice(attraction.price)}</p></div></Link>)}</div>}
-      </section>
-
-      <section className="provider-dashboard-section" aria-labelledby="provider-reservations-title"><div className="provider-dashboard-section-heading"><div><p className="eyebrow">Booking activity</p><h2 id="provider-reservations-title">Recent reservations</h2><p>Review booking requests and confirmed stays involving your experiences.</p></div><Link className="text-link" to="/bookings">View all bookings <span aria-hidden="true">→</span></Link></div>
-        {loading && <div className="provider-dashboard-state">Loading reservations…</div>}
-        {!loading && !error && reservations.length === 0 && <div className="provider-dashboard-empty"><h3>No reservations yet</h3><p>Reservations involving your experiences will appear here.</p></div>}
-        {!loading && reservations.length > 0 && <div className="provider-reservations-table"><div className="provider-reservation-row provider-reservation-heading"><span>Experience</span><span>Guests</span><span>Amount</span><span>Status</span></div>{reservations.map((booking) => <div className="provider-reservation-row" key={booking.id}><span><strong>{booking.experienceName}</strong><small>{booking.date || `Booked ${formatDate(booking.createdAt)}`}</small></span><span>{booking.guests || '—'}</span><span>{formatPrice(booking.totalAmount)}</span><span><span className={`provider-booking-status provider-booking-status-${(booking.currentStatus || 'unknown').toLowerCase()}`}>{booking.currentStatus || 'Unknown'}</span><small>Reference {booking.id?.slice(0, 8) || '—'}</small></span></div>)}</div>}
-      </section>
-
-      <section className="provider-dashboard-actions" aria-labelledby="provider-actions-title"><div><p className="eyebrow">Next steps</p><h2 id="provider-actions-title">Quick actions</h2></div><div><Link className="button button-secondary-light" to="/provider/attractions">Manage experiences <span aria-hidden="true">→</span></Link><Link className="button button-secondary-light" to="/bookings">View reservations <span aria-hidden="true">→</span></Link></div></section>
-    </section>
-  )
+  const [attractions, setAttractions] = useState([]); const [bookings, setBookings] = useState([]); const [loading, setLoading] = useState(true)
+  useEffect(() => { let current = true; Promise.all([getMyAttractions({ page: 1, pageSize: 100 }), getProviderBookings()]).then(([a, b]) => { if (current) { setAttractions(a?.items || []); setBookings(Array.isArray(b) ? b : []) } }).finally(() => current && setLoading(false)); return () => { current = false } }, [])
+  const confirmed = bookings.filter((item) => (item.currentStatus || item.status) === 'Confirmed').length; const published = attractions.filter((item) => item.status === 'Approved' && item.isActive).length
+  return <section className="provider-ops-dashboard"><div className="provider-dashboard-hero"><div><p className="eyebrow eyebrow-on-dark">Tourism provider</p><h1>Welcome back to your catalogue.</h1><p>Manage your experiences and keep upcoming reservations on track.</p></div><Link className="button provider-hero-action" to="/provider/attractions">Manage experiences <span aria-hidden="true">→</span></Link></div><div className="provider-summary-grid"><article className="provider-summary-card"><span className="provider-summary-icon">AT</span><span>My experiences</span><strong>{loading ? '—' : attractions.length}</strong><small>Provider-owned listings</small></article><article className="provider-summary-card"><span className="provider-summary-icon">BK</span><span>Confirmed reservations</span><strong>{loading ? '—' : confirmed}</strong><small>Across your experiences</small></article><article className="provider-summary-card"><span className="provider-summary-icon">✓</span><span>Published experiences</span><strong>{loading ? '—' : published}</strong><small>Approved and active</small></article></div><section className="provider-dashboard-section"><div className="provider-dashboard-section-heading"><div><p className="eyebrow">Your catalogue</p><h2>My experiences</h2><p>Manage the experiences travellers can discover and book.</p></div><Link className="text-link" to="/provider/attractions">View all experiences →</Link></div>{loading ? <div className="provider-dashboard-state">Loading your experiences…</div> : <div className="provider-experience-preview">{attractions.slice(0, 4).map((item) => <Link className="provider-experience-card" to={`/provider/attractions/${item.id}/edit`} key={item.id}><div className="provider-experience-image"><img src={primaryAttractionImageFor(item.name) || item.images?.[0]?.imageUrl || '/images/tea-country-hero.jpg'} alt="" /></div><div className="provider-experience-copy"><div className="provider-experience-topline"><span>{item.category?.name || 'Experience'}</span><StatusBadge status={item.status} /></div><h3>{item.name}</h3><p>{item.district || 'Sri Lanka'}</p></div></Link>)}</div>}</section></section>
 }
-
-export default function RoleDashboardPage({ title, description }) {
-  const { user } = useAuth()
-  const isCoordinator = user.role === 'TravelCoordinator'
-  if (user.role === 'TourismProvider') return <ProviderDashboard />
-
-  return (
-    <section className="workspace-page" aria-labelledby="workspace-title">
-      <div className="page-heading role-page-heading"><div><p className="eyebrow">{isCoordinator ? 'Journey coordination' : 'Reservation operations'}</p><h1 id="workspace-title">{title}</h1><p className="lead">{description}</p></div>{isCoordinator && <Link className="button button-primary" to="/ai-operations">Open AI review queue</Link>}</div>
-      <div className="role-callout"><span className="module-icon">{isCoordinator ? 'AI' : 'OP'}</span><div><strong>{isCoordinator ? 'Review AI-planned journeys and keep traveller plans moving' : 'Monitor CeylonTrail activity and platform operations'}</strong><p>{isCoordinator ? 'Human approval remains the final step for high-impact recommendations.' : 'Live totals and operational detail are sourced from the platform APIs.'}</p></div></div>
-      <BookingManagement />
-      <OperationalAnalytics />
-    </section>
-  )
-}
+export default function RoleDashboardPage() { const { user } = useAuth(); return user.role === 'TravelCoordinator' ? <CoordinatorDashboard /> : <ProviderDashboard /> }

@@ -10,19 +10,7 @@ export const destinationImages = {
 }
 
 export const loginSlides = [
-  ...[
-    ['Arugam Bay', 'East Coast', 'arugam_bay'],
-    ['Bentota', 'Southern Coast', 'bentota'],
-    ['Ella', 'Highlands', 'ella'],
-    ['Galle Fort', 'Southern Coast', 'galle_fort'],
-    ['Kandy', 'Central Highlands', 'kandy'],
-    ['Sigiriya', 'Cultural Triangle', 'sigiriya'],
-    ['Sinharaja', 'Rainforest', 'sinharaja'],
-    ['Udawalawe', 'Wildlife', 'udawalawe'],
-  ].flatMap(([destination, region, folder]) => [1, 2, 3].map((number) => ({
-    destination,
-    region,
-    image: `/images/login/${folder}-${String(number).padStart(2, '0')}.jpg`,
-    position: 'center',
-  }))),
+  { destination: 'Sigiriya', region: 'Cultural Triangle', image: '/images/destinations/sigiriya/02.jpg', position: 'center' },
+  { destination: 'Ella', region: 'Highlands', image: '/images/destinations/ella/01.jpg', position: 'center' },
+  { destination: 'Arugam Bay', region: 'East Coast', image: '/images/destinations/arugam_bay/03.jpg', position: 'center' },
 ]

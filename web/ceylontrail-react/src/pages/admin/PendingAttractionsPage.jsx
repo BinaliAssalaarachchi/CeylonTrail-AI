@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { approveAttraction, getAdminAttractions, rejectAttraction, setAttractionStatus } from '../../api/attractions'
 import StatusBadge from '../../components/attractions/StatusBadge'
 import { apiErrorMessage } from '../attractions/attractionUtils'
+import { primaryAttractionImageFor } from '../../utils/attractionImages'
 
 function formatDate(value) {
   if (!value) return 'N/A'
@@ -294,8 +295,8 @@ export default function PendingAttractionsPage() {
             return (
               <article className="admin-attraction-row" key={attraction.id}>
                 <div className="admin-attraction-thumb">
-                  {image ? (
-                    <img src={image.imageUrl} alt={image.altText || attraction.name} />
+                  {image || primaryAttractionImageFor(attraction.name) ? (
+                    <img src={image?.imageUrl || primaryAttractionImageFor(attraction.name)} alt={image?.altText || attraction.name} />
                   ) : (
                     <span aria-hidden="true">✦</span>
                   )}
