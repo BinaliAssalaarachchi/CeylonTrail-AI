@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../models/booking_model.dart';
+import '../models/travel_alert_model.dart';
 import '../services/booking_api_service.dart';
+import '../theme/app_theme.dart';
+import 'bookings_page.dart';
 
 class BookingDetailPage extends StatefulWidget {
-  const BookingDetailPage({
-    required this.booking,
-    required this.bookingService,
-    required this.onBookingUpdated,
-    super.key,
-  });
+  const BookingDetailPage({required this.booking, required this.bookingService, required this.onBookingUpdated, super.key});
 
   final BookingModel booking;
   final BookingApiService bookingService;
@@ -29,394 +29,437 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     _currentBooking = widget.booking;
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'DRAFT':
-        return Colors.brown.shade400;
-      case 'PENDING':
-        return Colors.orange;
-      case 'CONFIRMED':
-        return Colors.green;
-      case 'REJECTED':
-      case 'CANCELLED':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   Future<void> _showDeleteDraftDialog() async {
     final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Draft Booking?'),
-        content: const Text('Are you sure you want to delete this draft booking? This will remove it from both your bookings and provider records.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Delete draft booking?'),
+            content: const Text('Are you sure you want to remove this draft booking? This cannot be undone.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Keep it')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: CeylonColors.error),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      setState(() => _isDeleting = true);
-      try {
-        await widget.bookingService.deleteBooking(_currentBooking.id);
-        widget.onBookingUpdated();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Draft booking deleted.')),
-          );
-          Navigator.of(context).pop();
-        }
-      } catch (err) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(err.toString())),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _isDeleting = false);
-      }
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    setState(() => _isDeleting = true);
+    try {
+      await widget.bookingService.deleteBooking(_currentBooking.id);
+      widget.onBookingUpdated();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Draft booking deleted.')));
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
     }
   }
 
   Future<void> _showCancelDialog() async {
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel Booking'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Please state the reason for cancellation:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Flight rescheduling or change of plans...',
-                border: OutlineInputBorder(),
-              ),
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Cancel booking'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Please state the reason for cancellation.'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  decoration: const InputDecoration(hintText: 'For example, a change of plans', border: OutlineInputBorder()),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Keep Booking'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Keep booking')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: CeylonColors.error),
+                onPressed: () {
+                  if (controller.text.trim().isNotEmpty) {
+                    Navigator.of(dialogContext).pop(true);
+                  }
+                },
+                child: const Text('Confirm cancellation'),
+              ),
+            ],
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                Navigator.of(ctx).pop(true);
-              }
-            },
-            child: const Text('Confirm Cancel'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      setState(() => _isCancelling = true);
-      try {
-        final updated = await widget.bookingService.cancelBooking(
-          _currentBooking.id,
-          controller.text.trim(),
-        );
-        setState(() => _currentBooking = updated);
-        widget.onBookingUpdated();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Booking successfully cancelled.')),
-          );
-        }
-      } catch (err) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(err.toString())),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _isCancelling = false);
-      }
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    setState(() => _isCancelling = true);
+    try {
+      final updated = await widget.bookingService.cancelBooking(_currentBooking.id, controller.text.trim());
+      if (!mounted) return;
+      setState(() => _currentBooking = updated);
+      widget.onBookingUpdated();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Booking successfully cancelled.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _isCancelling = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final canCancel = {
-      'PendingAI',
-      'PendingHumanApproval',
-      'Confirmed',
-    }.contains(_currentBooking.status);
-    final now = DateTime.now();
-    final activeAdvisories = _currentBooking.activeAdvisories
-        .where((a) => a.endDateTime == null || a.endDateTime!.isAfter(now))
-        .toList();
-
+    final status = bookingStatusPresentation(_currentBooking.status);
+    final canCancel = const {'PendingAI', 'PendingHumanApproval', 'Confirmed'}.contains(_currentBooking.status);
     final isDraft = _currentBooking.status == 'Draft';
+    final advisories = _currentBooking.activeAdvisories.where((item) => item.endDateTime == null || item.endDateTime!.isAfter(DateTime.now())).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reservation Details'),
+        title: const Text('Booking details'),
         actions: [
           if (isDraft)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              tooltip: 'Delete Draft Booking',
-              onPressed: _isDeleting ? null : _showDeleteDraftDialog,
-            ),
+            IconButton(tooltip: 'Delete draft booking', onPressed: _isDeleting ? null : _showDeleteDraftDialog, icon: const Icon(Icons.delete_outline)),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _DetailVisual(),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _currentBooking.items.length > 1 ? '${_currentBooking.items.length} experiences reserved' : 'Your reservation',
+                                    style: Theme.of(context).textTheme.headlineMedium,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _StatusChip(status: status),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        const Divider(),
+                        const SizedBox(height: 18),
+                        Text('Reservation details', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 14),
+                        _DetailLine(icon: Icons.people_outline, label: 'Guests', value: _guestLabel(_currentBooking)),
+                        const SizedBox(height: 12),
+                        _DetailLine(icon: Icons.payments_outlined, label: 'Total', value: formatLkr(_currentBooking.totalAmount), emphasize: true),
+                        const SizedBox(height: 12),
+                        _ReferenceLine(reference: _currentBooking.id),
+                      ],
+                    ),
+                  ),
+                ),
+                if (advisories.isNotEmpty) ...[const SizedBox(height: 16), _AdvisoryCard(advisories: advisories)],
+                const SizedBox(height: 24),
+                Text('Your booking', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 10),
+                ..._currentBooking.items.asMap().entries.map((entry) => _BookingItemCard(item: entry.value, index: entry.key)),
+                if (_currentBooking.items.isEmpty) const _EmptyItemCard(),
+                if (_currentBooking.statusHistory.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text('Booking progress', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 10),
+                  _HistoryTimeline(history: _currentBooking.statusHistory),
+                ],
+                if (_currentBooking.cancellation != null) ...[
+                  const SizedBox(height: 16),
+                  _CancellationCard(cancellation: _currentBooking.cancellation!),
+                ],
+                const SizedBox(height: 24),
+                if (canCancel)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(foregroundColor: CeylonColors.error, side: const BorderSide(color: CeylonColors.error)),
+                      onPressed: _isCancelling ? null : _showCancelDialog,
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: Text(_isCancelling ? 'Processing...' : 'Cancel booking'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _guestLabel(BookingModel booking) {
+  final guests = booking.items.fold<int>(0, (sum, item) => sum + item.numberOfGuests);
+  return '$guests ${guests == 1 ? 'guest' : 'guests'}';
+}
+
+class _DetailVisual extends StatelessWidget {
+  const _DetailVisual();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(16)),
+      child: const Icon(Icons.confirmation_number_outlined, color: CeylonColors.forest, size: 27),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+
+  final BookingStatusPresentation status;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: status.background, borderRadius: BorderRadius.circular(99)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(status.icon, size: 16, color: status.foreground),
+          const SizedBox(width: 6),
+          Text(status.label, style: TextStyle(color: status.foreground, fontSize: 12, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.icon, required this.label, required this.value, this.emphasize = false});
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 19, color: CeylonColors.inkMuted),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label)),
+        Text(value, style: TextStyle(color: emphasize ? CeylonColors.forest : CeylonColors.ink, fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600)),
+      ],
+    );
+  }
+}
+
+class _ReferenceLine extends StatelessWidget {
+  const _ReferenceLine({required this.reference});
+
+  final String reference;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.receipt_long_outlined, size: 19, color: CeylonColors.inkMuted),
+        const SizedBox(width: 10),
+        const Expanded(child: Text('Booking reference')),
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: SelectableText(reference, textAlign: TextAlign.end, style: const TextStyle(fontSize: 12))),
+              IconButton(
+                tooltip: 'Copy booking reference',
+                visualDensity: VisualDensity.compact,
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: reference));
+                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reference copied.')));
+                },
+                icon: const Icon(Icons.copy_outlined, size: 17),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookingItemCard extends StatelessWidget {
+  const _BookingItemCard({required this.item, required this.index});
+
+  final BookingItemModel item;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header card with Status & Reference
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Chip(
-                          avatar: CircleAvatar(
-                            backgroundColor: _getStatusColor(_currentBooking.status),
-                            radius: 5,
-                          ),
-                          label: Text(
-                            _currentBooking.status,
-                            style: TextStyle(
-                              color: _getStatusColor(_currentBooking.status),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          'LKR ${_currentBooking.totalAmount.toStringAsFixed(2)}',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Text(
-                      'Booking Reference:',
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                    SelectableText(
-                      _currentBooking.id,
-                      style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Booked on: ${_currentBooking.createdAt.toLocal().toString().substring(0, 16)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Active Travel Advisory & Current Situation Panel
-            if (activeAdvisories.isNotEmpty) ...[
-              Card(
-                color: Colors.amber.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.amber.shade400, width: 1.5),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.warning_rounded, color: Colors.orange, size: 22),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Destination Advisory (${activeAdvisories.length})',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Current situation in the destination district for this booking:',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                      const SizedBox(height: 10),
-                      ...activeAdvisories.map((advisory) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.amber.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    advisory.title,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.shade100,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    advisory.district,
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatAlertTime(advisory.startDateTime, advisory.endDateTime),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.orange.shade900,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(advisory.description, style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                            if (advisory.source != null && advisory.source!.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Source: ${advisory.source}',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
-                              ),
-                            ],
-                          ],
-                        ),
-                      )),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Itemized line items
-            Text('Reserved Items', style: Theme.of(context).textTheme.titleMedium),
+            Text('Experience ${index + 1}', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text('${item.numberOfGuests} ${item.numberOfGuests == 1 ? 'guest' : 'guests'} × ${formatLkr(item.unitPrice)}'),
             const SizedBox(height: 10),
-            ..._currentBooking.items.map(
-              (item) => Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.confirmation_number_outlined)),
-                  title: Text('Availability slot (${item.availabilitySlotId.substring(0, item.availabilitySlotId.length > 8 ? 8 : item.availabilitySlotId.length)}...)'),
-                  subtitle: Text('Guests: ${item.numberOfGuests} × LKR ${item.unitPrice.toStringAsFixed(2)}'),
-                  trailing: Text(
-                    'LKR ${item.subtotal.toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ),
-
-            if (_currentBooking.cancellation != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                color: Colors.red.shade50,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Cancellation Reason:',
-                        style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _currentBooking.cancellation!.reason,
-                        style: TextStyle(color: Colors.red.shade800),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 24),
-
-            if (isDraft)
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  onPressed: _isDeleting ? null : _showDeleteDraftDialog,
-                  icon: const Icon(Icons.delete_outline),
-                  label: Text(_isDeleting ? 'Deleting...' : 'Delete Draft Booking'),
-                ),
-              ),
-
-            if (canCancel)
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  onPressed: _isCancelling ? null : _showCancelDialog,
-                  icon: const Icon(Icons.cancel_outlined),
-                  label: Text(_isCancelling ? 'Processing...' : 'Cancel Reservation'),
-                ),
-              ),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('Subtotal'),
+              Text(formatLkr(item.subtotal), style: const TextStyle(fontWeight: FontWeight.w800)),
+            ]),
           ],
         ),
       ),
     );
   }
+}
 
-  static String _formatAlertTime(DateTime? start, DateTime? end) {
-    if (start == null && end == null) return '';
-    final now = DateTime.now();
-    final localStart = start?.toLocal();
-    final localEnd = end?.toLocal();
-    String fmt(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    if (localStart != null && localEnd != null) {
-      final prefix = localStart.isAfter(now) ? 'Upcoming' : 'Active Now';
-      return '$prefix · ${fmt(localStart)} – ${fmt(localEnd)}';
-    } else if (localEnd != null) {
-      return 'Until ${fmt(localEnd)}';
-    } else {
-      return 'From ${fmt(localStart!)}';
-    }
+class _EmptyItemCard extends StatelessWidget {
+  const _EmptyItemCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Text('Item details are not available for this reservation.', style: Theme.of(context).textTheme.bodyMedium)));
+  }
+}
+
+class _HistoryTimeline extends StatelessWidget {
+  const _HistoryTimeline({required this.history});
+
+  final List<BookingHistoryModel> history;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          for (var index = 0; index < history.length; index++)
+            _HistoryEntry(entry: history[index], isLast: index == history.length - 1),
+        ]),
+      ),
+    );
+  }
+}
+
+class _HistoryEntry extends StatelessWidget {
+  const _HistoryEntry({required this.entry, required this.isLast});
+
+  final BookingHistoryModel entry;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final presentation = bookingStatusPresentation(entry.newStatus);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(children: [
+          Icon(Icons.check_circle, size: 18, color: presentation.foreground),
+          if (!isLast) Container(width: 1, height: 34, color: CeylonColors.outline),
+        ]),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_historyLabel(entry.newStatus), style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text(_formatDate(entry.timestamp), style: Theme.of(context).textTheme.bodySmall),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _historyLabel(String status) {
+  switch (status) {
+    case 'Draft': return 'Reservation created';
+    case 'Confirmed': return 'Booking confirmed';
+    case 'Cancelled': return 'Booking cancelled';
+    case 'Rejected': return 'Booking not confirmed';
+    case 'Completed': return 'Experience completed';
+    case 'PendingAI':
+    case 'PendingHumanApproval': return 'Confirmation requested';
+    default: return 'Booking updated';
+  }
+}
+
+String _formatDate(DateTime date) {
+  final local = date.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year} · ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
+
+class _CancellationCard extends StatelessWidget {
+  const _CancellationCard({required this.cancellation});
+
+  final CancellationModel cancellation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFFFBE8E8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Cancellation note', style: TextStyle(color: CeylonColors.error, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(cancellation.reason, style: const TextStyle(color: CeylonColors.error)),
+        ]),
+      ),
+    );
+  }
+}
+
+class _AdvisoryCard extends StatelessWidget {
+  const _AdvisoryCard({required this.advisories});
+
+  final List<TravelAlert> advisories;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFFFFF6E4),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFF8A5A18)),
+            SizedBox(width: 8),
+            Text('Travel advisory', style: TextStyle(fontWeight: FontWeight.w800)),
+          ]),
+          const SizedBox(height: 10),
+          for (final advisory in advisories) ...[
+            Text(advisory.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(advisory.description),
+            if (advisory != advisories.last) const SizedBox(height: 12),
+          ],
+        ]),
+      ),
+    );
   }
 }

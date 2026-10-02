@@ -10,6 +10,7 @@ import 'views/home_page.dart';
 import 'views/bookings_page.dart';
 import 'views/login_page.dart';
 import 'views/register_page.dart';
+import 'views/welcome_page.dart';
 import 'views/discover_page.dart';
 import 'views/attraction_detail_page.dart';
 import 'views/booking_page.dart';
@@ -104,7 +105,7 @@ class ProfilePage extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset('assets/images/mirissa-coast.jpg', fit: BoxFit.cover),
+            Image.asset('assets/images/destinations/bentota/02.jpg', fit: BoxFit.cover),
             ColoredBox(color: CeylonColors.forestDeep.withValues(alpha: .56)),
             content,
           ],
@@ -130,7 +131,7 @@ class _ProfileHero extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/mirissa-coast.jpg', fit: BoxFit.cover, semanticLabel: 'Mirissa coast in Sri Lanka'),
+          Image.asset('assets/images/destinations/bentota/02.jpg', fit: BoxFit.cover, semanticLabel: 'Bentota coast in Sri Lanka'),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -235,13 +236,15 @@ class CeylonTrailApp extends StatelessWidget {
     AuthService authService,
     TripApiService? tripApiService,
   ) => GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/welcome',
     refreshListenable: authService,
     redirect: (context, state) {
       final isLogin = state.matchedLocation == '/login';
-      final isAuthEntry = isLogin || state.matchedLocation == '/register';
+      final isAuthEntry = isLogin ||
+          state.matchedLocation == '/register' ||
+          state.matchedLocation == '/welcome';
       if (authService.status == AuthStatus.restoring) return null;
-      if (!authService.isAuthenticated && !isAuthEntry) return '/login';
+      if (!authService.isAuthenticated && !isAuthEntry) return '/welcome';
       if (authService.isAuthenticated && isAuthEntry) return '/';
       if (state.matchedLocation.startsWith('/trips') &&
           authService.user?.role != 'Tourist')
@@ -249,6 +252,7 @@ class CeylonTrailApp extends StatelessWidget {
       return null;
     },
     routes: [
+      GoRoute(path: '/welcome', builder: (context, state) => const WelcomePage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
       GoRoute(

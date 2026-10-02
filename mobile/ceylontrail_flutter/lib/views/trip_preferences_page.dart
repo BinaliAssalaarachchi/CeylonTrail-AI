@@ -7,12 +7,9 @@ import '../theme/app_theme.dart';
 
 class TripPreferencesPage extends StatefulWidget {
   const TripPreferencesPage({required this.api, required this.tripId, super.key});
-
   final TripApiService api;
   final String tripId;
-
-  @override
-  State<TripPreferencesPage> createState() => _TripPreferencesPageState();
+  @override State<TripPreferencesPage> createState() => _TripPreferencesPageState();
 }
 
 class _TripPreferencesPageState extends State<TripPreferencesPage> {
@@ -30,18 +27,15 @@ class _TripPreferencesPageState extends State<TripPreferencesPage> {
 
   Future<void> _add() async {
     if (_type.text.trim().isEmpty || _value.text.trim().isEmpty) {
-      setState(() => _error = 'Both preference type and value are required.');
+      setState(() => _error = 'Add a preference type and tell us what matters to you.');
       return;
     }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+    setState(() { _saving = true; _error = null; });
     try {
       await widget.api.addPreference(
         tripId: widget.tripId,
-        preferenceType: _type.text,
-        value: _value.text,
+        preferenceType: _type.text.trim(),
+        value: _value.text.trim(),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -49,52 +43,73 @@ class _TripPreferencesPageState extends State<TripPreferencesPage> {
       );
       context.pop(true);
     } on ApiException catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = error.message;
-          _saving = false;
-        });
-      }
+      if (mounted) setState(() { _error = error.message; _saving = false; });
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Trip preferences')),
-    body: Padding(
-      padding: const EdgeInsets.all(CeylonSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _type,
-            decoration: const InputDecoration(
-              labelText: 'Preference type',
-              hintText: 'Interest, Region, TravelStyle',
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Manage preferences')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(CeylonSpacing.md, CeylonSpacing.sm, CeylonSpacing.md, 48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Your travel preferences', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 6),
+                Text('Add another detail to help CeylonTrail shape the right journey for you.', style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: CeylonSpacing.xl),
+                Text('What should we know?', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: CeylonSpacing.sm),
+                TextField(
+                  controller: _type,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Preference type',
+                    hintText: 'Travel style, interest, region...',
+                  ),
+                ),
+                const SizedBox(height: CeylonSpacing.md),
+                TextField(
+                  controller: _value,
+                  maxLines: 4,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Your preference',
+                    hintText: 'Tell us what you would like to prioritise.',
+                  ),
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: CeylonSpacing.md),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    ),
+                  ),
+                const SizedBox(height: CeylonSpacing.xl),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _add,
+                    child: _saving
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(color: Colors.white),
+                          )
+                        : const Text('Save preference'),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: CeylonSpacing.md),
-          TextField(
-            controller: _value,
-            decoration: const InputDecoration(labelText: 'Value'),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: CeylonSpacing.md),
-              child: Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          const SizedBox(height: CeylonSpacing.lg),
-          ElevatedButton(
-            onPressed: _saving ? null : _add,
-            child: _saving
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Add preference'),
-          ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

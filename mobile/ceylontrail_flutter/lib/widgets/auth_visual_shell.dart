@@ -27,11 +27,11 @@ class AuthVisualShell extends StatefulWidget {
 
 class _AuthVisualShellState extends State<AuthVisualShell> {
   static const _destinations = [
-    _AuthDestination('assets/images/sigiriya-hero.png', 'SIGIRIYA · CENTRAL PROVINCE', 'Sigiriya rock and tropical landscape in Sri Lanka'),
-    _AuthDestination('assets/images/ella-hills.jpg', 'ELLA · UVA', 'Misty green hills in Ella, Sri Lanka'),
-    _AuthDestination('assets/images/mirissa-coast.jpg', 'MIRISSA · SOUTHERN COAST', 'Mirissa beach on Sri Lanka’s southern coast'),
-    _AuthDestination('assets/images/yala-wildlife.jpg', 'YALA · SOUTHERN SRI LANKA', 'Landscape in Yala National Park, Sri Lanka'),
-    _AuthDestination('assets/images/tea-country-hero.jpg', 'TEA COUNTRY · HIGHLANDS', 'Sri Lankan tea country hills'),
+    _AuthDestination('assets/images/destinations/ella/02.jpg', 'ELLA · UVA', 'Train crossing a bridge through Ella’s tea country in Sri Lanka'),
+    _AuthDestination('assets/images/destinations/sigiriya/03.jpg', 'SIGIRIYA · CENTRAL PROVINCE', 'Sigiriya rock fortress in Sri Lanka'),
+    _AuthDestination('assets/images/destinations/bentota/01.jpg', 'BENTOTA · SOUTHWEST COAST', 'Bentota lagoon and fishing boats on Sri Lanka’s southwest coast'),
+    _AuthDestination('assets/images/destinations/udawalawe/03.jpg', 'UDAWALAWE · SOUTHERN SRI LANKA', 'Spotted deer in Udawalawe National Park, Sri Lanka'),
+    _AuthDestination('assets/images/destinations/galle_fort/02.jpg', 'GALLE FORT · SOUTHERN COAST', 'Galle Fort clock tower on Sri Lanka’s southern coast'),
   ];
 
   Timer? _timer;
@@ -64,7 +64,7 @@ class _AuthVisualShellState extends State<AuthVisualShell> {
           children: [
             ImageFiltered(
               imageFilter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-              child: Image.asset(_destinations[_activeIndex].asset, fit: BoxFit.cover),
+              child: Image.asset(_destinations[_activeIndex].asset, fit: BoxFit.cover, filterQuality: FilterQuality.high),
             ),
             ColoredBox(color: CeylonColors.forestDeep.withValues(alpha: .58)),
             SafeArea(child: Center(child: experience)),
@@ -83,14 +83,22 @@ class _AuthExperience extends StatelessWidget {
   final int activeIndex;
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 640),
-    child: SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        children: [
-          SizedBox(
-            height: 390,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final isShortViewport = constraints.maxHeight < 680;
+      final heroHeight = constraints.maxHeight.isFinite
+          ? (constraints.maxHeight * .54).clamp(280.0, 390.0)
+          : 390.0;
+      final overlap = isShortViewport ? 0.0 : 78.0;
+
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            children: [
+              SizedBox(
+            height: heroHeight,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -98,7 +106,7 @@ class _AuthExperience extends StatelessWidget {
                   duration: const Duration(milliseconds: 900),
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
-                  child: Image.asset(active.asset, key: ValueKey(active.asset), fit: BoxFit.cover, semanticLabel: active.altText),
+                  child: _AuthHeroPhoto(destination: active, key: ValueKey(active.asset)),
                 ),
                 DecoratedBox(
                   decoration: BoxDecoration(
@@ -137,7 +145,7 @@ class _AuthExperience extends StatelessWidget {
             ),
           ),
           Transform.translate(
-            offset: const Offset(0, -78),
+            offset: Offset(0, -overlap),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 22),
@@ -152,10 +160,31 @@ class _AuthExperience extends StatelessWidget {
                 widget.footer,
               ]),
             ),
+              ),
+            ],
           ),
-        ],
+        ),
+      );
+    },
+  );
+}
+
+class _AuthHeroPhoto extends StatelessWidget {
+  const _AuthHeroPhoto({required this.destination, super.key});
+
+  final _AuthDestination destination;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Image.asset(destination.asset, fit: BoxFit.cover, filterQuality: FilterQuality.high),
       ),
-    ),
+      ColoredBox(color: CeylonColors.forestDeep.withValues(alpha: .24)),
+      Image.asset(destination.asset, fit: BoxFit.contain, filterQuality: FilterQuality.high, semanticLabel: destination.altText),
+    ],
   );
 }
 

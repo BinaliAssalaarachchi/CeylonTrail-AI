@@ -63,6 +63,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/images/welcome_mobile.png
     - assets/images/destinations/arugam_bay/
     - assets/images/destinations/bentota/
     - assets/images/destinations/ella/
