@@ -11,7 +11,9 @@ from pydantic import ValidationError
 from config import load_dotenv_file
 from planner.agent import DeterministicPlannerFixture, PlannerAgent, PlannerError, PlannerValidationError
 from planner.providers import FallbackPlannerModelProvider, GEMINI_PLANNER_RESPONSE_SCHEMA, GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, create_planner_provider
+from agent_trace import AgentExecutionTrace
 from planner.schemas import PlannerInput, PlannerOutput
+from planner.tools import PlannerToolError, PlannerTools
 
 
 def request(**overrides):
@@ -75,6 +77,78 @@ class PlannerTests(unittest.TestCase):
         result = PlannerAgent(RecordingProvider(valid_output())).generate(request())
         self.assertEqual(result.status, "Generated")
         self.assertEqual(result.days[0].items[0].attraction_id, "a1")
+
+    def test_successful_result_contains_exact_bounded_operational_trace(self):
+        result = PlannerAgent(RecordingProvider(valid_output())).generate(request())
+        self.assertIsInstance(result.trace, AgentExecutionTrace)
+        self.assertEqual(
+            [step.tool for step in result.trace.steps],
+            [
+                "inspect_trip_constraints",
+                "inspect_candidate_attractions",
+                "calculate_budget_usage",
+                "check_schedule_conflicts",
+                "validate_plan_constraints",
+            ],
+        )
+        self.assertLessEqual(len(result.trace.steps), 5)
+        self.assertTrue(all(step.status == "Completed" for step in result.trace.steps))
+        self.assertIsNone(result.trace.safe_failure)
+
+    def test_trace_rejects_unbounded_or_private_fields(self):
+        with self.assertRaises(ValidationError):
+            AgentExecutionTrace(
+                agent="Planner",
+                responsibility="Plan",
+                inputSummary="Input",
+                prompt="must not be accepted",
+            )
+
+    def test_each_planner_tool_normal_path(self):
+        planner_request = request()
+        planner_output = PlannerOutput.model_validate(valid_output())
+        self.assertIn("budget", PlannerTools.inspect_trip_constraints(planner_request).result_summary)
+        self.assertIn("2 trusted", PlannerTools.inspect_candidate_attractions(planner_request).result_summary)
+        self.assertIn("2500", PlannerTools.calculate_budget_usage(planner_request, planner_output).result_summary)
+        self.assertIn("no conflicts", PlannerTools.check_schedule_conflicts(planner_request, planner_output).result_summary)
+        self.assertIn("passed", PlannerTools.validate_plan_constraints(planner_request, planner_output).result_summary)
+
+    def test_candidate_inspection_rejects_duplicate_ids(self):
+        planner_request = request(candidateAttractions=[
+            {"id": "a1", "name": "One", "price": 100},
+            {"id": "a1", "name": "Duplicate", "price": 100},
+        ])
+        with self.assertRaises(PlannerToolError):
+            PlannerTools.inspect_candidate_attractions(planner_request)
+
+    def test_budget_tool_rejects_budget_violation(self):
+        planner_request = request(budget=100)
+        planner_output = PlannerOutput.model_validate(valid_output())
+        with self.assertRaises(PlannerToolError):
+            PlannerTools.calculate_budget_usage(planner_request, planner_output)
+
+    def test_schedule_tool_rejects_unknown_candidate(self):
+        planner_request = request()
+        invalid = valid_output()
+        invalid["days"][0]["items"][0]["attractionId"] = "unknown"
+        planner_output = PlannerOutput.model_validate(invalid)
+        with self.assertRaises(PlannerToolError):
+            PlannerTools.check_schedule_conflicts(planner_request, planner_output)
+
+    def test_validation_tool_rejects_generated_output_without_days(self):
+        planner_request = request()
+        planner_output = PlannerOutput.model_validate({"days": [], "estimatedCost": 0, "status": "Generated"})
+        with self.assertRaises(ValueError):
+            PlannerTools.validate_plan_constraints(planner_request, planner_output)
+
+    def test_invalid_planner_output_exposes_bounded_safe_failure_trace(self):
+        invalid = valid_output()
+        invalid["days"][0]["items"][0]["attractionId"] = "unknown"
+        with self.assertRaises(PlannerValidationError) as raised:
+            PlannerAgent(RecordingProvider(invalid), max_retries=0).generate(request())
+        self.assertIsNotNone(raised.exception.trace)
+        self.assertEqual(raised.exception.trace.safe_failure, "Itinerary item references an unknown candidate attraction.")
+        self.assertLessEqual(len(raised.exception.trace.steps), 3)
 
     def test_provider_receives_full_trusted_context_and_policy(self):
         provider = RecordingProvider(valid_output())

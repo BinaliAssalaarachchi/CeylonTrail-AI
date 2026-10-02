@@ -127,7 +127,8 @@ public sealed class AgentTripWorkflowOrchestrator(
                 status = plannerOutput.Status,
                 dayCount = plannerOutput.Days.Count,
                 attractionIds = plannerOutput.Days.SelectMany(day => day.Items).Select(item => item.AttractionId).Distinct().ToList(),
-                plannerOutput.EstimatedCost
+                plannerOutput.EstimatedCost,
+                trace = plannerOutput.Trace
             }),
             cancellationToken: cancellationToken);
 
@@ -201,7 +202,8 @@ public sealed class AgentTripWorkflowOrchestrator(
             {
                 status = destinationResult.Value.Status,
                 selectedAttractionIds = destinationIds.ToList(),
-                groundedAttractionIds = groundedDays.SelectMany(day => day.Items).Select(item => item.AttractionId).Distinct().ToList()
+                groundedAttractionIds = groundedDays.SelectMany(day => day.Items).Select(item => item.AttractionId).Distinct().ToList(),
+                trace = destinationResult.Value.Trace
             }),
             cancellationToken: cancellationToken);
 
@@ -258,7 +260,8 @@ public sealed class AgentTripWorkflowOrchestrator(
                 proposals = bookingResult.Value.Proposals,
                 issues = bookingResult.Value.Issues,
                 requiresApproval = bookingResult.Value.Proposals.Count > 0,
-                summary = bookingResult.Value.Summary
+                summary = bookingResult.Value.Summary,
+                trace = bookingResult.Value.Trace
             }),
             cancellationToken: cancellationToken);
 

@@ -1,5 +1,24 @@
 namespace CeylonTrail.Api.DTOs.Planner;
 
+public sealed record AgentTraceStep(
+    int Sequence,
+    string Tool,
+    string Purpose,
+    string Status,
+    string ResultSummary,
+    int? DurationMs);
+
+public sealed record AgentExecutionTrace(
+    string Agent,
+    string Responsibility,
+    string InputSummary,
+    IReadOnlyList<AgentTraceStep> Steps,
+    string? Decision,
+    string? Validation,
+    string? OutputSummary,
+    string? SafeFailure,
+    int? DurationMs);
+
 public sealed record PlannerAgentRequest(
     string TripId,
     DateOnly StartDate,
@@ -26,7 +45,8 @@ public sealed record PlannerAgentResponse(
     IReadOnlyList<PlannerDay> Days,
     decimal EstimatedCost,
     string Status,
-    string? Message);
+    string? Message,
+    AgentExecutionTrace? Trace = null);
 
 public sealed record PlannerDay(
     int DayNumber,

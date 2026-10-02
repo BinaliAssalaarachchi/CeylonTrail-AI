@@ -6,6 +6,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from agent_trace import AgentExecutionTrace
+
 
 class PlannerPreference(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -82,6 +84,7 @@ class PlannerOutput(BaseModel):
     estimated_cost: Decimal = Field(alias="estimatedCost", ge=0)
     status: str = Field(pattern=r"^(Generated|NoPlan)$")
     message: Optional[str] = Field(default=None, max_length=500)
+    trace: Optional[AgentExecutionTrace] = None
 
 
 def validate_planner_output(output: PlannerOutput, request: PlannerInput) -> PlannerOutput:

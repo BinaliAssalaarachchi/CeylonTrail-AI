@@ -12,6 +12,8 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from uuid import UUID
 
+from agent_trace import AgentExecutionTrace
+
 
 class BookingActionType(str, Enum):
     CREATE_BOOKING_REQUEST = "CREATE_BOOKING_REQUEST"
@@ -176,3 +178,4 @@ class BookingActionOutput(BaseModel):
     issues: List[BookingActionIssue] = Field(default_factory=list, max_length=100)
     requires_approval: bool = Field(alias="requiresApproval")
     summary: str = Field(min_length=1, max_length=500)
+    trace: Optional[AgentExecutionTrace] = None

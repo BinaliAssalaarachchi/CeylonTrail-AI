@@ -8,6 +8,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from agent_trace import AgentExecutionTrace
+
 
 class RiskLevel(str, Enum):
     LOW = "Low"
@@ -337,3 +339,4 @@ class TravelRecommendationOutput(BaseModel):
     validation_result_id: UUID = Field(alias="validationResultId")
     is_feasible: bool = Field(alias="isFeasible")
     execution: AgentExecutionMetadata
+    trace: Optional[AgentExecutionTrace] = None

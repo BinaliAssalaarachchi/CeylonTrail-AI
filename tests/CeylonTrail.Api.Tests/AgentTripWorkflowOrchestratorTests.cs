@@ -31,6 +31,8 @@ public sealed class AgentTripWorkflowOrchestratorTests
             new[] { AgentWorkflowAgentRole.Planner, AgentWorkflowAgentRole.Destination, AgentWorkflowAgentRole.BookingAction, AgentWorkflowAgentRole.TravelIntelligence },
             workflow.Stages.OrderBy(stage => stage.Sequence).Select(stage => stage.AgentRole));
         Assert.All(workflow.Stages, stage => Assert.Equal(AgentWorkflowStageStatus.Completed, stage.Status));
+        var plannerStage = workflow.Stages.Single(stage => stage.AgentRole == AgentWorkflowAgentRole.Planner);
+        Assert.Contains("Planner", plannerStage.OutputSnapshotJson);
         Assert.Empty(db.Bookings);
         Assert.Empty(db.BookingItems);
         Assert.Equal(1, intelligence.CallCount);
@@ -218,7 +220,17 @@ public sealed class AgentTripWorkflowOrchestratorTests
             Task.FromResult(Succeed
                 ? new PlannerAgentServiceResult(Value: new PlannerAgentResponse(
                     [new PlannerDay(1, request.StartDate, [new PlannerItem(attractionId, new TimeOnly(9), new TimeOnly(11), 1000m, "Planner requirement")])],
-                    1000m, "Generated", null))
+                    1000m, "Generated", null,
+                    new AgentExecutionTrace(
+                        "Planner",
+                        "Create a feasible itinerary from trusted trip inputs.",
+                        "Test planner input",
+                        [new AgentTraceStep(1, "validate_plan_constraints", "Validate planner output", "Completed", "Passed", 1)],
+                        "Generated feasible itinerary.",
+                        "Passed deterministic Planner validation.",
+                        "1 day, LKR 1000 estimated cost.",
+                        null,
+                        1)))
                 : new PlannerAgentServiceResult(Error: "planner unavailable", ServiceUnavailable: true));
     }
 

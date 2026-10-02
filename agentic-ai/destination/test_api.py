@@ -63,3 +63,11 @@ def test_recommend_endpoint():
         body["candidates"][0]["attractionId"]
         == "33333333-3333-3333-3333-333333333333"
     )
+    assert [step["tool"] for step in body["trace"]["steps"]] == [
+        "filter_by_district",
+        "filter_by_interests_or_category",
+        "filter_by_budget",
+        "check_date_availability",
+        "rank_candidates",
+        "explain_match",
+    ]
