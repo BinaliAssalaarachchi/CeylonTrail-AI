@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../config/api_config.dart';
 import '../models/attraction_model.dart';
 import '../models/travel_alert_model.dart';
 import '../services/attraction_api_service.dart';
 import '../services/api_client.dart';
 import '../services/travel_alert_api_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/attraction_images.dart';
 import '../widgets/auth_scope.dart';
 
 class AttractionDetailPage extends StatefulWidget {
@@ -109,18 +109,7 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
           children: [
-            if (attraction.images.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(CeylonRadii.card),
-                child: Image.network(
-                  ApiConfig.resolveImageUrl(attraction.images.first.imageUrl),
-                  height: 230,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _fallbackImage(),
-                ),
-              )
-            else
-              _fallbackImage(),
+            _AttractionGallery(attraction: attraction),
             const SizedBox(height: 20),
             Text(attraction.name, style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),
@@ -224,6 +213,105 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
     final slotEnd = DateTime(d.year, d.month, d.day, hour, minute);
     return slotEnd.isAfter(now);
   }
+}
+
+class _AttractionGallery extends StatefulWidget {
+  const _AttractionGallery({required this.attraction});
+
+  final AttractionModel attraction;
+
+  @override
+  State<_AttractionGallery> createState() => _AttractionGalleryState();
+}
+
+class _AttractionGalleryState extends State<_AttractionGallery> {
+  late final PageController _pageController;
+  int _page = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gallery = attractionGallery(widget.attraction);
+    if (gallery.isEmpty) {
+      return _GalleryPlaceholder(label: widget.attraction.district);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(CeylonRadii.card),
+      child: SizedBox(
+        height: 230,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              itemCount: gallery.length,
+              onPageChanged: (page) => setState(() => _page = page),
+              itemBuilder: (context, index) => ColoredBox(
+                color: const Color(0xFF18231F),
+                child: Center(
+                  child: Image.asset(
+                    gallery[index],
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
+                      label: 'Photo needed for this destination',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 12,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  gallery.length,
+                  (index) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: index == _page ? 18 : 6,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: index == _page ? Colors.white : Colors.white60,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GalleryPlaceholder extends StatelessWidget {
+  const _GalleryPlaceholder({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 230,
+    decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(CeylonRadii.card)),
+    alignment: Alignment.center,
+    child: Text(label, style: const TextStyle(color: CeylonColors.forest, fontWeight: FontWeight.w700)),
+  );
 }
 
 class _InfoSection extends StatelessWidget {

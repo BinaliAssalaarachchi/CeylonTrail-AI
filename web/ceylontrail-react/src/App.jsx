@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
+import './premium.css'
 import { AuthProvider } from './context/AuthContext'
 import AppShell from './layouts/AppShell'
 import HomePage from './pages/HomePage'
@@ -24,6 +25,7 @@ import AdminAttractionDetailsPage from './pages/admin/AdminAttractionDetailsPage
 
 import DiscoverPage from './pages/DiscoverPage'
 import TouristAccessPage from './pages/TouristAccessPage'
+import BookingsPage from './pages/BookingsPage'
 
 function App() {
   return (
@@ -42,14 +44,14 @@ function App() {
                 <Route path="/discover" element={<DiscoverPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TourismProvider', 'TravelCoordinator', 'Administrator']} />}>
-                <Route path="/bookings" element={<RoleDashboardPage title="Reservation & Booking Operations" description="Manage incoming reservations, accept or reject requests, and track status histories." />} />
+                <Route path="/bookings" element={<BookingsPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator', 'Administrator']} />}>
                 <Route path="/trip-planning" element={<TripPlanningOverviewPage />} />
                 <Route path="/trip-planning/:id" element={<ItineraryReviewPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TourismProvider']} />}>
-                <Route path="/provider" element={<RoleDashboardPage title="Tourism Provider Dashboard" description="A shared workspace for tourism providers." />} />
+                <Route path="/provider" element={<RoleDashboardPage title="Tourism Provider Dashboard" description="Manage your experiences and keep reservations running smoothly." />} />
                 <Route path="/provider/attractions" element={<MyAttractionsPage />} />
                 <Route path="/provider/attractions/create" element={<CreateAttractionPage />} />
                 <Route path="/provider/attractions/:id/edit" element={<EditAttractionPage />} />
@@ -58,7 +60,7 @@ function App() {
                 <Route path="/provider/attractions/:id/availability" element={<AttractionAvailabilityPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['TravelCoordinator']} />}>
-                <Route path="/coordinator" element={<RoleDashboardPage title="Travel Coordinator Dashboard" description="A shared workspace for travel coordinators." />} />
+                <Route path="/coordinator" element={<RoleDashboardPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['Administrator']} />}>
                 <Route path="/administrator" element={<AdminDashboardPage />} />

@@ -88,7 +88,7 @@ export default function MyAttractionsPage() {
     <section className="page-section wide-page provider-attractions-page">
       <div className="page-header provider-attractions-header">
         <div>
-          <p className="eyebrow">Provider workspace</p>
+          <p className="eyebrow">Your catalogue</p>
           <h1>My Attractions</h1>
           <p className="lead">Manage the attractions and experiences you provide.</p>
         </div>
@@ -101,7 +101,7 @@ export default function MyAttractionsPage() {
 
       {!loading && !error && attractions.length > 0 && <>
         <div className="provider-attraction-stats" aria-label="Attraction summary">
-          <button className={`provider-stat ${!hasFilters ? 'provider-stat-selected' : ''}`} type="button" onClick={clearFilters}><span>Total attractions</span><strong>{stats.total}</strong><small>Across your workspace</small></button>
+          <button className={`provider-stat ${!hasFilters ? 'provider-stat-selected' : ''}`} type="button" onClick={clearFilters}><span>Total attractions</span><strong>{stats.total}</strong><small>Managed by you</small></button>
           <button className={`provider-stat ${filters.status === 'Approved' ? 'provider-stat-selected' : ''}`} type="button" onClick={() => setFilters((current) => ({ ...current, status: 'Approved' }))}><span>Approved</span><strong>{stats.approved}</strong><small>Publicly available</small></button>
           <button className={`provider-stat ${filters.status === 'PendingApproval' ? 'provider-stat-selected' : ''}`} type="button" onClick={() => setFilters((current) => ({ ...current, status: 'PendingApproval' }))}><span>Pending approval</span><strong>{stats.pending}</strong><small>Awaiting review</small></button>
           {stats.rejected > 0 && (

@@ -1,0 +1,15 @@
+Auth hero photography sources
+
+ella-hills.jpg
+https://commons.wikimedia.org/wiki/File:Ella_sri_lanka_nature.jpg
+CC BY-SA 4.0 · Author: Udara nayanajith
+
+mirissa-coast.jpg
+https://commons.wikimedia.org/wiki/File:Mirissa_beach,_Srilanka.jpg
+CC BY-SA 4.0 · Author: Abishek Palraj
+
+yala-wildlife.jpg
+https://commons.wikimedia.org/wiki/File:Yala_National_Park_(Sri_Lanka_2012).jpg
+CC BY 2.0 · Author: Patty Ho / comicpie
+
+sigiriya-hero.png and tea-country-hero.jpg are existing project assets.

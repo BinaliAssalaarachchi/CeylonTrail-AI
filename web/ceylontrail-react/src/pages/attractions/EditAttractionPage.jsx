@@ -84,7 +84,7 @@ export default function EditAttractionPage() {
 
       <div className="consistent-page-header page-header">
         <div>
-          <p className="eyebrow">Provider workspace</p>
+          <p className="eyebrow">Experience details</p>
           <h1>Edit attraction</h1>
           <p className="lead">Update the information visitors and administrators use for this attraction.</p>
         </div>

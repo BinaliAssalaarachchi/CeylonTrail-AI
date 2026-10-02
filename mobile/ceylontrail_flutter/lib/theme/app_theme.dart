@@ -8,8 +8,8 @@ class CeylonColors {
   static const teal = Color(0xFF028090);
   static const mint = Color(0xFFD8F3DC);
   static const ivory = Color(0xFFFDFBF7);
-  static const canvas = Color(0xFFF7F7FF);
-  static const surfaceSoft = Color(0xFFF0F2FC);
+  static const canvas = Color(0xFFF6F3ED);
+  static const surfaceSoft = Color(0xFFF0EEE7);
   static const ink = Color(0xFF171C25);
   static const inkMuted = Color(0xFF59645F);
   static const outline = Color(0xFFC0C8C3);
@@ -88,6 +88,12 @@ class AppTheme {
         foregroundColor: CeylonColors.forest,
         elevation: 0,
         centerTitle: false,
+        titleTextStyle: TextStyle(
+          color: CeylonColors.forest,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Playfair Display',
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -123,9 +129,22 @@ class AppTheme {
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(48),
+          foregroundColor: CeylonColors.forest,
+          side: const BorderSide(color: CeylonColors.outline),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(CeylonRadii.field),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
       cardTheme: CardThemeData(
         color: CeylonColors.ivory,
-        elevation: 0,
+        elevation: 2,
+        shadowColor: const Color(0x160E3B2E),
+        surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(CeylonRadii.card),

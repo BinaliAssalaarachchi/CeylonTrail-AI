@@ -3,12 +3,14 @@ import 'package:go_router/go_router.dart';
 
 import 'services/auth_service.dart';
 import 'services/trip_api_service.dart';
+import 'models/auth_user.dart';
 import 'models/trip_model.dart';
 import 'theme/app_theme.dart';
 import 'views/home_page.dart';
 import 'views/bookings_page.dart';
 import 'views/login_page.dart';
 import 'views/register_page.dart';
+import 'views/welcome_page.dart';
 import 'views/discover_page.dart';
 import 'views/attraction_detail_page.dart';
 import 'views/booking_page.dart';
@@ -32,57 +34,194 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final authService = AuthScope.of(context);
     final user = authService.user!;
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const BrandLockup(compact: true),
-            const SizedBox(height: 44),
-            Text(
-              'Your profile',
-              style: Theme.of(context).textTheme.displaySmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              user.displayName,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 4),
-            Text(user.email, style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 24),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
+    final initials = _profileInitials(user.firstName, user.lastName);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 760;
+        final content = SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.verified_user_outlined,
-                      color: CeylonColors.tea,
+                    _ProfileHero(),
+                    Transform.translate(
+                      offset: const Offset(0, -34),
+                      child: _IdentityCard(user: user, initials: initials),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Your secure CeylonTrail session is active.',
-                        style: Theme.of(context).textTheme.bodyMedium,
+                    const SizedBox(height: 0),
+                    _ProfileSectionLabel(
+                      'Your travel space',
+                      color: isWide ? Colors.white : CeylonColors.forest,
+                    ),
+                    const SizedBox(height: 10),
+                    _ShortcutCard(
+                      icon: Icons.bookmark_outline,
+                      title: 'Saved places',
+                      description: 'Places you want to remember',
+                      onTap: () => context.push('/favorites'),
+                    ),
+                    const SizedBox(height: 10),
+                    _ShortcutCard(
+                      icon: Icons.route_outlined,
+                      title: 'My trips',
+                      description: 'Your Sri Lankan journeys',
+                      onTap: () => context.push('/trips'),
+                    ),
+                    const SizedBox(height: 10),
+                    _ShortcutCard(
+                      icon: Icons.confirmation_number_outlined,
+                      title: 'My bookings',
+                      description: 'Reservations and booking status',
+                      onTap: () => context.push('/bookings'),
+                    ),
+                    const SizedBox(height: 26),
+                    OutlinedButton.icon(
+                      onPressed: authService.logout,
+                      icon: const Icon(Icons.logout_outlined, size: 19),
+                      label: const Text('Log out'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        backgroundColor: CeylonColors.ivory,
+                        foregroundColor: CeylonColors.forest,
+                        shadowColor: const Color(0x220E3B2E),
+                        elevation: 2,
+                        side: const BorderSide(color: Color(0xFFD8D8D1)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CeylonRadii.field)),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: authService.logout,
-              icon: const Icon(Icons.logout),
-              label: const Text('Log out'),
-            ),
+          ),
+        );
+
+        if (!isWide) return content;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset('assets/images/destinations/bentota/02.jpg', fit: BoxFit.cover),
+            ColoredBox(color: CeylonColors.forestDeep.withValues(alpha: .56)),
+            content,
           ],
-        ),
-      ),
+        );
+      },
     );
   }
+}
+
+String _profileInitials(String firstName, String lastName) {
+  final first = firstName.trim().isEmpty ? '' : firstName.trim()[0];
+  final last = lastName.trim().isEmpty ? '' : lastName.trim()[0];
+  final initials = '$first$last'.toUpperCase();
+  return initials.isEmpty ? 'CT' : initials;
+}
+
+class _ProfileHero extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(28),
+    child: SizedBox(
+      height: 188,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('assets/images/destinations/bentota/02.jpg', fit: BoxFit.cover, semanticLabel: 'Bentota coast in Sri Lanka'),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, CeylonColors.forestDeep.withValues(alpha: .82)],
+              ),
+            ),
+          ),
+          const Positioned(top: 18, left: 18, child: _ProfileBrand()),
+          const Positioned(left: 20, bottom: 18, child: Text('A place for the journeys ahead', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600))),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ProfileBrand extends StatelessWidget {
+  const _ProfileBrand();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      ColorFiltered(colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn), child: const BrandMark(size: 28)),
+      const SizedBox(width: 7),
+      const Text('CeylonTrail', style: TextStyle(color: Colors.white, fontFamily: 'Playfair Display', fontSize: 17, fontWeight: FontWeight.w600)),
+    ],
+  );
+}
+
+class _IdentityCard extends StatelessWidget {
+  const _IdentityCard({required this.user, required this.initials});
+
+  final AuthUser user;
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(18, 16, 18, 17),
+    decoration: BoxDecoration(
+      color: CeylonColors.ivory,
+      borderRadius: BorderRadius.circular(24),
+      boxShadow: const [BoxShadow(color: Color(0x180E3B2E), blurRadius: 18, offset: Offset(0, 8))],
+    ),
+    child: Row(
+      children: [
+        CircleAvatar(radius: 29, backgroundColor: CeylonColors.mint, child: Text(initials, style: const TextStyle(color: CeylonColors.forest, fontWeight: FontWeight.w800, fontSize: 17))),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Traveller', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: CeylonColors.tea, fontWeight: FontWeight.w800, letterSpacing: 1.1)), const SizedBox(height: 3), Text(user.displayName, style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 2), Text(user.email.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall)])),
+      ],
+    ),
+  );
+}
+
+class _ProfileSectionLabel extends StatelessWidget {
+  const _ProfileSectionLabel(this.label, {required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+      color: color,
+      fontSize: 18,
+    ),
+  );
+}
+
+class _ShortcutCard extends StatelessWidget {
+  const _ShortcutCard({required this.icon, required this.title, required this.description, required this.onTap});
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: CeylonColors.ivory,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+        child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(13)), child: Icon(icon, color: CeylonColors.forest, size: 21)), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)), const SizedBox(height: 2), Text(description, style: Theme.of(context).textTheme.bodySmall)])), const Icon(Icons.chevron_right, color: CeylonColors.inkMuted)]),
+      ),
+    ),
+  );
 }
 
 class CeylonTrailApp extends StatelessWidget {
@@ -97,13 +236,15 @@ class CeylonTrailApp extends StatelessWidget {
     AuthService authService,
     TripApiService? tripApiService,
   ) => GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/welcome',
     refreshListenable: authService,
     redirect: (context, state) {
       final isLogin = state.matchedLocation == '/login';
-      final isAuthEntry = isLogin || state.matchedLocation == '/register';
+      final isAuthEntry = isLogin ||
+          state.matchedLocation == '/register' ||
+          state.matchedLocation == '/welcome';
       if (authService.status == AuthStatus.restoring) return null;
-      if (!authService.isAuthenticated && !isAuthEntry) return '/login';
+      if (!authService.isAuthenticated && !isAuthEntry) return '/welcome';
       if (authService.isAuthenticated && isAuthEntry) return '/';
       if (state.matchedLocation.startsWith('/trips') &&
           authService.user?.role != 'Tourist')
@@ -111,6 +252,7 @@ class CeylonTrailApp extends StatelessWidget {
       return null;
     },
     routes: [
+      GoRoute(path: '/welcome', builder: (context, state) => const WelcomePage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
       GoRoute(

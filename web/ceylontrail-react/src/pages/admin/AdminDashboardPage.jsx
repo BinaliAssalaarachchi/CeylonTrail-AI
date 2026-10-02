@@ -1,84 +1,26 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAdminAttractions } from '../../api/attractions'
-import OperationalAnalytics from '../../components/OperationalAnalytics'
+import { getReportOverview } from '../../api/reports'
+import { getTravelAlerts } from '../../api/travelAlerts'
+import { primaryAttractionImageFor } from '../../utils/attractionImages'
+
+const dateFormat = new Intl.DateTimeFormat('en-LK', { day: 'numeric', month: 'short', year: 'numeric' })
+function date(value) { if (!value) return 'Date not available'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 'Date not available' : dateFormat.format(parsed) }
+function Summary({ label, value, detail, href }) { return <Link className="ops-summary-card" to={href}><span>{label}</span><strong>{value}</strong><small>{detail}</small></Link> }
+function status(value) { return value?.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Unknown' }
 
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0, underReview: 0 })
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function loadStats() {
-      try {
-        const result = await getAdminAttractions({ page: 1, pageSize: 100 })
-        const items = result?.items || []
-        setStats({
-          total: items.length,
-          pending: items.filter((a) => a.status === 'PendingApproval').length,
-          approved: items.filter((a) => a.status === 'Approved').length,
-          rejected: items.filter((a) => a.status === 'Rejected').length,
-          underReview: items.filter((a) => a.status === 'UnderReview').length,
-        })
-      } catch (e) {
-        console.error('Failed to load admin attraction stats', e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadStats()
-  }, [])
-
-  return (
-    <section className="page-section wide-page admin-dashboard-page">
-      <div className="consistent-page-header">
-        <p className="eyebrow">Administrator workspace</p>
-        <h1>Attraction Administration & Review</h1>
-        <p className="lead">
-          Manage, approve, reject, or request review on provider attractions across CeylonTrail.
-        </p>
-      </div>
-
-      <div className="admin-stats-grid" aria-label="Attraction Metrics">
-        <Link to="/admin/attractions" className="admin-stat-card">
-          <span className="admin-stat-label">Total Attractions</span>
-          <strong className="admin-stat-value">{loading ? '…' : stats.total}</strong>
-          <span className="admin-stat-hint">In database</span>
-        </Link>
-        <Link to="/admin/attractions?status=PendingApproval" className="admin-stat-card admin-stat-pending">
-          <span className="admin-stat-label">Pending Approval</span>
-          <strong className="admin-stat-value">{loading ? '…' : stats.pending}</strong>
-          <span className="admin-stat-hint">Requires review</span>
-        </Link>
-        <Link to="/admin/attractions?status=Approved" className="admin-stat-card admin-stat-approved">
-          <span className="admin-stat-label">Approved</span>
-          <strong className="admin-stat-value">{loading ? '…' : stats.approved}</strong>
-          <span className="admin-stat-hint">Publicly discoverable</span>
-        </Link>
-        <Link to="/admin/attractions?status=Rejected" className="admin-stat-card admin-stat-rejected">
-          <span className="admin-stat-label">Rejected</span>
-          <strong className="admin-stat-value">{loading ? '…' : stats.rejected}</strong>
-          <span className="admin-stat-hint">Provider notified</span>
-        </Link>
-      </div>
-
-      <div className="admin-review-card">
-        <div>
-          <p className="eyebrow">Workflow management</p>
-          <h2>Attractions Directory & Approval Queue</h2>
-          <p>
-            Filter by status (Approved, Rejected, Pending Approval), inspect submitted schedules, pricing, and leave feedback for providers.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <Link className="button button-primary" to="/admin/attractions">
-            Manage All Attractions
-          </Link>
-          <Link className="button button-secondary-light" to="/admin/attractions?status=PendingApproval">
-            Review Pending Queue ({stats.pending})
-          </Link>
-        </div>
-      </div>
-      <OperationalAnalytics />
-    </section>
-  )
+  const [data, setData] = useState({ attractions: [], report: null, alerts: [] }); const [loading, setLoading] = useState(true); const [error, setError] = useState('')
+  useEffect(() => { let current = true; Promise.allSettled([getAdminAttractions({ page: 1, pageSize: 100 }), getReportOverview(), getTravelAlerts({ status: 'Active', page: 1, pageSize: 10 })]).then((results) => { if (!current) return; const value = (i, fallback) => results[i].status === 'fulfilled' ? results[i].value : fallback; setData({ attractions: value(0, { items: [] }).items || [], report: value(1, null), alerts: value(2, { items: [] }).items || [] }); if (results.every((result) => result.status === 'rejected')) setError('Unable to load platform governance data right now.') }).finally(() => current && setLoading(false)); return () => { current = false } }, [])
+  const pending = data.attractions.filter((item) => item.status === 'PendingApproval')
+  const approved = data.attractions.filter((item) => item.status === 'Approved')
+  return <section className="ops-dashboard" aria-labelledby="administrator-title">
+    <div className="ops-hero admin-hero"><div><p className="eyebrow eyebrow-on-dark">Administrator</p><h1 id="administrator-title">Keep CeylonTrail trusted and operational.</h1><p>Oversee platform activity, review tourism experiences, monitor travel intelligence, and maintain a safe, reliable travel ecosystem.</p></div><Link className="button provider-hero-action" to="/admin/attractions">Review attractions <span aria-hidden="true">→</span></Link></div>
+    {error && <p className="form-error notice-error" role="alert">{error}</p>}
+    <div className="ops-summary-grid"><Summary label="Pending attraction reviews" value={loading ? '—' : pending.length} detail="Provider submissions" href="/admin/attractions?status=PendingApproval" /><Summary label="Approved experiences" value={loading ? '—' : approved.length} detail="In current review register" href="/admin/attractions?status=Approved" /><Summary label="Confirmed reservations" value={loading ? '—' : (data.report?.bookingsByStatus?.Confirmed ?? '—')} detail="Reported platform total" href="/bookings" /><Summary label="Active travel alerts" value={loading ? '—' : (data.report?.activeTravelAlerts ?? data.alerts.length)} detail="Current advisories" href="/travel-alerts" /></div>
+    <section className="ops-panel attention-panel"><div className="ops-panel-heading"><div><p className="eyebrow">Moderation queue</p><h2>Needs review</h2><p>Inspect provider submissions before they become discoverable experiences.</p></div><Link className="text-link" to="/admin/attractions">Open review workspace <span aria-hidden="true">→</span></Link></div>{loading ? <div className="ops-state">Loading attraction submissions…</div> : pending.length === 0 ? <div className="ops-state">No pending attraction submissions.</div> : <div className="moderation-grid">{pending.slice(0, 4).map((attraction) => <Link className="moderation-card" to={`/admin/attractions/${attraction.id}`} key={attraction.id}><img src={primaryAttractionImageFor(attraction.name) || attraction.images?.[0]?.imageUrl || '/images/tea-country-hero.jpg'} alt="" /><div><span className="ops-status warning">Pending approval</span><h3>{attraction.name}</h3><p>{attraction.district || 'Location not available'} · {attraction.category?.name || 'Uncategorised'}</p><small>Submitted {date(attraction.createdAt)}</small></div><b aria-hidden="true">→</b></Link>)}</div>}</section>
+    <div className="ops-two-column"><section className="ops-panel"><div className="ops-panel-heading"><div><p className="eyebrow">Platform activity</p><h2>Operational overview</h2><p>Authoritative totals returned by the reporting service.</p></div><Link className="text-link" to="/ai-operations">AI operations <span aria-hidden="true">→</span></Link></div><div className="admin-overview-list"><Overview label="Total trips" value={data.report?.totalTrips} /><Overview label="Total bookings" value={data.report?.totalBookings} /><Overview label="Awaiting approval" value={data.report?.pendingApprovalRequests} /><Overview label="Completed AI workflows" value={data.report?.completedWorkflows} /></div></section><section className="ops-panel intelligence-panel"><div className="ops-panel-heading"><div><p className="eyebrow">Travel intelligence</p><h2>Live alerts</h2><p>Monitor active advisories and their severity.</p></div><Link className="text-link" to="/travel-alerts">Manage alerts <span aria-hidden="true">→</span></Link></div>{data.alerts.length === 0 ? <div className="ops-state">No active alerts returned.</div> : <div className="alert-stack">{data.alerts.slice(0, 4).map((alert) => <Link to="/travel-alerts" className="alert-row" key={alert.id}><span className={`alert-severity severity-${alert.severity?.toLowerCase()}`}>{alert.severity}</span><div><strong>{alert.title}</strong><span>{alert.district} · {status(alert.status)}</span></div></Link>)}</div>}</section></div>
+  </section>
 }
+function Overview({ label, value }) { return <div><span>{label}</span><strong>{value ?? '—'}</strong></div> }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import StatusBadge from './StatusBadge'
 import AttractionPreviewModal from './AttractionPreviewModal'
+import { primaryAttractionImageFor } from '../../utils/attractionImages'
 
 function formatPrice(price) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(price)
@@ -14,9 +15,9 @@ function formatUpdatedDate(value) {
 export default function AttractionCard({ attraction, onDelete }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const image =
-    attraction.images?.find((item) => item?.isPrimary && item?.imageUrl) ||
-    attraction.images?.find((item) => item?.imageUrl)
+  const mappedImage = primaryAttractionImageFor(attraction.name)
+  const apiImage = attraction.images?.find((item) => item?.isPrimary && item?.imageUrl) || attraction.images?.find((item) => item?.imageUrl)
+  const image = mappedImage ? { imageUrl: mappedImage, altText: attraction.name } : apiImage
 
   const isRejected = attraction.status === 'Rejected'
 
