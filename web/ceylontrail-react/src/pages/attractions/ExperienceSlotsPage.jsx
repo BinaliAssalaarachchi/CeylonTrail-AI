@@ -84,7 +84,7 @@ export default function ExperienceSlotsPage() {
       <section className="page-section">
         <div className="state-card" role="status">
           <strong>Loading experience slots…</strong>
-          <span>Preparing the session workspace.</span>
+          <span>Preparing the session view.</span>
         </div>
       </section>
     )
@@ -96,7 +96,7 @@ export default function ExperienceSlotsPage() {
         ← {attraction?.name || 'Attraction'}
       </Link>
       <div className="consistent-page-header">
-        <p className="eyebrow">Provider workspace · Experience operations</p>
+        <p className="eyebrow">Experience operations</p>
         <h1>Experience slots</h1>
         <p className="lead">Manage dated sessions and their remaining capacity.</p>
       </div>

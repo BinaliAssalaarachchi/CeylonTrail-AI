@@ -2,9 +2,6 @@
 .sidebar { position: sticky; top: 0; z-index: 10; display: flex; flex: 0 0 280px; flex-direction: column; min-height: 100vh; padding: var(--space-6) var(--space-4); background: rgba(240, 242, 252, 0.88); border-right: 1px solid rgba(14, 59, 46, 0.06); backdrop-filter: blur(18px); }
 .brand-link { display: block; color: inherit; text-decoration: none; }
 .brand-lockup, .login-brand { display: flex; align-items: center; gap: var(--space-3); }
-.brand-mark { display: block; width: 42px; height: 42px; overflow: visible; }
-.brand-leaf { fill: var(--color-forest); }
-.brand-leaf-vein { fill: none; stroke: var(--color-tea); stroke-linecap: round; stroke-width: 3; }
 .brand-copy, .login-brand > span:last-child { display: flex; flex-direction: column; }
 .brand-name, .login-brand strong { color: var(--color-forest-deep); font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; letter-spacing: -0.03em; }
 .brand-subtitle, .login-brand small { margin-top: 2px; color: var(--color-tea); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
@@ -87,7 +84,7 @@ h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.
 .workspace-placeholder p:last-child { max-width: 700px; margin-bottom: 0; }
 .login-page { display: grid; width: 100%; height: 100dvh; min-height: 0; grid-template-columns: minmax(0, 1.18fr) minmax(430px, 0.82fr); overflow: hidden; background: var(--color-sand); }
 .login-visual { position: relative; display: flex; align-items: center; overflow: hidden; padding: clamp(32px, 7vw, 96px); isolation: isolate; background: var(--color-forest-deep); color: #fff; }
-.login-visual::before { position: absolute; z-index: -2; inset: -8px; background: url('/images/tea-country-hero.jpg') center / cover no-repeat; content: ''; filter: blur(1px); transform: scale(1.02); }
+.login-visual::before { position: absolute; z-index: -2; inset: -8px; background: none; content: ''; }
 .login-visual::after { position: absolute; z-index: -1; inset: 0; background: linear-gradient(105deg, rgba(0, 36, 26, 0.94) 0%, rgba(14, 59, 46, 0.74) 52%, rgba(0, 36, 26, 0.58) 100%), linear-gradient(0deg, rgba(0, 36, 26, 0.48), transparent 62%); content: ''; }
 .login-visual-copy { position: relative; z-index: 1; max-width: 560px; }
 .login-visual h1 { max-width: 650px; margin: 15px 0 18px; font-size: clamp(2.8rem, 5.2vw, 5.3rem); line-height: 1.02; }
@@ -99,9 +96,6 @@ h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.
 .login-values small { color: rgba(255, 255, 255, 0.7); font-size: 0.76rem; }
 .login-card { display: flex; flex-direction: column; justify-content: center; align-self: stretch; width: 100%; margin: 0; padding: clamp(24px, 4vh, 58px) clamp(28px, 6vw, 90px); border: 0; border-left: 1px solid rgba(14, 59, 46, 0.08); border-radius: 0; background: rgba(253, 251, 247, 0.96); box-shadow: none; }
 .login-brand { margin-bottom: clamp(20px, 3vh, 40px); }
-.login-brand-symbol { display: block; width: 58px; height: 58px; overflow: visible; }
-.logo-leaf { fill: var(--color-forest); }
-.logo-leaf-vein { fill: none; stroke: var(--color-mint); stroke-linecap: round; stroke-width: 3; }
 .login-card h2, .login-card h1 { margin: 8px 0 10px; color: var(--color-forest); font-size: clamp(2.4rem, 3.8vw, 3.7rem); line-height: 1.08; }
 .login-card .muted { font-size: 1.05rem; }
 .login-card form { display: grid; gap: 6px; margin-top: 22px; }

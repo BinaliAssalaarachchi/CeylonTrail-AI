@@ -31,7 +31,7 @@ export default function AdminDashboardPage() {
   return (
     <section className="page-section wide-page admin-dashboard-page">
       <div className="consistent-page-header">
-        <p className="eyebrow">Administrator workspace</p>
+        <p className="eyebrow">Administrator overview</p>
         <h1>Attraction Administration & Review</h1>
         <p className="lead">
           Manage, approve, reject, or request review on provider attractions across CeylonTrail.

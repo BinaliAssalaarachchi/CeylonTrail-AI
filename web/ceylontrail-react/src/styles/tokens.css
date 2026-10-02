@@ -4,14 +4,14 @@
   --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Playfair Display', Georgia, serif;
 
-  --color-canvas: #f7f7ff;
+  --color-canvas: #f5f2ea;
   --color-surface: #ffffff;
-  --color-surface-soft: #f0f2fc;
-  --color-surface-muted: #e9edf8;
+  --color-surface-soft: #eef1e8;
+  --color-surface-muted: #e2e9dc;
   --color-forest: #0e3b2e;
   --color-forest-deep: #00241a;
   --color-tea: #2d6a4f;
-  --color-teal: #028090;
+  --color-teal: #648866;
   --color-ink: #171c25;
   --color-ink-muted: #59645f;
   --color-outline: #c0c8c3;

@@ -160,7 +160,7 @@ export default function PendingAttractionsPage() {
     <section className="page-section wide-page admin-attractions-page">
       <div className="page-header consistent-page-header">
         <div>
-          <p className="eyebrow">Administrator workspace</p>
+          <p className="eyebrow">Attraction review</p>
           <h1>Attractions Management & Review</h1>
           <p className="lead">
             Review, approve, reject, or request changes on all provider attractions in the system.
