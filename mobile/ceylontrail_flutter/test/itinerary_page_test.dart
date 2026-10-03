@@ -18,7 +18,11 @@ class _Storage implements AuthSessionStorage {
   Future<StoredSession?> read() async => null;
 
   @override
-  Future<void> write({required String token, required DateTime expiresAt, required AuthUser user}) async {}
+  Future<void> write({
+    required String token,
+    required DateTime expiresAt,
+    required AuthUser user,
+  }) async {}
 }
 
 class _TripApi extends TripApiService {
@@ -30,7 +34,21 @@ class _TripApi extends TripApiService {
   Future<Itinerary?> getItinerary(String tripId) async => itinerary;
 
   @override
-  Future<List<ItineraryHistoryItem>> getItineraryHistory(String tripId) async => const [];
+  Future<List<ItineraryHistoryItem>> getItineraryHistory(String tripId) async =>
+      const [];
+
+  @override
+  Future<Trip> getTrip(String id) async => Trip(
+    id: id,
+    name: 'Test trip',
+    startDate: DateTime(2026, 10, 1),
+    endDate: DateTime(2026, 10, 5),
+    budget: 10000,
+    status: 'Planned',
+    createdAt: null,
+    updatedAt: null,
+    preferences: const [],
+  );
 }
 
 class _WorkflowSource implements AgentWorkflowSource {
@@ -47,21 +65,21 @@ class _WorkflowSource implements AgentWorkflowSource {
 }
 
 Itinerary _itinerary() => Itinerary(
-      id: 'itinerary-1',
-      tripId: 'trip-1',
-      status: 'Active',
-      totalEstimatedCost: 1000,
-      createdAt: DateTime(2026, 9, 27),
-      updatedAt: DateTime(2026, 9, 27),
-      days: [
-        ItineraryDay(
-          id: 'day-1',
-          dayNumber: 1,
-          date: DateTime(2026, 10, 1),
-          items: const [],
-        ),
-      ],
-    );
+  id: 'itinerary-1',
+  tripId: 'trip-1',
+  status: 'Active',
+  totalEstimatedCost: 1000,
+  createdAt: DateTime(2026, 9, 27),
+  updatedAt: DateTime(2026, 9, 27),
+  days: [
+    ItineraryDay(
+      id: 'day-1',
+      dayNumber: 1,
+      date: DateTime(2026, 10, 1),
+      items: const [],
+    ),
+  ],
+);
 
 AgentWorkflow _workflow(
   AgentWorkflowStatus status, {
@@ -70,68 +88,108 @@ AgentWorkflow _workflow(
   String? bookingId,
   String safeMessage = '',
 }) => AgentWorkflow(
-      workflowId: 'workflow-1',
-      tripId: 'trip-1',
-      status: status,
-      requiresApproval: status == AgentWorkflowStatus.awaitingApproval,
-      reviewStatus: reviewStatus ?? (status == AgentWorkflowStatus.awaitingApproval ? 'Pending' : null),
-      executionSucceeded: executionSucceeded,
-      bookingId: bookingId,
-      safeMessage: safeMessage,
-      stages: const [
-        AgentWorkflowStage(sequence: 4, agentRole: 'TravelIntelligence', status: 'Completed', summary: 'Safety complete.'),
-        AgentWorkflowStage(sequence: 2, agentRole: 'Destination', status: 'Completed', summary: 'Destination complete.'),
-        AgentWorkflowStage(sequence: 1, agentRole: 'Planner', status: 'Completed', summary: 'Planner complete.'),
-        AgentWorkflowStage(sequence: 3, agentRole: 'BookingAction', status: 'Completed', summary: 'Booking proposal complete.'),
-      ],
-    );
+  workflowId: 'workflow-1',
+  tripId: 'trip-1',
+  status: status,
+  requiresApproval: status == AgentWorkflowStatus.awaitingApproval,
+  reviewStatus:
+      reviewStatus ??
+      (status == AgentWorkflowStatus.awaitingApproval ? 'Pending' : null),
+  executionSucceeded: executionSucceeded,
+  bookingId: bookingId,
+  safeMessage: safeMessage,
+  stages: const [
+    AgentWorkflowStage(
+      sequence: 4,
+      agentRole: 'TravelIntelligence',
+      status: 'Completed',
+      summary: 'Safety complete.',
+    ),
+    AgentWorkflowStage(
+      sequence: 2,
+      agentRole: 'Destination',
+      status: 'Completed',
+      summary: 'Destination complete.',
+    ),
+    AgentWorkflowStage(
+      sequence: 1,
+      agentRole: 'Planner',
+      status: 'Completed',
+      summary: 'Planner complete.',
+    ),
+    AgentWorkflowStage(
+      sequence: 3,
+      agentRole: 'BookingAction',
+      status: 'Completed',
+      summary: 'Booking proposal complete.',
+    ),
+  ],
+);
 
 void main() {
-  testWidgets('displays itinerary and all ordered workflow stages', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ItineraryPage(
-        api: _TripApi(itinerary: _itinerary()),
-        tripId: 'trip-1',
-        workflowSource: _WorkflowSource(_workflow(AgentWorkflowStatus.completed)),
+  testWidgets('displays the redesigned itinerary and workflow checks', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ItineraryPage(
+          api: _TripApi(itinerary: _itinerary()),
+          tripId: 'trip-1',
+          workflowSource: _WorkflowSource(
+            _workflow(AgentWorkflowStatus.completed),
+          ),
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Itinerary'), findsOneWidget);
-    expect(find.text('Status: Completed'), findsOneWidget);
-    expect(find.textContaining('Preparing your itinerary:'), findsOneWidget);
-    expect(find.textContaining('Finding suitable places:'), findsOneWidget);
-    expect(find.textContaining('Checking bookable experiences:'), findsOneWidget);
-    expect(find.textContaining('Completing travel and safety checks:'), findsOneWidget);
+    expect(find.text('Your journey'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('AI planning checks'), 500);
+    expect(find.text('AI planning checks'), findsOneWidget);
+    await tester.tap(find.text('AI planning checks'));
+    await tester.pumpAndSettle();
+    expect(find.text('Plan created'), findsOneWidget);
+    expect(find.text('Places selected'), findsOneWidget);
+    expect(find.text('Experiences checked'), findsOneWidget);
+    expect(find.text('Travel and safety checks complete'), findsOneWidget);
   });
 
   testWidgets('displays awaiting approval workflow state', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ItineraryPage(
-        api: _TripApi(itinerary: _itinerary()),
-        tripId: 'trip-1',
-        workflowSource: _WorkflowSource(_workflow(AgentWorkflowStatus.awaitingApproval)),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ItineraryPage(
+          api: _TripApi(itinerary: _itinerary()),
+          tripId: 'trip-1',
+          workflowSource: _WorkflowSource(
+            _workflow(AgentWorkflowStatus.awaitingApproval),
+          ),
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Status: Awaiting approval'), findsOneWidget);
-    expect(find.text('Approval required'), findsOneWidget);
-    expect(find.text('Review: Pending'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('AI planning checks'), 500);
+    expect(find.text('AI planning checks'), findsOneWidget);
+    expect(find.text('Waiting for review'), findsOneWidget);
   });
 
-  testWidgets('refreshes workflow and displays completed booking state', (tester) async {
-    final source = _WorkflowSource(_workflow(AgentWorkflowStatus.awaitingApproval));
-    await tester.pumpWidget(MaterialApp(
-      home: ItineraryPage(
-        api: _TripApi(itinerary: _itinerary()),
-        tripId: 'trip-1',
-        workflowSource: source,
+  testWidgets('refreshes workflow and displays completed booking state', (
+    tester,
+  ) async {
+    final source = _WorkflowSource(
+      _workflow(AgentWorkflowStatus.awaitingApproval),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ItineraryPage(
+          api: _TripApi(itinerary: _itinerary()),
+          tripId: 'trip-1',
+          workflowSource: source,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Status: Awaiting approval'), findsOneWidget);
     expect(source.fetchCount, 1);
 
     source.workflow = _workflow(
@@ -143,23 +201,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(source.fetchCount, 2);
-    expect(find.text('Status: Completed'), findsOneWidget);
-    expect(find.text('Your booking was confirmed.'), findsOneWidget);
-    expect(find.textContaining('Preparing your itinerary:'), findsOneWidget);
-    expect(find.textContaining('Finding suitable places:'), findsOneWidget);
-    expect(find.textContaining('Checking bookable experiences:'), findsOneWidget);
-    expect(find.textContaining('Completing travel and safety checks:'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('AI planning checks'), 500);
+    expect(find.text('AI planning checks'), findsOneWidget);
   });
 
-  testWidgets('displays rejected and cancelled workflow state after refresh', (tester) async {
-    final source = _WorkflowSource(_workflow(AgentWorkflowStatus.awaitingApproval));
-    await tester.pumpWidget(MaterialApp(
-      home: ItineraryPage(
-        api: _TripApi(itinerary: _itinerary()),
-        tripId: 'trip-1',
-        workflowSource: source,
+  testWidgets('displays rejected and cancelled workflow state after refresh', (
+    tester,
+  ) async {
+    final source = _WorkflowSource(
+      _workflow(AgentWorkflowStatus.awaitingApproval),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ItineraryPage(
+          api: _TripApi(itinerary: _itinerary()),
+          tripId: 'trip-1',
+          workflowSource: source,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     source.workflow = _workflow(
@@ -169,39 +229,52 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, 300));
     await tester.pumpAndSettle();
 
-    expect(find.text('Status: Cancelled'), findsOneWidget);
-    expect(find.text('Review: Rejected'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('AI planning checks'), 500);
+    expect(find.text('AI planning checks'), findsOneWidget);
+    expect(find.text('Rejected'), findsOneWidget);
   });
 
   testWidgets('displays failed-safe workflow state', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ItineraryPage(
-        api: _TripApi(itinerary: _itinerary()),
-        tripId: 'trip-1',
-        workflowSource: _WorkflowSource(_workflow(
-          AgentWorkflowStatus.failedSafe,
-          executionSucceeded: false,
-          safeMessage: 'Workflow failed safely.',
-        )),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ItineraryPage(
+          api: _TripApi(itinerary: _itinerary()),
+          tripId: 'trip-1',
+          workflowSource: _WorkflowSource(
+            _workflow(
+              AgentWorkflowStatus.failedSafe,
+              executionSucceeded: false,
+              safeMessage: 'Workflow failed safely.',
+            ),
+          ),
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Status: Failed safely'), findsOneWidget);
-    expect(find.text('Workflow failed safely.'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('AI planning checks'), 500);
+    expect(find.text('AI planning checks'), findsOneWidget);
   });
 
-  testWidgets('keeps itinerary visible when workflow is unavailable', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ItineraryPage(
-        api: _TripApi(itinerary: _itinerary()),
-        tripId: 'trip-1',
-        workflowSource: _WorkflowSource(null),
+  testWidgets('keeps itinerary visible when workflow is unavailable', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ItineraryPage(
+          api: _TripApi(itinerary: _itinerary()),
+          tripId: 'trip-1',
+          workflowSource: _WorkflowSource(null),
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Itinerary'), findsOneWidget);
-    expect(find.text('Workflow not available yet.'), findsOneWidget);
+    expect(find.text('Your journey'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('AI planning checks are being prepared.'),
+      500,
+    );
+    expect(find.text('AI planning checks are being prepared.'), findsOneWidget);
   });
 }

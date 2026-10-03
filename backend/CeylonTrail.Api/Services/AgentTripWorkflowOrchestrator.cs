@@ -76,7 +76,14 @@ public sealed class AgentTripWorkflowOrchestrator(
         }
 
         var candidates = await attractionService.SearchAsync(
-            new AttractionSearchRequest { Page = 1, PageSize = 100, Sort = "name_asc" },
+            new AttractionSearchRequest
+            {
+                District = trip.Preferences.FirstOrDefault(item =>
+                    string.Equals(item.PreferenceType, "Region", StringComparison.OrdinalIgnoreCase))?.Value,
+                Page = 1,
+                PageSize = 100,
+                Sort = "name_asc"
+            },
             touristId,
             cancellationToken);
         if (!candidates.Succeeded || candidates.Value is null || candidates.Value.Items.Count == 0)
@@ -340,7 +347,12 @@ public sealed class AgentTripWorkflowOrchestrator(
             await workflowPersistence.TransitionAsync(workflowId, AgentWorkflowStatus.Completed, AgentWorkflowAgentRole.TravelIntelligence, cancellationToken: cancellationToken);
         }
 
-        return new(ToItineraryResponse(itinerary));
+        var responseAttractionIds = itinerary.Days.SelectMany(day => day.Items).Select(item => item.AttractionId).Distinct().ToList();
+        var responseAttractions = await dbContext.Attractions.AsNoTracking()
+            .Include(attraction => attraction.Category)
+            .Where(attraction => responseAttractionIds.Contains(attraction.Id))
+            .ToDictionaryAsync(attraction => attraction.Id, cancellationToken);
+        return new(ToItineraryResponse(itinerary, responseAttractions));
     }
 
     private async Task<(bool Succeeded, Guid? ApprovalRequestId, string? Error)> CreateBookingApprovalRequestAsync(
@@ -453,7 +465,16 @@ public sealed class AgentTripWorkflowOrchestrator(
 
     private static PlannerCandidateAttraction ToPlannerCandidate(AttractionResponse attraction) => new(
         attraction.Id.ToString(), attraction.Name, attraction.Category?.Name, attraction.District,
-        attraction.Price, attraction.Description, null);
+        attraction.Price, attraction.Description, FormatOpeningInformation(attraction));
+
+    private static string? FormatOpeningInformation(AttractionResponse attraction)
+    {
+        var schedules = attraction.Schedules
+            .Where(schedule => !schedule.IsClosed && schedule.OpeningTime.HasValue && schedule.ClosingTime.HasValue)
+            .Select(schedule => $"{schedule.DayOfWeek}: {schedule.OpeningTime:HH\\:mm}-{schedule.ClosingTime:HH\\:mm}")
+            .ToList();
+        return schedules.Count == 0 ? null : string.Join("; ", schedules);
+    }
 
     private static string? ValidatePlannerOutput(PlannerAgentResponse output, Trip trip, IReadOnlyDictionary<Guid, decimal> candidatePrices)
     {
@@ -484,10 +505,19 @@ public sealed class AgentTripWorkflowOrchestrator(
     private static TripServiceResult<ItineraryResponse> Failure(string? error) =>
         new(Error: error ?? "The itinerary workflow failed safely.", ServiceUnavailable: true);
 
-    private static ItineraryResponse ToItineraryResponse(Itinerary itinerary) => new(
+    private static ItineraryResponse ToItineraryResponse(
+        Itinerary itinerary,
+        IReadOnlyDictionary<Guid, Attraction> attractions) => new(
         itinerary.Id, itinerary.TripId, itinerary.Status, itinerary.TotalEstimatedCost, itinerary.CreatedAt, itinerary.UpdatedAt,
         itinerary.Days.OrderBy(day => day.DayNumber).Select(day => new ItineraryDayResponse(
             day.Id, day.DayNumber, day.Date,
             day.Items.OrderBy(item => item.StartTime).Select(item => new ItineraryItemResponse(
-                item.Id, item.AttractionId, item.StartTime, item.EndTime, item.EstimatedCost, item.Notes)).ToList())).ToList());
+                item.Id, item.AttractionId, item.StartTime, item.EndTime, item.EstimatedCost, item.Notes,
+                attractions.TryGetValue(item.AttractionId, out var attraction) ? attraction.Name : null,
+                attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Description : null,
+                attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Address : null,
+                attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.District : null,
+                attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Category?.Name : null,
+                attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Latitude : null,
+                attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Longitude : null)).ToList())).ToList());
 }

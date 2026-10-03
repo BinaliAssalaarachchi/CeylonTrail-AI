@@ -14,6 +14,7 @@ from planner.providers import FallbackPlannerModelProvider, GEMINI_PLANNER_RESPO
 from agent_trace import AgentExecutionTrace
 from planner.schemas import PlannerInput, PlannerOutput
 from planner.tools import PlannerToolError, PlannerTools
+from planner.prompts import PLANNER_SYSTEM_POLICY
 
 
 def request(**overrides):
@@ -112,6 +113,12 @@ class PlannerTests(unittest.TestCase):
         self.assertIn("2500", PlannerTools.calculate_budget_usage(planner_request, planner_output).result_summary)
         self.assertIn("no conflicts", PlannerTools.check_schedule_conflicts(planner_request, planner_output).result_summary)
         self.assertIn("passed", PlannerTools.validate_plan_constraints(planner_request, planner_output).result_summary)
+
+    def test_policy_prefers_multiple_grounded_candidates_without_forcing_a_count(self):
+        policy = " ".join(PLANNER_SYSTEM_POLICY.lower().split())
+        self.assertIn("prefer a useful multi-item day or multi-day itinerary", policy)
+        self.assertIn("one item is correct when only one candidate is suitable", policy)
+        self.assertIn("do not invent duration, availability, travel", policy)
 
     def test_candidate_inspection_rejects_duplicate_ids(self):
         planner_request = request(candidateAttractions=[
@@ -647,6 +654,17 @@ class PlannerTests(unittest.TestCase):
     def test_deterministic_fixture_is_explicitly_test_only(self):
         result = DeterministicPlannerFixture().generate(request())
         self.assertEqual(result.status, "Generated")
+        self.assertEqual(result.days[0].items[0].attraction_id, "a1")
+
+    def test_deterministic_fixture_uses_multiple_grounded_candidates_when_budget_allows(self):
+        result = DeterministicPlannerFixture().generate(request())
+        self.assertEqual(len(result.days[0].items), 2)
+        self.assertEqual({item.attraction_id for item in result.days[0].items}, {"a1", "a2"})
+        self.assertLess(result.days[0].items[0].end_time, result.days[0].items[1].start_time)
+
+    def test_deterministic_fixture_keeps_one_candidate_when_budget_allows_only_one(self):
+        result = DeterministicPlannerFixture().generate(request(budget=2500))
+        self.assertEqual(sum(len(day.items) for day in result.days), 1)
         self.assertEqual(result.days[0].items[0].attraction_id, "a1")
 
     def test_no_candidates_fixture_returns_noplan(self):

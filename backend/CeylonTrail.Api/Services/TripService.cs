@@ -254,7 +254,7 @@ public sealed class TripService(
 
         return itinerary is null
             ? new TripServiceResult<ItineraryResponse>(NotFound: true)
-            : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+            : new TripServiceResult<ItineraryResponse>(await ToItineraryResponseAsync(itinerary, cancellationToken));
     }
 
     public async Task<TripServiceResult<IReadOnlyList<ItineraryHistoryItemResponse>>> GetItineraryHistoryAsync(
@@ -278,7 +278,7 @@ public sealed class TripService(
             .Where(i => i.Id == itineraryId && i.TripId == tripId && i.Trip.TouristId == touristId)
             .Include(i => i.Days).ThenInclude(d => d.Items)
             .SingleOrDefaultAsync(cancellationToken);
-        return itinerary is null ? new TripServiceResult<ItineraryResponse>(NotFound: true) : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+        return itinerary is null ? new TripServiceResult<ItineraryResponse>(NotFound: true) : new TripServiceResult<ItineraryResponse>(await ToItineraryResponseAsync(itinerary, cancellationToken));
     }
 
     public async Task<TripServiceResult<ItineraryResponse>> GenerateItineraryAsync(
@@ -319,7 +319,14 @@ public sealed class TripService(
         }
 
         var candidates = await attractionService.SearchAsync(
-            new AttractionSearchRequest { Page = 1, PageSize = 100, Sort = "name_asc" },
+            new AttractionSearchRequest
+            {
+                District = trip.Preferences.FirstOrDefault(preference =>
+                    string.Equals(preference.PreferenceType, "Region", StringComparison.OrdinalIgnoreCase))?.Value,
+                Page = 1,
+                PageSize = 100,
+                Sort = "name_asc"
+            },
             touristId,
             cancellationToken);
         if (!candidates.Succeeded || candidates.Value is null)
@@ -465,7 +472,7 @@ public sealed class TripService(
             }
         }
 
-        return new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+        return new TripServiceResult<ItineraryResponse>(await ToItineraryResponseAsync(itinerary, cancellationToken));
     }
 
     public async Task<IReadOnlyList<StaffTripResponse>> GetStaffTripsAsync(
@@ -592,7 +599,7 @@ public sealed class TripService(
 
         return itinerary is null
             ? new TripServiceResult<ItineraryResponse>(NotFound: true)
-            : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+            : new TripServiceResult<ItineraryResponse>(await ToItineraryResponseAsync(itinerary, cancellationToken));
     }
 
     private static string? ValidateTrip(string name, DateOnly startDate, DateOnly endDate, decimal budget)
@@ -636,7 +643,7 @@ public sealed class TripService(
             .Where(i => i.Id == itineraryId && i.TripId == tripId)
             .Include(i => i.Days).ThenInclude(d => d.Items)
             .SingleOrDefaultAsync(cancellationToken);
-        return itinerary is null ? new TripServiceResult<ItineraryResponse>(NotFound: true) : new TripServiceResult<ItineraryResponse>(ToItineraryResponse(itinerary));
+        return itinerary is null ? new TripServiceResult<ItineraryResponse>(NotFound: true) : new TripServiceResult<ItineraryResponse>(await ToItineraryResponseAsync(itinerary, cancellationToken));
     }
 
     private static PlannerCandidateAttraction ToPlannerCandidate(AttractionResponse attraction) => new(
@@ -646,7 +653,16 @@ public sealed class TripService(
         attraction.District,
         attraction.Price,
         attraction.Description,
-        null);
+        FormatOpeningInformation(attraction));
+
+    private static string? FormatOpeningInformation(AttractionResponse attraction)
+    {
+        var schedules = attraction.Schedules
+            .Where(schedule => !schedule.IsClosed && schedule.OpeningTime.HasValue && schedule.ClosingTime.HasValue)
+            .Select(schedule => $"{schedule.DayOfWeek}: {schedule.OpeningTime:HH\\:mm}-{schedule.ClosingTime:HH\\:mm}")
+            .ToList();
+        return schedules.Count == 0 ? null : string.Join("; ", schedules);
+    }
 
     private static string? ValidatePlannerOutput(
         PlannerAgentResponse output,
@@ -750,7 +766,19 @@ public sealed class TripService(
         trip.UpdatedAt,
         trip.Itineraries.Count > 0);
 
-    private static ItineraryResponse ToItineraryResponse(Itinerary itinerary) => new(
+    private async Task<ItineraryResponse> ToItineraryResponseAsync(Itinerary itinerary, CancellationToken cancellationToken)
+    {
+        var attractionIds = itinerary.Days.SelectMany(day => day.Items).Select(item => item.AttractionId).Distinct().ToList();
+        var attractions = await dbContext.Attractions.AsNoTracking()
+            .Include(attraction => attraction.Category)
+            .Where(attraction => attractionIds.Contains(attraction.Id))
+            .ToDictionaryAsync(attraction => attraction.Id, cancellationToken);
+        return ToItineraryResponse(itinerary, attractions);
+    }
+
+    private static ItineraryResponse ToItineraryResponse(
+        Itinerary itinerary,
+        IReadOnlyDictionary<Guid, Attraction> attractions) => new(
         itinerary.Id,
         itinerary.TripId,
         itinerary.Status,
@@ -771,7 +799,14 @@ public sealed class TripService(
                         item.StartTime,
                         item.EndTime,
                         item.EstimatedCost,
-                        item.Notes))
+                        item.Notes,
+                        attractions.TryGetValue(item.AttractionId, out var attraction) ? attraction.Name : null,
+                        attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Description : null,
+                        attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Address : null,
+                        attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.District : null,
+                        attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Category?.Name : null,
+                        attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Latitude : null,
+                        attractions.TryGetValue(item.AttractionId, out attraction) ? attraction.Longitude : null))
                     .ToList()))
             .ToList());
 }

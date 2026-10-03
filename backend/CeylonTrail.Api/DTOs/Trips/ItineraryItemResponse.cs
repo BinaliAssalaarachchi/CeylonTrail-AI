@@ -6,4 +6,11 @@ public sealed record ItineraryItemResponse(
     TimeOnly StartTime,
     TimeOnly EndTime,
     decimal EstimatedCost,
-    string? Notes);
+    string? Notes,
+    string? AttractionName = null,
+    string? Description = null,
+    string? Address = null,
+    string? District = null,
+    string? Category = null,
+    decimal? Latitude = null,
+    decimal? Longitude = null);
