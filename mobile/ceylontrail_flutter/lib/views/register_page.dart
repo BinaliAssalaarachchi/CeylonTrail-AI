@@ -19,6 +19,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isSubmitting = false;
   bool _obscurePassword = true;
   String? _error;
@@ -31,6 +32,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -70,6 +72,14 @@ class _RegisterPageState extends State<RegisterPage> {
             autofillHints: const [AutofillHints.newPassword],
             decoration: InputDecoration(labelText: 'Password', suffixIcon: IconButton(tooltip: _obscurePassword ? 'Show password' : 'Hide password', onPressed: () => setState(() => _obscurePassword = !_obscurePassword), icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined))),
             validator: (value) => value == null || value.length < 8 ? 'Use at least 8 characters.' : null,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _confirmPasswordController,
+            obscureText: _obscurePassword,
+            autofillHints: const [AutofillHints.newPassword],
+            decoration: const InputDecoration(labelText: 'Confirm password'),
+            validator: (value) => value != _passwordController.text ? 'Passwords do not match.' : null,
           ),
           if (_error != null) ...[const SizedBox(height: 12), Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))],
           const SizedBox(height: 22),

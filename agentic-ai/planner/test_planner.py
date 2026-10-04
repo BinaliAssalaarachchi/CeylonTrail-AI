@@ -79,6 +79,97 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result.status, "Generated")
         self.assertEqual(result.days[0].items[0].attraction_id, "a1")
 
+    def test_multiple_days_with_two_unique_attractions_are_preserved(self):
+        output = {
+            "days": [
+                {"dayNumber": 1, "date": "2026-10-10", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 2, "date": "2026-10-11", "items": [
+                    {"attractionId": "a2", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 1500},
+                ]},
+                {"dayNumber": 3, "date": "2026-10-12", "items": []},
+            ],
+            "estimatedCost": 4000,
+            "status": "Generated",
+        }
+
+        result = PlannerAgent(RecordingProvider(output), max_retries=0).generate(request())
+
+        self.assertEqual(
+            [item.attraction_id for day in result.days for item in day.items],
+            ["a1", "a2"],
+        )
+        self.assertEqual(result.days[2].items, [])
+        self.assertEqual(result.estimated_cost, Decimal("4000"))
+
+    def test_duplicate_attraction_proposed_across_days_is_skipped(self):
+        output = {
+            "days": [
+                {"dayNumber": 1, "date": "2026-10-10", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 2, "date": "2026-10-11", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                    {"attractionId": "a2", "startTime": "11:00", "endTime": "12:00", "estimatedCost": 1500},
+                ]},
+                {"dayNumber": 3, "date": "2026-10-12", "items": []},
+            ],
+            "estimatedCost": 6500,
+            "status": "Generated",
+        }
+
+        result = PlannerAgent(RecordingProvider(output), max_retries=0).generate(request())
+
+        self.assertEqual(
+            [item.attraction_id for day in result.days for item in day.items],
+            ["a1", "a2"],
+        )
+        self.assertEqual(result.estimated_cost, Decimal("4000"))
+
+    def test_only_one_suitable_attraction_leaves_other_days_empty(self):
+        output = {
+            "days": [
+                {"dayNumber": 1, "date": "2026-10-10", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 2, "date": "2026-10-11", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 3, "date": "2026-10-12", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+            ],
+            "estimatedCost": 7500,
+            "status": "Generated",
+        }
+        one_candidate_request = request(
+            candidateAttractions=[
+                {"id": "a1", "name": "Temple", "category": "Culture", "region": "Kandy", "price": 2500},
+            ]
+        )
+
+        result = PlannerAgent(RecordingProvider(output), max_retries=0).generate(one_candidate_request)
+
+        self.assertEqual(sum(len(day.items) for day in result.days), 1)
+        self.assertEqual([len(day.items) for day in result.days], [1, 0, 0])
+        self.assertEqual(result.estimated_cost, Decimal("2500"))
+
+    def test_normalization_does_not_bypass_budget_validation(self):
+        output = {
+            "days": [{"dayNumber": 1, "date": "2026-10-10", "items": [
+                {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                {"attractionId": "a2", "startTime": "11:00", "endTime": "12:00", "estimatedCost": 1500},
+            ]}],
+            "estimatedCost": 4000,
+            "status": "Generated",
+        }
+
+        with self.assertRaises(PlannerValidationError) as raised:
+            PlannerAgent(RecordingProvider(output), max_retries=0).generate(request(budget=3000))
+
+        self.assertIn("budget", raised.exception.diagnostic_message)
+
     def test_successful_result_contains_exact_bounded_operational_trace(self):
         result = PlannerAgent(RecordingProvider(valid_output())).generate(request())
         self.assertIsInstance(result.trace, AgentExecutionTrace)

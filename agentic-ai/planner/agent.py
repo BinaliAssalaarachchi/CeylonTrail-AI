@@ -81,6 +81,7 @@ class PlannerAgent:
                 ) from error
 
             try:
+                output = normalize_planner_output(output)
                 trace = self._execute_tools(request, output, started)
                 return output.model_copy(update={"trace": trace})
             except (PlannerToolError, ValueError) as error:
@@ -140,6 +141,37 @@ class PlannerAgent:
             outputSummary=f"{len(output.days)} day(s), LKR {output.estimated_cost} estimated cost.",
             durationMs=max(0, round((perf_counter() - started) * 1000)),
         )
+
+
+def normalize_planner_output(output: PlannerOutput) -> PlannerOutput:
+    """Keep the first scheduled occurrence of each attraction ID.
+
+    Provider output is treated as a proposal. Duplicate attractions are
+    skipped deterministically before the unchanged validation tools run. Day
+    entries are preserved, including empty days, and the authoritative total
+    is recalculated from the retained items.
+    """
+
+    selected_ids: set[str] = set()
+    total = Decimal("0")
+    normalized_days = []
+
+    for day in output.days:
+        retained_items = []
+        for item in day.items:
+            if item.attraction_id in selected_ids:
+                continue
+            selected_ids.add(item.attraction_id)
+            retained_items.append(item)
+            total += item.estimated_cost
+        normalized_days.append(day.model_copy(update={"items": retained_items}))
+
+    return output.model_copy(
+        update={
+            "days": normalized_days,
+            "estimated_cost": total,
+        }
+    )
 
 
 class DeterministicPlannerFixture:

@@ -6,16 +6,22 @@ import '../models/attraction_model.dart';
 import '../theme/app_theme.dart';
 
 class AttractionCard extends StatelessWidget {
-  const AttractionCard({required this.attraction, this.onFavoriteChanged, super.key});
+  const AttractionCard({
+    required this.attraction,
+    this.onFavoriteChanged,
+    this.onTap,
+    super.key,
+  });
 
   final AttractionModel attraction;
   final VoidCallback? onFavoriteChanged;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Card(
     clipBehavior: Clip.antiAlias,
     child: InkWell(
-      onTap: () => context.push('/discover/${attraction.id}'),
+      onTap: onTap ?? () => context.push('/discover/${attraction.id}'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

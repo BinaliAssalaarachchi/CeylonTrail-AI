@@ -17,6 +17,11 @@ using CeylonTrail.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Keep local and container runs independent of the Windows Event Log provider.
+// Event Log permission failures must never replace the actual API exception.
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole();
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -132,8 +137,6 @@ builder.Services.AddHealthChecks()
     .AddCheck<PostgreSqlHealthCheck>("postgresql", tags: new[] { "ready" });
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-builder.Logging.AddJsonConsole();
-
 CorsConfiguration.AddConfiguredPolicy(builder.Services, builder.Configuration);
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

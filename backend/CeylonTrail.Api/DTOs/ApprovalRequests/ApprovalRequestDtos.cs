@@ -1,9 +1,11 @@
 using CeylonTrail.Api.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace CeylonTrail.Api.DTOs.ApprovalRequests;
 
 public sealed class ApprovalDecisionRequest
 {
+    [StringLength(1000)]
     public string? Comment { get; set; }
 }
 
