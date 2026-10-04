@@ -11,7 +11,10 @@ from pydantic import ValidationError
 from config import load_dotenv_file
 from planner.agent import DeterministicPlannerFixture, PlannerAgent, PlannerError, PlannerValidationError
 from planner.providers import FallbackPlannerModelProvider, GEMINI_PLANNER_RESPONSE_SCHEMA, GeminiPlannerModelProvider, MissingPlannerProvider, PlannerConfigurationError, PlannerProviderError, create_planner_provider
+from agent_trace import AgentExecutionTrace
 from planner.schemas import PlannerInput, PlannerOutput
+from planner.tools import PlannerToolError, PlannerTools
+from planner.prompts import PLANNER_SYSTEM_POLICY
 
 
 def request(**overrides):
@@ -75,6 +78,175 @@ class PlannerTests(unittest.TestCase):
         result = PlannerAgent(RecordingProvider(valid_output())).generate(request())
         self.assertEqual(result.status, "Generated")
         self.assertEqual(result.days[0].items[0].attraction_id, "a1")
+
+    def test_multiple_days_with_two_unique_attractions_are_preserved(self):
+        output = {
+            "days": [
+                {"dayNumber": 1, "date": "2026-10-10", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 2, "date": "2026-10-11", "items": [
+                    {"attractionId": "a2", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 1500},
+                ]},
+                {"dayNumber": 3, "date": "2026-10-12", "items": []},
+            ],
+            "estimatedCost": 4000,
+            "status": "Generated",
+        }
+
+        result = PlannerAgent(RecordingProvider(output), max_retries=0).generate(request())
+
+        self.assertEqual(
+            [item.attraction_id for day in result.days for item in day.items],
+            ["a1", "a2"],
+        )
+        self.assertEqual(result.days[2].items, [])
+        self.assertEqual(result.estimated_cost, Decimal("4000"))
+
+    def test_duplicate_attraction_proposed_across_days_is_skipped(self):
+        output = {
+            "days": [
+                {"dayNumber": 1, "date": "2026-10-10", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 2, "date": "2026-10-11", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                    {"attractionId": "a2", "startTime": "11:00", "endTime": "12:00", "estimatedCost": 1500},
+                ]},
+                {"dayNumber": 3, "date": "2026-10-12", "items": []},
+            ],
+            "estimatedCost": 6500,
+            "status": "Generated",
+        }
+
+        result = PlannerAgent(RecordingProvider(output), max_retries=0).generate(request())
+
+        self.assertEqual(
+            [item.attraction_id for day in result.days for item in day.items],
+            ["a1", "a2"],
+        )
+        self.assertEqual(result.estimated_cost, Decimal("4000"))
+
+    def test_only_one_suitable_attraction_leaves_other_days_empty(self):
+        output = {
+            "days": [
+                {"dayNumber": 1, "date": "2026-10-10", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 2, "date": "2026-10-11", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+                {"dayNumber": 3, "date": "2026-10-12", "items": [
+                    {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                ]},
+            ],
+            "estimatedCost": 7500,
+            "status": "Generated",
+        }
+        one_candidate_request = request(
+            candidateAttractions=[
+                {"id": "a1", "name": "Temple", "category": "Culture", "region": "Kandy", "price": 2500},
+            ]
+        )
+
+        result = PlannerAgent(RecordingProvider(output), max_retries=0).generate(one_candidate_request)
+
+        self.assertEqual(sum(len(day.items) for day in result.days), 1)
+        self.assertEqual([len(day.items) for day in result.days], [1, 0, 0])
+        self.assertEqual(result.estimated_cost, Decimal("2500"))
+
+    def test_normalization_does_not_bypass_budget_validation(self):
+        output = {
+            "days": [{"dayNumber": 1, "date": "2026-10-10", "items": [
+                {"attractionId": "a1", "startTime": "09:00", "endTime": "10:00", "estimatedCost": 2500},
+                {"attractionId": "a2", "startTime": "11:00", "endTime": "12:00", "estimatedCost": 1500},
+            ]}],
+            "estimatedCost": 4000,
+            "status": "Generated",
+        }
+
+        with self.assertRaises(PlannerValidationError) as raised:
+            PlannerAgent(RecordingProvider(output), max_retries=0).generate(request(budget=3000))
+
+        self.assertIn("budget", raised.exception.diagnostic_message)
+
+    def test_successful_result_contains_exact_bounded_operational_trace(self):
+        result = PlannerAgent(RecordingProvider(valid_output())).generate(request())
+        self.assertIsInstance(result.trace, AgentExecutionTrace)
+        self.assertEqual(
+            [step.tool for step in result.trace.steps],
+            [
+                "inspect_trip_constraints",
+                "inspect_candidate_attractions",
+                "calculate_budget_usage",
+                "check_schedule_conflicts",
+                "validate_plan_constraints",
+            ],
+        )
+        self.assertLessEqual(len(result.trace.steps), 5)
+        self.assertTrue(all(step.status == "Completed" for step in result.trace.steps))
+        self.assertIsNone(result.trace.safe_failure)
+
+    def test_trace_rejects_unbounded_or_private_fields(self):
+        with self.assertRaises(ValidationError):
+            AgentExecutionTrace(
+                agent="Planner",
+                responsibility="Plan",
+                inputSummary="Input",
+                prompt="must not be accepted",
+            )
+
+    def test_each_planner_tool_normal_path(self):
+        planner_request = request()
+        planner_output = PlannerOutput.model_validate(valid_output())
+        self.assertIn("budget", PlannerTools.inspect_trip_constraints(planner_request).result_summary)
+        self.assertIn("2 trusted", PlannerTools.inspect_candidate_attractions(planner_request).result_summary)
+        self.assertIn("2500", PlannerTools.calculate_budget_usage(planner_request, planner_output).result_summary)
+        self.assertIn("no conflicts", PlannerTools.check_schedule_conflicts(planner_request, planner_output).result_summary)
+        self.assertIn("passed", PlannerTools.validate_plan_constraints(planner_request, planner_output).result_summary)
+
+    def test_policy_prefers_multiple_grounded_candidates_without_forcing_a_count(self):
+        policy = " ".join(PLANNER_SYSTEM_POLICY.lower().split())
+        self.assertIn("prefer a useful multi-item day or multi-day itinerary", policy)
+        self.assertIn("one item is correct when only one candidate is suitable", policy)
+        self.assertIn("do not invent duration, availability, travel", policy)
+
+    def test_candidate_inspection_rejects_duplicate_ids(self):
+        planner_request = request(candidateAttractions=[
+            {"id": "a1", "name": "One", "price": 100},
+            {"id": "a1", "name": "Duplicate", "price": 100},
+        ])
+        with self.assertRaises(PlannerToolError):
+            PlannerTools.inspect_candidate_attractions(planner_request)
+
+    def test_budget_tool_rejects_budget_violation(self):
+        planner_request = request(budget=100)
+        planner_output = PlannerOutput.model_validate(valid_output())
+        with self.assertRaises(PlannerToolError):
+            PlannerTools.calculate_budget_usage(planner_request, planner_output)
+
+    def test_schedule_tool_rejects_unknown_candidate(self):
+        planner_request = request()
+        invalid = valid_output()
+        invalid["days"][0]["items"][0]["attractionId"] = "unknown"
+        planner_output = PlannerOutput.model_validate(invalid)
+        with self.assertRaises(PlannerToolError):
+            PlannerTools.check_schedule_conflicts(planner_request, planner_output)
+
+    def test_validation_tool_rejects_generated_output_without_days(self):
+        planner_request = request()
+        planner_output = PlannerOutput.model_validate({"days": [], "estimatedCost": 0, "status": "Generated"})
+        with self.assertRaises(ValueError):
+            PlannerTools.validate_plan_constraints(planner_request, planner_output)
+
+    def test_invalid_planner_output_exposes_bounded_safe_failure_trace(self):
+        invalid = valid_output()
+        invalid["days"][0]["items"][0]["attractionId"] = "unknown"
+        with self.assertRaises(PlannerValidationError) as raised:
+            PlannerAgent(RecordingProvider(invalid), max_retries=0).generate(request())
+        self.assertIsNotNone(raised.exception.trace)
+        self.assertEqual(raised.exception.trace.safe_failure, "Itinerary item references an unknown candidate attraction.")
+        self.assertLessEqual(len(raised.exception.trace.steps), 3)
 
     def test_provider_receives_full_trusted_context_and_policy(self):
         provider = RecordingProvider(valid_output())
@@ -573,6 +745,17 @@ class PlannerTests(unittest.TestCase):
     def test_deterministic_fixture_is_explicitly_test_only(self):
         result = DeterministicPlannerFixture().generate(request())
         self.assertEqual(result.status, "Generated")
+        self.assertEqual(result.days[0].items[0].attraction_id, "a1")
+
+    def test_deterministic_fixture_uses_multiple_grounded_candidates_when_budget_allows(self):
+        result = DeterministicPlannerFixture().generate(request())
+        self.assertEqual(len(result.days[0].items), 2)
+        self.assertEqual({item.attraction_id for item in result.days[0].items}, {"a1", "a2"})
+        self.assertLess(result.days[0].items[0].end_time, result.days[0].items[1].start_time)
+
+    def test_deterministic_fixture_keeps_one_candidate_when_budget_allows_only_one(self):
+        result = DeterministicPlannerFixture().generate(request(budget=2500))
+        self.assertEqual(sum(len(day.items) for day in result.days), 1)
         self.assertEqual(result.days[0].items[0].attraction_id, "a1")
 
     def test_no_candidates_fixture_returns_noplan(self):

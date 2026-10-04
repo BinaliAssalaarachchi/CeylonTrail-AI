@@ -119,7 +119,7 @@ class ItineraryDay {
 }
 
 class ItineraryItem {
-  const ItineraryItem({required this.id, required this.attractionId, required this.startTime, required this.endTime, required this.estimatedCost, this.notes});
+  const ItineraryItem({required this.id, required this.attractionId, required this.startTime, required this.endTime, required this.estimatedCost, this.notes, this.attractionName, this.description, this.address, this.district, this.category, this.latitude, this.longitude});
 
   final String id;
   final String attractionId;
@@ -127,6 +127,13 @@ class ItineraryItem {
   final String endTime;
   final double estimatedCost;
   final String? notes;
+  final String? attractionName;
+  final String? description;
+  final String? address;
+  final String? district;
+  final String? category;
+  final double? latitude;
+  final double? longitude;
 
   factory ItineraryItem.fromJson(Map<String, dynamic> json) => ItineraryItem(
     id: json['id']?.toString() ?? '',
@@ -135,6 +142,13 @@ class ItineraryItem {
     endTime: cleanTime(json['endTime']),
     estimatedCost: parseMoney(json['estimatedCost']),
     notes: json['notes'] as String?,
+    attractionName: json['attractionName'] as String?,
+    description: json['description'] as String?,
+    address: json['address'] as String?,
+    district: json['district'] as String?,
+    category: json['category'] as String?,
+    latitude: parseOptionalNumber(json['latitude']),
+    longitude: parseOptionalNumber(json['longitude']),
   );
 }
 
@@ -148,6 +162,8 @@ DateTime parseCalendarDate(Object? value) {
 DateTime? parseTimestamp(Object? value) => DateTime.tryParse(value?.toString() ?? '');
 
 double parseMoney(Object? value) => double.tryParse(value?.toString() ?? '') ?? 0;
+
+double? parseOptionalNumber(Object? value) => value == null ? null : double.tryParse(value.toString());
 
 String cleanTime(Object? value) {
   final text = value?.toString() ?? '';

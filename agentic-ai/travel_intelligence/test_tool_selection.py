@@ -76,6 +76,35 @@ class ToolSelectionTests(unittest.TestCase):
             ],
         )
         self.assertFalse(result.execution.tool_selection_provider_attempted)
+        self.assertEqual(
+            [step.tool for step in result.trace.steps],
+            [
+                "summarize_validation",
+                "list_blocking_issues",
+                "identify_affected_items",
+                "assess_travel_risk",
+                "build_recommendation_candidates",
+                "find_safe_time_windows",
+            ],
+        )
+        self.assertEqual(result.trace.steps[0].sequence, 1)
+        self.assertEqual(result.trace.steps[-1].status, "Completed")
+        self.assertIsNone(result.trace.safe_failure)
+        self.assertNotIn("prompt", result.trace.model_dump_json().lower())
+
+    def test_provider_failure_maps_to_safe_fallback_trace(self):
+        class FailingProvider:
+            name = "gemini"
+            model = "test-model"
+
+            def recommend(self, validation, system_policy):
+                raise RuntimeError("provider unavailable")
+
+        result = TravelIntelligenceAgent(FailingProvider()).analyze(make_validation())
+        self.assertTrue(result.execution.used_fallback)
+        self.assertEqual(result.trace.agent, "TravelIntelligence")
+        self.assertIn("provider unavailable", result.trace.safe_failure)
+        self.assertEqual(len(result.trace.steps), 6)
 
     def test_allowed_tool_for_current_step_is_executed(self):
         provider = SelectionProvider(

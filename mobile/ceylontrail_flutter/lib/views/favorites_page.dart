@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/attraction_model.dart';
 import '../services/attraction_api_service.dart';
@@ -49,6 +50,25 @@ class _FavoritesPageState extends State<FavoritesPage> {
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Unable to load favorites.'), const SizedBox(height: 12), FilledButton(onPressed: () { setState(() { _loading = true; _error = null; }); _load(); }, child: const Text('Retry'))]))
             : _items.isEmpty
                 ? RefreshIndicator(onRefresh: _load, child: ListView(children: const [SizedBox(height: 120), Icon(Icons.favorite_border, size: 52), SizedBox(height: 12), Center(child: Text('No favorite attractions yet.'))]))
-                : RefreshIndicator(onRefresh: _load, child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _items.length, itemBuilder: (context, index) => Padding(padding: const EdgeInsets.only(bottom: 14), child: AttractionCard(attraction: _items[index], onFavoriteChanged: () => _remove(_items[index]))))),
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _items.length,
+                      itemBuilder: (context, index) {
+                        final attraction = _items[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: AttractionCard(
+                            attraction: attraction,
+                            onTap: () => context.go(
+                              '/discover/${attraction.id}',
+                            ),
+                            onFavoriteChanged: () => _remove(attraction),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
   );
 }

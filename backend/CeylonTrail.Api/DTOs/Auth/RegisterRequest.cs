@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CeylonTrail.Api.DTOs.Auth;
 
-public class RegisterRequest
+public class RegisterRequest : IValidatableObject
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]
@@ -23,4 +23,12 @@ public class RegisterRequest
 
     [Required]
     public string Role { get; set; } = string.Empty;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (string.IsNullOrWhiteSpace(FirstName))
+            yield return new ValidationResult("First name cannot be blank.", new[] { nameof(FirstName) });
+        if (string.IsNullOrWhiteSpace(LastName))
+            yield return new ValidationResult("Last name cannot be blank.", new[] { nameof(LastName) });
+    }
 }

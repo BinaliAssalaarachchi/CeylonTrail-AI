@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CeylonTrail.Api.Data;
 using CeylonTrail.Api.DTOs.ItineraryValidations;
+using CeylonTrail.Api.DTOs.Planner;
 using CeylonTrail.Api.DTOs.TravelIntelligence;
 using CeylonTrail.Api.Interfaces;
 using CeylonTrail.Api.Models;
@@ -87,6 +88,7 @@ public sealed class TravelIntelligenceExecutionQueryService(ApplicationDbContext
             ObjectiveSource = execution.ObjectiveSource, ToolSelectionProviderAttempted = execution.ToolSelectionProviderAttempted,
             ToolSelectionFallbackUsed = execution.ToolSelectionFallbackUsed, ToolSelectionFallbackReason = execution.ToolSelectionFallbackReason,
             SelectionAttemptCount = execution.SelectionAttemptCount, Steps = execution.Steps.OrderBy(step => step.Sequence).Select(ToStep).ToList(),
+            SharedTrace = ToSharedTrace(execution),
             Approval = execution.ApprovalRequest is null ? null : ApprovalRequestService.ToResponseForRead(execution.ApprovalRequest)
         };
         detail.SelectedToolNames = ReadJson(execution.SelectedToolNamesJson, Array.Empty<string>(), "selected tools", execution.Id).ToList();
@@ -117,6 +119,27 @@ public sealed class TravelIntelligenceExecutionQueryService(ApplicationDbContext
         PlannedToolName = step.PlannedToolName, ExecutedToolName = step.ExecutedToolName, Status = step.Status,
         DurationMs = step.DurationMs, ResultSummary = step.ResultSummary
     };
+
+    private static AgentExecutionTrace ToSharedTrace(TravelIntelligenceExecution execution) => new(
+        "TravelIntelligence",
+        "Analyze validated itinerary/travel conditions using bounded safety and travel-intelligence tools and produce an auditable recommendation for human review.",
+        $"Validation {execution.ValidationResultId}; risk {execution.RiskLevel}.",
+        execution.Steps
+            .Where(step => !string.IsNullOrWhiteSpace(step.ExecutedToolName))
+            .OrderBy(step => step.Sequence)
+            .Select((step, index) => new AgentTraceStep(
+                index + 1,
+                step.ExecutedToolName!,
+                step.Purpose,
+                step.Status.ToString() is "Completed" or "Failed" or "Skipped" ? step.Status.ToString() : "Failed",
+                string.IsNullOrWhiteSpace(step.ResultSummary) ? "No operational result summary." : step.ResultSummary[..Math.Min(step.ResultSummary.Length, 500)],
+                step.DurationMs))
+            .ToList(),
+        $"Recommended action: {execution.RecommendedAction}; execution status {execution.ExecutionStatus}.",
+        $"Execution status {execution.ExecutionStatus}; authoritative validation state preserved.",
+        execution.ResultSummary,
+        execution.UsedFallback ? execution.FallbackReason : null,
+        execution.DurationMs);
 
     private T ReadJson<T>(string json, T fallback, string field, Guid executionId)
     {

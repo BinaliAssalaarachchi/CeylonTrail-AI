@@ -6,6 +6,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from agent_trace import AgentExecutionTrace
+
 
 class DestinationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -88,6 +90,7 @@ class DestinationOutput(BaseModel):
     candidates: List[DestinationCandidate] = Field(default_factory=list, max_length=50)
     status: str = Field(pattern=r"^(Success|NoResults)$")
     message: Optional[str] = Field(default=None, max_length=500)
+    trace: Optional[AgentExecutionTrace] = None
 
 
 class DestinationExecutionRequest(BaseModel):

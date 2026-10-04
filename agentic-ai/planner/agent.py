@@ -2,6 +2,7 @@
 
 from datetime import date, time, timedelta
 from decimal import Decimal
+from time import perf_counter
 from typing import Any
 
 from pydantic import ValidationError
@@ -18,6 +19,8 @@ from .schemas import (
     PlannerOutput,
     validate_planner_output,
 )
+from .tools import PlannerToolError, PlannerTools
+from agent_trace import AgentExecutionTrace, AgentTraceStep
 
 
 class PlannerError(RuntimeError):
@@ -34,8 +37,9 @@ class PlannerError(RuntimeError):
 class PlannerValidationError(PlannerError):
     """The model returned data that failed schema or trusted-context checks."""
 
-    def __init__(self, message: str, *, stage: str = "pydantic_validation", diagnostic_message: str | None = None):
+    def __init__(self, message: str, *, stage: str = "pydantic_validation", diagnostic_message: str | None = None, trace: AgentExecutionTrace | None = None):
         super().__init__(message, stage=stage, diagnostic_message=diagnostic_message)
+        self.trace = trace
 
 
 class PlannerAgent:
@@ -49,6 +53,7 @@ class PlannerAgent:
         self.max_retries = max(0, max_retries)
 
     def generate(self, request: PlannerInput) -> PlannerOutput:
+        started = perf_counter()
         attempts = self.max_retries + 1
         for attempt in range(attempts):
             try:
@@ -76,15 +81,104 @@ class PlannerAgent:
                 ) from error
 
             try:
-                return validate_planner_output(output, request)
-            except ValueError as error:
+                output = normalize_planner_output(output)
+                trace = self._execute_tools(request, output, started)
+                return output.model_copy(update={"trace": trace})
+            except (PlannerToolError, ValueError) as error:
+                trace = getattr(error, "trace", None)
                 raise PlannerValidationError(
                     "Planner output failed deterministic validation.",
                     stage="deterministic_validation",
                     diagnostic_message=str(error)[:500],
+                    trace=trace,
                 ) from error
 
         raise PlannerError("Planner model provider failed.")
+
+    @staticmethod
+    def _execute_tools(request: PlannerInput, output: PlannerOutput, started: float) -> AgentExecutionTrace:
+        operations = [
+            lambda: PlannerTools.inspect_trip_constraints(request),
+            lambda: PlannerTools.inspect_candidate_attractions(request),
+            lambda: PlannerTools.calculate_budget_usage(request, output),
+            lambda: PlannerTools.check_schedule_conflicts(request, output),
+            lambda: PlannerTools.validate_plan_constraints(request, output),
+        ]
+        steps: list[AgentTraceStep] = []
+        for sequence, operation in enumerate(operations, start=1):
+            operation_started = perf_counter()
+            try:
+                result = operation()
+            except (PlannerToolError, ValueError) as error:
+                failure = AgentExecutionTrace(
+                    agent="Planner",
+                    responsibility="Create a feasible itinerary from trusted trip inputs.",
+                    inputSummary=f"{request.duration} day(s), budget LKR {request.budget}, {len(request.candidate_attractions)} candidate(s).",
+                    steps=steps,
+                    decision="Planner output rejected safely.",
+                    validation="Failed deterministic Planner validation.",
+                    safeFailure=str(error)[:500],
+                    durationMs=max(0, round((perf_counter() - started) * 1000)),
+                )
+                error.trace = failure  # type: ignore[attr-defined]
+                raise
+            steps.append(AgentTraceStep(
+                sequence=sequence,
+                tool=result.tool,
+                purpose=result.purpose,
+                status="Completed",
+                resultSummary=result.result_summary,
+                durationMs=max(0, round((perf_counter() - operation_started) * 1000)),
+            ))
+
+        return AgentExecutionTrace(
+            agent="Planner",
+            responsibility="Create a feasible itinerary from trusted trip inputs.",
+            inputSummary=f"{request.duration} day(s), budget LKR {request.budget}, {len(request.candidate_attractions)} candidate(s).",
+            steps=steps,
+            decision="Generated feasible itinerary." if output.status == "Generated" else "No feasible itinerary generated.",
+            validation="Passed deterministic Planner validation.",
+            outputSummary=f"{len(output.days)} day(s), LKR {output.estimated_cost} estimated cost.",
+            durationMs=max(0, round((perf_counter() - started) * 1000)),
+        )
+
+
+def normalize_planner_output(output: PlannerOutput) -> PlannerOutput:
+    """Normalize only safely recoverable cross-day duplicate proposals.
+
+    A duplicate within one day is an invalid schedule and must be rejected.
+    Repeated occurrences across days remain safely de-duplicated for backward
+    compatibility with the deterministic proposal policy. The model-supplied
+    total is preserved unless an item was actually removed, so incorrect
+    totals and budget violations still reach the deterministic validators.
+    """
+
+    selected_ids: set[str] = set()
+    total = Decimal("0")
+    removed_duplicate = False
+    normalized_days = []
+
+    for day in output.days:
+        retained_items = []
+        day_ids: set[str] = set()
+        for item in day.items:
+            if item.attraction_id in day_ids:
+                raise ValueError("an attraction may not be scheduled more than once on the same day")
+            day_ids.add(item.attraction_id)
+            if item.attraction_id in selected_ids:
+                removed_duplicate = True
+                continue
+            selected_ids.add(item.attraction_id)
+            retained_items.append(item)
+            total += item.estimated_cost
+        normalized_days.append(day.model_copy(update={"items": retained_items}))
+
+    return output.model_copy(
+        update={
+            "days": normalized_days,
+            "estimated_cost": total if removed_duplicate else output.estimated_cost,
+        }
+    )
 
 
 class DeterministicPlannerFixture:

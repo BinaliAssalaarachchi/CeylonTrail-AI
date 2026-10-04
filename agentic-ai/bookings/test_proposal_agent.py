@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from bookings.booking_agent import BookingProposalAgent
-from bookings.schemas import BookingActionExecutionRequest
+from bookings.schemas import BookingActionExecutionRequest, BookingActionIssue
+from bookings.tools import BookingProposalTools
 
 
 def slot(*, slot_id=None, attraction_id=None, price="20", available=5, start=None, active=True, approved=True):
@@ -47,6 +48,16 @@ def test_valid_proposal_uses_authoritative_price():
     assert result.proposals[0].unit_price == Decimal("20")
     assert result.proposals[0].total_price == Decimal("40")
     assert result.requires_approval is True
+    assert [step.tool for step in result.trace.steps] == [
+        "inspect_availability",
+        "check_capacity",
+        "check_trip_dates",
+        "calculate_proposal_cost",
+        "check_remaining_budget",
+        "build_booking_proposal",
+    ]
+    assert "non-authoritative" in result.trace.steps[3].purpose
+    assert result.trace.safe_failure is None
 
 
 def test_insufficient_capacity_produces_safe_no_proposal():
@@ -113,3 +124,36 @@ def test_ineligible_records_are_never_proposed():
     result = BookingProposalAgent().prepare(request([slot(active=False), slot(approved=False)]))
     assert result.status == "NoEligibleProposal"
     assert result.proposals == []
+
+
+def test_each_m3_tool_executes_over_trusted_snapshot():
+    parsed = request([slot(price="20")])
+    inspected = BookingProposalTools.inspect_availability(parsed)
+    assert len(inspected.slots) == 1
+    capacity = BookingProposalTools.check_capacity(parsed, inspected.slots)
+    dates = BookingProposalTools.check_trip_dates(parsed, capacity.slots)
+    costs = BookingProposalTools.calculate_proposal_cost(parsed, dates.slots)
+    assert next(iter(costs.costs.values())) == Decimal("40")
+    budget = BookingProposalTools.check_remaining_budget(parsed, dates.slots, costs.costs)
+    built = BookingProposalTools.build_booking_proposal(parsed, budget.slots, costs.costs)
+    explained = BookingProposalTools.explain_ineligible_option((
+        built.issues[0] if built.issues else BookingActionIssue(code="Example", message="Example ineligible option"),
+    ))
+    assert explained.tool == "explain_ineligible_option"
+
+
+def test_trace_is_bounded_and_ineligible_trace_explains_safe_failure():
+    result = BookingProposalAgent().prepare(request([slot(available=1)], guest_count=2))
+    assert result.status == "NoEligibleProposal"
+    assert result.trace.safe_failure == "No booking was created or mutated."
+    assert result.trace.steps[-1].tool == "explain_ineligible_option"
+    assert len(result.trace.steps) <= 7
+
+
+def test_proposal_cost_is_snapshot_cost_not_final_authority():
+    parsed = request([slot(price="20")], guest_count=3)
+    result = BookingProposalAgent().prepare(parsed)
+    assert result.proposals[0].total_price == Decimal("60")
+    assert "final booking authority remains ASP.NET" in result.trace.validation
+    assert "authoritative" not in result.trace.steps[3].tool
+    assert "non-authoritative" in result.trace.steps[3].purpose

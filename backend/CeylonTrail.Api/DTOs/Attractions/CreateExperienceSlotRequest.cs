@@ -31,5 +31,12 @@ public sealed class CreateExperienceSlotRequest : IValidatableObject
                 "AvailableCapacity cannot exceed Capacity.",
                 new[] { nameof(AvailableCapacity), nameof(Capacity) });
         }
+
+        if (Date < DateOnly.FromDateTime(DateTime.UtcNow))
+        {
+            yield return new ValidationResult(
+                "Experience slot date must be today or in the future.",
+                new[] { nameof(Date) });
+        }
     }
 }

@@ -32,6 +32,21 @@ void main() {
     expect(itinerary.days.first.items.single.estimatedCost, 250);
   });
 
+  test('parses optional authoritative attraction details and coordinates', () {
+    final item = ItineraryItem.fromJson({
+      'id': 'x', 'attractionId': 'a1', 'startTime': '06:00:00', 'endTime': '09:00:00',
+      'estimatedCost': 6500, 'attractionName': 'Sigiriya Heritage Sunrise Trail',
+      'description': 'A guided sunrise walk.', 'address': 'Sigiriya, Matale, Sri Lanka',
+      'district': 'Matale', 'category': 'Historical & Cultural', 'latitude': 7.957,
+      'longitude': 80.7603,
+    });
+
+    expect(item.attractionName, 'Sigiriya Heritage Sunrise Trail');
+    expect(item.district, 'Matale');
+    expect(item.latitude, 7.957);
+    expect(item.longitude, 80.7603);
+  });
+
   test('serializes calendar dates in the API format', () {
     expect(dateValue(DateTime(2026, 1, 5)), '2026-01-05');
   });

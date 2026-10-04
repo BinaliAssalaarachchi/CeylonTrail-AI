@@ -36,6 +36,9 @@ public sealed class TravelIntelligenceExecutionQueryServiceTests
         Assert.NotNull(detail);
         Assert.Equal([1, 2], detail!.Steps.Select(step => step.Sequence));
         Assert.Equal("check-alerts", detail.Steps[0].StepId);
+        Assert.NotNull(detail.SharedTrace);
+        Assert.Equal("TravelIntelligence", detail.SharedTrace!.Agent);
+        Assert.Equal(["check-alerts"], detail.SharedTrace.Steps.Select(step => step.Tool));
         Assert.Equal("recommend", detail.Recommendations.Single().Explanation);
         Assert.Equal("Approved", detail.Approval!.Decision!.Decision.ToString());
     }
@@ -163,7 +166,7 @@ public sealed class TravelIntelligenceExecutionQueryServiceTests
         });
         db.TravelIntelligenceExecutionSteps.AddRange(
             new TravelIntelligenceExecutionStep { Id = Guid.NewGuid(), TravelIntelligenceExecutionId = executionId, Sequence = 2, StepId = "recommend", Name = "Recommend", Purpose = "recommend", Status = TravelIntelligenceExecutionStepStatus.Completed, CreatedAt = now },
-            new TravelIntelligenceExecutionStep { Id = Guid.NewGuid(), TravelIntelligenceExecutionId = executionId, Sequence = 1, StepId = "check-alerts", Name = "Check", Purpose = "check", Status = TravelIntelligenceExecutionStepStatus.Completed, CreatedAt = now });
+            new TravelIntelligenceExecutionStep { Id = Guid.NewGuid(), TravelIntelligenceExecutionId = executionId, Sequence = 1, StepId = "check-alerts", Name = "Check", Purpose = "check", ExecutedToolName = "check-alerts", ResultSummary = "Checked authoritative alerts.", DurationMs = 3, Status = TravelIntelligenceExecutionStepStatus.Completed, CreatedAt = now });
         if (includeApproval)
         {
             var approvalId = Guid.NewGuid();

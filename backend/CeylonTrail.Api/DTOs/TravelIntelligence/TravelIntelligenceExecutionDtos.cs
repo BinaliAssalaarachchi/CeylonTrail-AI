@@ -1,5 +1,6 @@
 using CeylonTrail.Api.DTOs.ApprovalRequests;
 using CeylonTrail.Api.DTOs.ItineraryValidations;
+using CeylonTrail.Api.DTOs.Planner;
 using CeylonTrail.Api.Models;
 
 namespace CeylonTrail.Api.DTOs.TravelIntelligence;
@@ -54,6 +55,7 @@ public class TravelIntelligenceExecutionListItemResponse
 
 public sealed class TravelIntelligenceExecutionDetailResponse : TravelIntelligenceExecutionListItemResponse
 {
+    public AgentExecutionTrace? SharedTrace { get; set; }
     public string ObjectiveName { get; set; } = string.Empty;
     public string ObjectiveDescription { get; set; } = string.Empty;
     public string ObjectiveSource { get; set; } = string.Empty;

@@ -35,6 +35,7 @@ from .tools import (
     summarize_validation_issues,
     TOOL_REGISTRY,
 )
+from agent_trace import AgentExecutionTrace, AgentTraceStep
 
 
 OBJECTIVE = AgentObjective(
@@ -399,7 +400,7 @@ class TravelIntelligenceAgent:
             for issue in validation.issues
         ]
 
-        return TravelRecommendationOutput(
+        output = TravelRecommendationOutput(
             summary=(
                 f"Deterministic validation is {validation.overall_status.value} with "
                 f"{summaries['total']} issue(s), including {summaries['blocking']} blocking issue(s)."
@@ -438,6 +439,7 @@ class TravelIntelligenceAgent:
                 provider_attempt_count=provider_attempt_count,
             ),
         )
+        return output.model_copy(update={"trace": self._shared_trace(validation, output.execution, output.recommended_action)})
 
     def _enforce_authority(
         self,
@@ -505,6 +507,7 @@ class TravelIntelligenceAgent:
                     "validation_result_id": validation.validation_result_id,
                     "is_feasible": validation.is_feasible,
                     "execution": execution,
+                    "trace": self._shared_trace(validation, execution, fallback.recommended_action),
                 }
             )
 
@@ -513,7 +516,51 @@ class TravelIntelligenceAgent:
                 "summary": provider_summary,
                 "recommendations": provider_recommendations,
                 "execution": execution,
+                "trace": self._shared_trace(validation, execution, fallback.recommended_action),
             }
+        )
+
+    @staticmethod
+    def _shared_trace(
+        validation: TravelValidationInput,
+        execution: AgentExecutionMetadata,
+        recommended_action: RecommendationAction,
+    ) -> AgentExecutionTrace:
+        """Map existing execution evidence to the shared operational view."""
+
+        planned = {step.step_id: step for step in execution.investigation_plan.steps}
+        steps: list[AgentTraceStep] = []
+        for sequence, executed in enumerate(
+            (step for step in execution.executed_steps if step.tool_name),
+            start=1,
+        ):
+            planned_step = planned.get(executed.step_id)
+            status = executed.status.value
+            if status not in {"Completed", "Failed", "Skipped"}:
+                status = "Failed"
+            steps.append(AgentTraceStep(
+                sequence=sequence,
+                tool=executed.tool_name or "",
+                purpose=(planned_step.purpose if planned_step else executed.step_id),
+                status=status,
+                resultSummary=executed.result_summary,
+                durationMs=executed.duration_ms,
+            ))
+
+        return AgentExecutionTrace(
+            agent="TravelIntelligence",
+            responsibility="Analyze validated itinerary/travel conditions using bounded safety and travel-intelligence tools and produce an auditable recommendation for human review.",
+            inputSummary=f"Validation {validation.validation_result_id}; {len(validation.issues)} issue(s), risk {validation.risk_level.value}.",
+            steps=steps,
+            decision=f"Recommended action: {recommended_action.value}; deterministic advisory authority preserved.",
+            validation=f"Execution status {execution.execution_status}; authoritative validation state preserved.",
+            outputSummary=execution.result_summary,
+            safeFailure=(
+                execution.fallback_reason
+                if execution.used_fallback and execution.provider_attempted
+                else None
+            ),
+            durationMs=execution.duration_ms,
         )
 
     @staticmethod

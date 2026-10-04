@@ -4,6 +4,7 @@ Synthesizes structured booking actions from approved itineraries and verifies co
 """
 
 from datetime import datetime, timezone
+from time import perf_counter
 from decimal import Decimal
 from typing import List, Optional
 from .schemas import (
@@ -17,6 +18,8 @@ from .schemas import (
     BookingActionOutput,
     BookingActionProposal,
 )
+from .tools import BookingProposalTools
+from agent_trace import AgentExecutionTrace, AgentTraceStep
 
 
 class BookingActionAgent:
@@ -182,56 +185,41 @@ class BookingProposalAgent:
     """Deterministic proposal generator over an ASP.NET-owned slot snapshot."""
 
     def prepare(self, request: BookingActionExecutionRequest) -> BookingActionOutput:
-        now = datetime.now(timezone.utc)
-        selected_attractions = set(request.selected_attraction_ids)
-        issues: list[BookingActionIssue] = []
-        eligible = []
+        started = perf_counter()
+        steps: list[AgentTraceStep] = []
+        inspected = BookingProposalTools.inspect_availability(request)
+        steps.append(self._step(1, inspected, started))
+        capacity = BookingProposalTools.check_capacity(request, inspected.slots)
+        steps.append(self._step(2, capacity, started))
+        dates = BookingProposalTools.check_trip_dates(request, capacity.slots)
+        steps.append(self._step(3, dates, started))
+        costs = BookingProposalTools.calculate_proposal_cost(request, dates.slots)
+        steps.append(self._step(4, costs, started))
+        budget = BookingProposalTools.check_remaining_budget(request, dates.slots, costs.costs or {})
+        steps.append(self._step(5, budget, started))
+        built = BookingProposalTools.build_booking_proposal(request, budget.slots, costs.costs or {})
+        steps.append(self._step(6, built, started))
 
-        for slot in request.trusted_availability_slots:
-            if slot.attraction_id not in selected_attractions:
-                continue
-            if not slot.is_active or not slot.is_approved:
-                issues.append(BookingActionIssue(code="InvalidSlot", message="Slot is not publicly eligible.", availabilitySlotId=slot.availability_slot_id))
-                continue
-            if slot.start_time <= now or slot.end_time <= now:
-                issues.append(BookingActionIssue(code="ExpiredSlot", message="Slot is not a future availability window.", availabilitySlotId=slot.availability_slot_id))
-                continue
-            if ((request.start_date and slot.start_time.date() < request.start_date) or
-                    (request.end_date and slot.end_time.date() > request.end_date)):
-                issues.append(BookingActionIssue(code="OutsideTripDates", message="Slot is outside the supplied trip dates.", availabilitySlotId=slot.availability_slot_id))
-                continue
-            if slot.available_capacity < request.guest_count:
-                issues.append(BookingActionIssue(code="InsufficientCapacity", message="Slot does not have enough remaining capacity.", availabilitySlotId=slot.availability_slot_id))
-                continue
-            eligible.append(slot)
+        issues = list(capacity.issues) + list(dates.issues) + list(budget.issues)
+        proposals = list(built.proposals)
+        if not proposals and not issues:
+            issues.append(BookingActionIssue(code="NoAvailability", message="No eligible availability slots were supplied."))
+        if issues:
+            explained = BookingProposalTools.explain_ineligible_option(issues)
+            steps.append(self._step(7, explained, started))
 
-        eligible.sort(key=lambda slot: (slot.start_time, slot.price_per_person, str(slot.availability_slot_id)))
-        proposals: list[BookingActionProposal] = []
-        proposed_slots: set = set()
-        total = Decimal("0")
-        for slot in eligible:
-            if slot.availability_slot_id in proposed_slots:
-                continue
-            subtotal = slot.price_per_person * request.guest_count
-            if request.remaining_budget is not None and total + subtotal > request.remaining_budget:
-                issues.append(BookingActionIssue(code="BudgetExceeded", message="Slot proposal would exceed the remaining budget.", availabilitySlotId=slot.availability_slot_id))
-                continue
-            proposals.append(BookingActionProposal(
-                attractionId=slot.attraction_id,
-                availabilitySlotId=slot.availability_slot_id,
-                guestCount=request.guest_count,
-                unitPrice=slot.price_per_person,
-                totalPrice=subtotal,
-                startTime=slot.start_time,
-                endTime=slot.end_time,
-                reason="Eligible future M3 availability with sufficient capacity and authoritative pricing.",
-            ))
-            proposed_slots.add(slot.availability_slot_id)
-            total += subtotal
-
+        trace = AgentExecutionTrace(
+            agent="BookingAction",
+            responsibility="Evaluate trusted booking options and prepare a proposal for human approval without executing the booking.",
+            inputSummary=f"{len(request.trusted_availability_slots)} trusted slot(s), {request.guest_count} guest(s), remaining budget {request.remaining_budget}.",
+            steps=steps,
+            decision="Prepared proposal(s) for human approval." if proposals else "No eligible booking proposal prepared.",
+            validation="Passed trusted snapshot checks; final booking authority remains ASP.NET." if proposals else "No eligible option passed bounded snapshot checks.",
+            outputSummary=f"{len(proposals)} proposal(s), {len(issues)} issue(s); no booking mutation performed.",
+            safeFailure=None if proposals else "No booking was created or mutated.",
+            durationMs=max(0, round((perf_counter() - started) * 1000)),
+        )
         if not proposals:
-            if not issues:
-                issues.append(BookingActionIssue(code="NoAvailability", message="No eligible availability slots were supplied."))
             return BookingActionOutput(
                 workflowId=request.workflow_id,
                 tripId=request.trip_id,
@@ -240,8 +228,8 @@ class BookingProposalAgent:
                 issues=issues,
                 requiresApproval=False,
                 summary="No booking proposal can be prepared from the trusted availability snapshot.",
+                trace=trace,
             )
-
         return BookingActionOutput(
             workflowId=request.workflow_id,
             tripId=request.trip_id,
@@ -250,4 +238,16 @@ class BookingProposalAgent:
             issues=issues,
             requiresApproval=True,
             summary=f"Prepared {len(proposals)} proposal(s); no booking side effect was performed.",
+            trace=trace,
+        )
+
+    @staticmethod
+    def _step(sequence: int, result, started: float) -> AgentTraceStep:
+        return AgentTraceStep(
+            sequence=sequence,
+            tool=result.tool,
+            purpose=result.purpose,
+            status="Completed",
+            resultSummary=result.result_summary,
+            durationMs=max(0, round((perf_counter() - started) * 1000)),
         )

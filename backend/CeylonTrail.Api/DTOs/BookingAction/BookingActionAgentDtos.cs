@@ -1,5 +1,7 @@
 namespace CeylonTrail.Api.DTOs.BookingAction;
 
+using CeylonTrail.Api.DTOs.Planner;
+
 public sealed record BookingActionAgentRequest(
     Guid WorkflowId,
     Guid TripId,
@@ -54,4 +56,5 @@ public sealed record BookingActionAgentResponse(
     IReadOnlyList<BookingActionProposal> Proposals,
     IReadOnlyList<BookingActionIssue> Issues,
     bool RequiresApproval,
-    string Summary);
+    string Summary,
+    AgentExecutionTrace? Trace = null);

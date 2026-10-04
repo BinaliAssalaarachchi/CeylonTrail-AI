@@ -11,7 +11,9 @@ public static class DevelopmentDataSeeder
     private const string SeedPassword = "Test@123";
     private const string ApprovedStatus = "Approved";
     private const string ProviderEmail = "PROVIDER@TEST.COM";
-    private static readonly DateOnly DemoDate = new(2026, 10, 3);
+    // Keep freshly seeded demo inventory bookable when the repository is used
+    // after the original demo date. Existing records are preserved below.
+    private static readonly DateOnly DemoDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(7);
     private static readonly SeedUser[] SeedUsers =
     [
         new("tourist@test.com", "Test", "Tourist", UserRole.Tourist),
@@ -199,10 +201,17 @@ public static class DevelopmentDataSeeder
     {
         var slotId = definition.AvailabilitySlotId ??
             DeterministicGuid(definition.Id, "availability");
-        var existing = await dbContext.AvailabilitySlots
-            .AnyAsync(slot => slot.Id == slotId, cancellationToken);
-        if (existing)
+        var existingSlot = await dbContext.AvailabilitySlots
+            .SingleOrDefaultAsync(slot => slot.Id == slotId, cancellationToken);
+        if (existingSlot is not null && existingSlot.EndTime > DateTime.UtcNow)
             return;
+
+        if (existingSlot is not null)
+        {
+            slotId = DeterministicGuid(definition.Id, $"availability:{DemoDate:yyyy-MM-dd}");
+            if (await dbContext.AvailabilitySlots.AnyAsync(slot => slot.Id == slotId, cancellationToken))
+                return;
+        }
 
         var start = DemoDate.ToDateTime(new TimeOnly(8, 0), DateTimeKind.Utc);
         dbContext.AvailabilitySlots.Add(new AvailabilitySlot
@@ -233,7 +242,7 @@ public static class DevelopmentDataSeeder
 
         dbContext.ExperienceSlots.Add(new ExperienceSlot
         {
-            Id = DeterministicGuid(definition.Id, "experience"),
+            Id = DeterministicGuid(definition.Id, $"experience:{DemoDate:yyyy-MM-dd}"),
             AttractionId = definition.Id,
             Date = DemoDate,
             StartTime = new TimeOnly(8, 0),

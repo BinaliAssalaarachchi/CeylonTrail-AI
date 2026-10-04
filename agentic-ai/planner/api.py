@@ -43,7 +43,14 @@ def generate_planner_itinerary(request: PlannerInput) -> PlannerOutput:
         raise HTTPException(status_code=503, detail="Planner Agent is not configured.") from error
     except PlannerValidationError as error:
         _log_failure(error)
-        raise HTTPException(status_code=422, detail="Planner output failed deterministic validation.") from error
+        detail = {
+            "message": "Planner output failed deterministic validation.",
+            "stage": error.stage,
+            "safeFailure": error.trace.safe_failure if error.trace else error.diagnostic_message,
+        }
+        if error.trace is not None:
+            detail["trace"] = error.trace.model_dump(mode="json", by_alias=True)
+        raise HTTPException(status_code=422, detail=detail) from error
     except PlannerProviderError as error:
         _log_failure(error)
         raise HTTPException(status_code=502, detail="Planner Agent provider failed.") from error

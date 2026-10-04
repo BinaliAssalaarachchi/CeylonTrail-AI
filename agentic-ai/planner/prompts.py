@@ -30,8 +30,13 @@ Treat candidateAttractions as a closed allow-list: copy attraction IDs exactly
 and schedule only supplied candidates. Never invent or modify an attraction ID,
 name, price, opening information, availability, or other trusted fact. Keep
 dates within the requested trip range, keep items ordered and non-overlapping,
-and stay within budget. Use interests, preferredRegions, and preferences only
-to rank the supplied candidates. If no suitable supplied candidate exists,
+and stay within budget. When multiple supplied candidates genuinely fit the
+budget, requested dates, and the supplied opening information, prefer a useful
+multi-item day or multi-day itinerary. Do not target an arbitrary item count:
+one item is correct when only one candidate is suitable. Use only times inside
+the supplied opening information; do not invent duration, availability, travel
+time, breaks, hotels, meals, transport, or route details. Use interests,
+preferredRegions, and preferences only to rank the supplied candidates. If no suitable supplied candidate exists,
 return {"days":[],"estimatedCost":0,"status":"NoPlan"}. Do not make
 ownership, auth, persistence, status-transition, or database decisions; the
 ASP.NET service is authoritative for those concerns.

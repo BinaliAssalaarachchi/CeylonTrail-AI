@@ -282,6 +282,7 @@ public sealed class TripServiceTests
         var service = new TripService(dbContext);
         var touristId = Guid.NewGuid();
         var trip = await SeedTripAsync(dbContext, touristId, "Itinerary trip");
+        var attraction = await SeedApprovedAttractionAsync(dbContext, "Kandy Cultural Walk", 250m);
         var older = new Itinerary
         {
             Id = Guid.NewGuid(),
@@ -311,7 +312,7 @@ public sealed class TripServiceTests
                         new ItineraryItem
                         {
                             Id = Guid.NewGuid(),
-                            AttractionId = Guid.NewGuid(),
+                            AttractionId = attraction.Id,
                             StartTime = new TimeOnly(9, 0),
                             EndTime = new TimeOnly(11, 0),
                             EstimatedCost = 35m,
@@ -334,6 +335,11 @@ public sealed class TripServiceTests
         Assert.Equal(1, day.DayNumber);
         Assert.Equal(35m, item.EstimatedCost);
         Assert.Equal("Morning visit", item.Notes);
+        Assert.Equal("Kandy Cultural Walk", item.AttractionName);
+        Assert.Equal("A supplied candidate.", item.Description);
+        Assert.Equal("Central Sri Lanka", item.Address);
+        Assert.Equal("Kandy", item.District);
+        Assert.Equal("Culture", item.Category);
     }
 
     [Fact]

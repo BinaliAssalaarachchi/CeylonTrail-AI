@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using CeylonTrail.Api.DTOs.Planner;
 
 namespace CeylonTrail.Api.DTOs.Attractions;
 
@@ -64,4 +65,5 @@ public sealed record DestinationCandidateResponse(
 public sealed record DestinationAgentResponse(
     IReadOnlyList<DestinationCandidateResponse> Candidates,
     string Status,
-    string? Message);
+    string? Message,
+    AgentExecutionTrace? Trace = null);
