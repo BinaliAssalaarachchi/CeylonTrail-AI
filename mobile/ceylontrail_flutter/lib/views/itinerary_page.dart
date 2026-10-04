@@ -111,7 +111,7 @@ class _ItineraryPageState extends State<ItineraryPage> {
                     child: Text('Your itinerary is not ready yet.'),
                   ),
                 )
-              : RefreshIndicator(
+            : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -122,9 +122,15 @@ class _ItineraryPageState extends State<ItineraryPage> {
                       48,
                     ),
                     children: [
-                      _TripHero(trip: _trip, itinerary: itinerary),
+                      _TripHero(
+                        trip: _trip,
+                        itinerary: _withTripDays(itinerary, _trip),
+                      ),
                       const SizedBox(height: CeylonSpacing.md),
-                      _BudgetSummary(trip: _trip, itinerary: itinerary),
+                      _BudgetSummary(
+                        trip: _trip,
+                        itinerary: _withTripDays(itinerary, _trip),
+                      ),
                       const SizedBox(height: CeylonSpacing.md),
                       _WorkspaceActions(
                         itinerary: itinerary,
@@ -134,14 +140,17 @@ class _ItineraryPageState extends State<ItineraryPage> {
                         ),
                       ),
                       const SizedBox(height: CeylonSpacing.lg),
-                      _TravelSummary(trip: _trip, itinerary: itinerary),
+                      _TravelSummary(
+                        trip: _trip,
+                        itinerary: _withTripDays(itinerary, _trip),
+                      ),
                       const SizedBox(height: CeylonSpacing.lg),
                       _WorkflowSummary(workflow: _workflow),
                       const SizedBox(height: CeylonSpacing.xl),
                       _DaysSection(
                         key: _daysKey,
                         tripId: widget.tripId,
-                        itinerary: itinerary,
+                        itinerary: _withTripDays(itinerary, _trip),
                       ),
                       if (_history.length > 1) ...[
                         const SizedBox(height: CeylonSpacing.xl),
@@ -185,6 +194,37 @@ class _ItineraryPageState extends State<ItineraryPage> {
   }
 }
 
+Itinerary _withTripDays(Itinerary itinerary, Trip? trip) {
+  if (trip == null) return itinerary;
+
+  final dayCount = trip.endDate.difference(trip.startDate).inDays + 1;
+  if (dayCount <= 0) return itinerary;
+
+  final existing = {
+    for (final day in itinerary.days) day.dayNumber: day,
+  };
+  final days = List<ItineraryDay>.generate(
+    dayCount,
+    (index) => existing[index + 1] ??
+        ItineraryDay(
+          id: '',
+          dayNumber: index + 1,
+          date: trip.startDate.add(Duration(days: index)),
+          items: const [],
+        ),
+  );
+
+  return Itinerary(
+    id: itinerary.id,
+    tripId: itinerary.tripId,
+    status: itinerary.status,
+    totalEstimatedCost: itinerary.totalEstimatedCost,
+    createdAt: itinerary.createdAt,
+    updatedAt: itinerary.updatedAt,
+    days: days,
+  );
+}
+
 class _TripHero extends StatelessWidget {
   const _TripHero({required this.trip, required this.itinerary});
   final Trip? trip;
@@ -207,13 +247,14 @@ class _TripHero extends StatelessWidget {
       child: Stack(
         children: [
           SizedBox(
-            height: 230,
+            height: 250,
             width: double.infinity,
             child: asset == null
                 ? Container(color: CeylonColors.forest)
                 : Image.asset(
                     asset,
                     fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                     errorBuilder: (_, __, ___) =>
                         Container(color: CeylonColors.forest),
                   ),
@@ -489,7 +530,39 @@ class _DaysSection extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text('Your days', style: Theme.of(context).textTheme.titleLarge),
+      Text('Your journey', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: CeylonSpacing.sm),
+      if (itinerary.days.isNotEmpty)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: itinerary.days
+                .map(
+                  (day) => Padding(
+                    padding: const EdgeInsets.only(right: CeylonSpacing.sm),
+                    child: ActionChip(
+                      avatar: CircleAvatar(
+                        backgroundColor: CeylonColors.forest,
+                        child: Text(
+                          '${day.dayNumber}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      label: Text('Day ${day.dayNumber}'),
+                      onPressed: () => context.push(
+                        '/trips/$tripId/itinerary/day/${day.dayNumber}',
+                        extra: day,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
       const SizedBox(height: CeylonSpacing.sm),
       ...itinerary.days.map((day) => _DayCard(tripId: tripId, day: day)),
     ],

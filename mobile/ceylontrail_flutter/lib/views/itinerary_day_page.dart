@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/trip_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/attraction_images.dart';
 import 'trip_widgets.dart';
 
 class ItineraryDayPage extends StatelessWidget {
@@ -56,7 +57,7 @@ class ItineraryDayPage extends StatelessWidget {
               const SizedBox(height: CeylonSpacing.lg),
               if (day.items.isEmpty)
                 const SectionCard(
-                  child: Text('No activities are planned for this day yet.'),
+                  child: Text('No activities are planned for this day.'),
                 ),
               ...day.items.asMap().entries.map(
                 (entry) => _TimelineItem(
@@ -92,6 +93,7 @@ class _TimelineItem extends StatelessWidget {
         ? item.attractionName!
         : 'Planned experience';
     final hasCoordinates = item.latitude != null && item.longitude != null;
+    final imageAsset = destinationHeroAsset(title);
     return Padding(
       padding: const EdgeInsets.only(bottom: CeylonSpacing.md),
       child: IntrinsicHeight(
@@ -143,6 +145,22 @@ class _TimelineItem extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 7),
+                    if (imageAsset != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: SizedBox(
+                          height: 150,
+                          width: double.infinity,
+                          child: Image.asset(
+                            imageAsset,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
+                            semanticLabel: title,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    if (imageAsset != null) const SizedBox(height: 12),
                     Text(title, style: Theme.of(context).textTheme.titleLarge),
                     if (item.category?.trim().isNotEmpty == true)
                       Padding(

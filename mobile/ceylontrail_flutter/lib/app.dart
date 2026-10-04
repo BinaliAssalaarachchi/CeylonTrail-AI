@@ -389,6 +389,7 @@ class CeylonTrailApp extends StatelessWidget {
     child: MaterialApp.router(
       title: 'CeylonTrail AI',
       theme: AppTheme.light,
+      debugShowCheckedModeBanner: false,
       routerConfig: _router,
     ),
   );

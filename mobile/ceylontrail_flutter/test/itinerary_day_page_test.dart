@@ -48,7 +48,7 @@ class _TripApi extends TripApiService {
     id: id,
     name: 'Galle journey',
     startDate: DateTime(2026, 10, 3),
-    endDate: DateTime(2026, 10, 4),
+    endDate: DateTime(2026, 10, 5),
     budget: 10000,
     status: 'Planned',
     createdAt: null,
@@ -125,7 +125,7 @@ void main() {
 
     expect(find.text('DAY 2'), findsOneWidget);
     expect(
-      find.text('No activities are planned for this day yet.'),
+      find.text('No activities are planned for this day.'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -160,7 +160,8 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(find.text('Day 1'), 300);
-    await tester.tap(find.text('Day 1'));
+    expect(find.text('Day 3'), findsWidgets);
+    await tester.tap(find.widgetWithText(ActionChip, 'Day 1'));
     await tester.pumpAndSettle();
     expect(find.text('DAY 1'), findsOneWidget);
     expect(find.text('Galle Fort Heritage Walk'), findsOneWidget);
@@ -168,11 +169,22 @@ void main() {
     router.pop();
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Day 2'), 300);
-    await tester.tap(find.text('Day 2'));
+    await tester.tap(find.widgetWithText(ActionChip, 'Day 2'));
     await tester.pumpAndSettle();
     expect(find.text('DAY 2'), findsOneWidget);
     expect(
-      find.text('No activities are planned for this day yet.'),
+      find.text('No activities are planned for this day.'),
+      findsOneWidget,
+    );
+
+    router.pop();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Day 3'), 300);
+    await tester.tap(find.widgetWithText(ActionChip, 'Day 3'));
+    await tester.pumpAndSettle();
+    expect(find.text('DAY 3'), findsOneWidget);
+    expect(
+      find.text('No activities are planned for this day.'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

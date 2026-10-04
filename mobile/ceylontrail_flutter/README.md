@@ -34,8 +34,11 @@ key to this app's package and signing certificate. The Gradle build reads the
 key from `GOOGLE_MAPS_ANDROID_API_KEY`; no key is stored in the repository.
 
 For Flutter Web, enable **Maps JavaScript API**, replace the placeholder
-`YOUR_GOOGLE_MAPS_WEB_API_KEY` in `web/index.html` locally, and restrict the
-browser key to the app's allowed localhost/deployed origins. Start web with:
+`YOUR_GOOGLE_MAPS_WEB_API_KEY` in `web/index.html` locally with a browser
+restricted key, and restrict it to the exact local origin (for example
+`http://localhost:5174/*`). The same key must have **Maps JavaScript API**
+enabled in Google Cloud. Never commit the replaced file or key. Start web
+with:
 
 ```powershell
 flutter run -d chrome --dart-define=CEYLONTRAIL_GOOGLE_MAPS_ENABLED=true
