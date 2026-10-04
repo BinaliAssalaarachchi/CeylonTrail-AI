@@ -144,22 +144,29 @@ class PlannerAgent:
 
 
 def normalize_planner_output(output: PlannerOutput) -> PlannerOutput:
-    """Keep the first scheduled occurrence of each attraction ID.
+    """Normalize only safely recoverable cross-day duplicate proposals.
 
-    Provider output is treated as a proposal. Duplicate attractions are
-    skipped deterministically before the unchanged validation tools run. Day
-    entries are preserved, including empty days, and the authoritative total
-    is recalculated from the retained items.
+    A duplicate within one day is an invalid schedule and must be rejected.
+    Repeated occurrences across days remain safely de-duplicated for backward
+    compatibility with the deterministic proposal policy. The model-supplied
+    total is preserved unless an item was actually removed, so incorrect
+    totals and budget violations still reach the deterministic validators.
     """
 
     selected_ids: set[str] = set()
     total = Decimal("0")
+    removed_duplicate = False
     normalized_days = []
 
     for day in output.days:
         retained_items = []
+        day_ids: set[str] = set()
         for item in day.items:
+            if item.attraction_id in day_ids:
+                raise ValueError("an attraction may not be scheduled more than once on the same day")
+            day_ids.add(item.attraction_id)
             if item.attraction_id in selected_ids:
+                removed_duplicate = True
                 continue
             selected_ids.add(item.attraction_id)
             retained_items.append(item)
@@ -169,7 +176,7 @@ def normalize_planner_output(output: PlannerOutput) -> PlannerOutput:
     return output.model_copy(
         update={
             "days": normalized_days,
-            "estimated_cost": total,
+            "estimated_cost": total if removed_duplicate else output.estimated_cost,
         }
     )
 
