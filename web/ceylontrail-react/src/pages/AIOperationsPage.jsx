@@ -6,46 +6,615 @@ import { primaryAttractionImageFor } from '../utils/attractionImages'
 
 const dateFormatter = new Intl.DateTimeFormat('en-LK', { dateStyle: 'medium' })
 const dateTimeFormatter = new Intl.DateTimeFormat('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
-const actionLabels = { Proceed: 'Proceed with trip', ProceedWithCaution: 'Proceed with caution', Reschedule: 'Reschedule trip', Reroute: 'Reroute trip', ReviewBudget: 'Review trip budget', ResolveScheduleConflict: 'Resolve schedule conflict', ManualReview: 'Review trip manually' }
+const actionLabels = {
+  Proceed: 'Proceed with trip',
+  ProceedWithCaution: 'Proceed with caution',
+  Reschedule: 'Reschedule trip',
+  Reroute: 'Reroute trip',
+  ReviewBudget: 'Review trip budget',
+  ResolveScheduleConflict: 'Resolve schedule conflict',
+  ManualReview: 'Review trip manually',
+}
 const stageContent = {
-  Planner: { title: 'Trip planning', agent: 'Planner Agent', description: "Created a travel plan from the traveller's dates, budget and preferences." },
-  Destination: { title: 'Destination matching', agent: 'Destination Agent', description: 'Matched the plan with approved CeylonTrail attractions and experiences.' },
-  BookingAction: { title: 'Booking preparation', agent: 'Booking Action Agent', description: 'Checked the selected experience and prepared a booking action for review.' },
-  TravelIntelligence: { title: 'Travel checks', agent: 'Travel Intelligence Agent', description: 'Checked the proposed journey for travel and validation concerns before staff review.' },
+  Planner: {
+    title: 'Trip planning',
+    agent: 'Planner Agent',
+    description: "Created a travel plan from the traveller's dates, budget and preferences.",
+  },
+  Destination: {
+    title: 'Destination matching',
+    agent: 'Destination Agent',
+    description: 'Matched the plan with approved CeylonTrail attractions and experiences.',
+  },
+  BookingAction: {
+    title: 'Booking preparation',
+    agent: 'Booking Action Agent',
+    description: 'Checked the selected experience and prepared a booking action for review.',
+  },
+  TravelIntelligence: {
+    title: 'Travel checks',
+    agent: 'Travel Intelligence Agent',
+    description: 'Checked the proposed journey for travel and validation concerns before staff review.',
+  },
 }
 const stageOrder = ['Planner', 'Destination', 'BookingAction', 'TravelIntelligence']
 
-function formatDate(value, withTime = false) { if (!value) return 'Date not available'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 'Date not available' : (withTime ? dateTimeFormatter : dateFormatter).format(parsed) }
-function formatAction(value) { return actionLabels[value] || value?.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Review travel action' }
-function formatLabel(value) { return value?.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Not available' }
-function friendlyStatus(value, approval) { if (approval?.status === 'Pending') return 'Needs your approval'; const map = { AwaitingApproval: 'Waiting for review', PendingHumanApproval: 'Needs your approval', Completed: 'Completed', Running: 'In progress', Failed: 'Needs attention', Rejected: 'Rejected', Pending: 'Waiting' }; return map[value] || formatLabel(value) }
-function statusClass(value) { return 'status-badge status-' + (value?.toLowerCase().replaceAll(' ', '-') || 'pending') }
-function approvalStatus(execution) { return execution.approval?.status || (execution.requiresHumanApproval ? 'Waiting for review' : execution.executionStatus) }
-function fallbackMessage(execution) { if (execution.usedFallback && execution.providerAttempted && !execution.providerSucceeded) return 'External AI was unavailable, so CeylonTrail completed the safety assessment using its deterministic validation rules.'; if (execution.usedFallback) return 'CeylonTrail used its safe deterministic fallback for this assessment.'; if (execution.providerSucceeded) return 'External AI analysis was used; deterministic safety rules remained authoritative.'; return 'Provider activity was not available for this execution.' }
-function destinationFor(execution, workflow) { return execution.destinationName || execution.destination || execution.location || workflow?.destinationName || execution.affectedItems?.[0]?.district || 'Sri Lanka journey' }
-function journeyName(execution, workflow) { return execution.tripName || execution.journeyName || workflow?.tripName || execution.objectiveName || destinationFor(execution, workflow) }
-function journeyImage(execution, workflow) { const name = journeyName(execution, workflow); return primaryAttractionImageFor(name) || primaryAttractionImageFor(execution.affectedItems?.[0]?.title) || '/images/tea-country-hero.jpg' }
-function stageKey(value) { const normalized = (value || '').replace(/Agent$/, '').replace(/[^a-z]/gi, '').toLowerCase(); return stageOrder.find((item) => item.toLowerCase() === normalized) || value }
-function stageStatus(stage, execution) { if (stage?.status && stage.status !== 'Pending') return stage.status; if (['Completed', 'Fallback'].includes(execution?.executionStatus)) return 'Completed'; return stage?.status || 'Pending' }
-
-function Fact({ label, children }) { return <div className="ai-human-fact"><span>{label}</span><strong>{children || 'Not available'}</strong></div> }
-function TechnicalDetails({ execution, workflow }) { return <details className="ai-technical-details"><summary>Technical details</summary><div><p>Workflow reference: {workflow?.workflowId || 'Not available'}</p><p>Execution reference: {execution.executionId || 'Not available'}</p><p>Trip reference: {workflow?.tripId || execution.tripId || 'Not available'}</p>{workflow?.bookingId && <p>Booking reference: {workflow.bookingId}</p>}</div></details> }
-function StageCard({ stage, execution }) {
-  const key = stageKey(stage?.agentRole || stage?.name); const content = stageContent[key] || { title: formatLabel(stage?.agentRole || stage?.name) || 'Journey step', agent: 'CeylonTrail workflow', description: 'Prepared this part of the journey for staff review.' }; const state = stageStatus(stage, execution); const result = stage?.resultSummary || stage?.summary || stage?.output || execution?.[key?.toLowerCase() + 'Summary']
-  return <details className="ai-human-stage"><summary><span className="ai-stage-number">{stage?.sequence || stageOrder.indexOf(key) + 1}</span><span className="ai-stage-copy"><strong>{content.title}</strong><small>{content.agent}</small></span><span className={statusClass(state)}>{friendlyStatus(state)}</span></summary><div className="ai-stage-expanded"><p><b>What it did</b>{content.description}</p>{result && <p><b>Result</b>{result}</p>}{key === 'BookingAction' && execution?.bookingProposals?.length > 0 && <ProposalList proposals={execution.bookingProposals} />}{key === 'Destination' && execution?.affectedItems?.length > 0 && <div className="ai-readable-items">{execution.affectedItems.map((item) => <span key={item.itemReference || item.title}>{item.title || 'Selected experience'}{item.district ? ` · ${item.district}` : ''}</span>)}</div>}<TechnicalDetails execution={execution} workflow={null} /></div></details>
+function formatDate(value, withTime = false) {
+  if (!value) return 'Date not available'
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime())
+    ? 'Date not available'
+    : (withTime ? dateTimeFormatter : dateFormatter).format(parsed)
 }
-function ProposalList({ proposals }) { return <div className="ai-proposal-list"><b>Proposed action</b>{proposals.map((proposal, index) => <div key={proposal.availabilitySlotId || index}><strong>{proposal.attractionName || 'Selected experience'}</strong><span>{proposal.guestCount || 0} guest(s) · {formatDate(proposal.startTime, true)}</span><small>Final pricing is confirmed by CeylonTrail when the approved action is executed.</small></div>)}</div> }
+
+function formatAction(value) {
+  return actionLabels[value] || value?.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Review travel action'
+}
+
+function formatLabel(value) {
+  return value?.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Not available'
+}
+
+function friendlyStatus(value, approval) {
+  if (approval?.status === 'Pending') return 'Needs your approval'
+  const map = {
+    AwaitingApproval: 'Waiting for review',
+    PendingHumanApproval: 'Needs your approval',
+    Completed: 'Completed',
+    Running: 'In progress',
+    Failed: 'Needs attention',
+    Rejected: 'Rejected',
+    Pending: 'Waiting',
+  }
+  return map[value] || formatLabel(value)
+}
+
+function statusClass(value) {
+  return 'status-badge status-' + (value?.toLowerCase().replaceAll(' ', '-') || 'pending')
+}
+
+function approvalStatus(execution) {
+  return execution.approval?.status || (execution.requiresHumanApproval ? 'Waiting for review' : execution.executionStatus)
+}
+
+function fallbackMessage(execution) {
+  if (execution.usedFallback && execution.providerAttempted && !execution.providerSucceeded) {
+    return 'External AI was unavailable, so CeylonTrail completed the safety assessment using its deterministic validation rules.'
+  }
+  if (execution.usedFallback) {
+    return 'CeylonTrail used its safe deterministic fallback for this assessment.'
+  }
+  if (execution.providerSucceeded) {
+    return 'External AI analysis was used; deterministic safety rules remained authoritative.'
+  }
+  return 'Provider activity was not available for this execution.'
+}
+
+function destinationFor(execution, workflow) {
+  return execution.destinationName || execution.destination || execution.location || workflow?.destinationName || execution.affectedItems?.[0]?.district || 'Sri Lanka journey'
+}
+
+function journeyName(execution, workflow) {
+  return execution.tripName || execution.journeyName || workflow?.tripName || execution.objectiveName || destinationFor(execution, workflow)
+}
+
+function journeyImage(execution, workflow) {
+  const name = journeyName(execution, workflow)
+  return primaryAttractionImageFor(name) || primaryAttractionImageFor(execution.affectedItems?.[0]?.title) || '/images/tea-country-hero.jpg'
+}
+
+function stageKey(value) {
+  const normalized = (value || '').replace(/Agent$/, '').replace(/[^a-z]/gi, '').toLowerCase()
+  return stageOrder.find((item) => item.toLowerCase() === normalized) || value
+}
+
+function stageStatus(stage, execution) {
+  if (stage?.status && stage.status !== 'Pending') return stage.status
+  if (['Completed', 'Fallback'].includes(execution?.executionStatus)) return 'Completed'
+  return stage?.status || 'Pending'
+}
+
+function Fact({ label, children }) {
+  return (
+    <div className="ai-human-fact">
+      <span>{label}</span>
+      <strong>{children || 'Not available'}</strong>
+    </div>
+  )
+}
+
+function TechnicalDetails({ execution, workflow }) {
+  return (
+    <details className="ai-technical-details">
+      <summary>Technical details</summary>
+      <div>
+        <p>Workflow reference: {workflow?.workflowId || 'Not available'}</p>
+        <p>Execution reference: {execution.executionId || 'Not available'}</p>
+        <p>Trip reference: {workflow?.tripId || execution.tripId || 'Not available'}</p>
+        {workflow?.bookingId && <p>Booking reference: {workflow.bookingId}</p>}
+      </div>
+    </details>
+  )
+}
+
+function StageCard({ stage, execution }) {
+  const key = stageKey(stage?.agentRole || stage?.name)
+  const content = stageContent[key] || {
+    title: formatLabel(stage?.agentRole || stage?.name) || 'Journey step',
+    agent: 'CeylonTrail workflow',
+    description: 'Prepared this part of the journey for staff review.',
+  }
+  const state = stageStatus(stage, execution)
+  const result = stage?.resultSummary || stage?.summary || stage?.output || execution?.[key?.toLowerCase() + 'Summary']
+
+  return (
+    <details className="ai-human-stage">
+      <summary>
+        <span className="ai-stage-number">{stage?.sequence || stageOrder.indexOf(key) + 1}</span>
+        <span className="ai-stage-copy">
+          <strong>{content.title}</strong>
+          <small>{content.agent}</small>
+        </span>
+        <span className={statusClass(state)}>{friendlyStatus(state)}</span>
+      </summary>
+      <div className="ai-stage-expanded">
+        <p>
+          <b>What it did</b>
+          {content.description}
+        </p>
+        {result && (
+          <p>
+            <b>Result</b>
+            {result}
+          </p>
+        )}
+        {key === 'BookingAction' && execution?.bookingProposals?.length > 0 && (
+          <ProposalList proposals={execution.bookingProposals} />
+        )}
+        {key === 'Destination' && execution?.affectedItems?.length > 0 && (
+          <div className="ai-readable-items">
+            {execution.affectedItems.map((item) => (
+              <span key={item.itemReference || item.title}>
+                {item.title || 'Selected experience'}
+                {item.district ? ` · ${item.district}` : ''}
+              </span>
+            ))}
+          </div>
+        )}
+        <TechnicalDetails execution={execution} workflow={null} />
+      </div>
+    </details>
+  )
+}
+
+function ProposalList({ proposals }) {
+  return (
+    <div className="ai-proposal-list">
+      <b>Proposed action</b>
+      {proposals.map((proposal, index) => (
+        <div key={proposal.availabilitySlotId || index}>
+          <strong>{proposal.attractionName || 'Selected experience'}</strong>
+          <span>
+            {proposal.guestCount || 0} guest(s) · {formatDate(proposal.startTime, true)}
+          </span>
+          <small>Final pricing is confirmed by CeylonTrail when the approved action is executed.</small>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function AIOperationsPage() {
-  const { user } = useContext(AuthContext); const canDecide = ['TravelCoordinator', 'Administrator'].includes(user?.role); const [history, setHistory] = useState({ items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 0 }); const [selectedId, setSelectedId] = useState(''); const [selected, setSelected] = useState(null); const [workflow, setWorkflow] = useState(null); const [page, setPage] = useState(1); const [executionStatus, setExecutionStatus] = useState(''); const [usedFallback, setUsedFallback] = useState(''); const [search, setSearch] = useState(''); const [isLoading, setIsLoading] = useState(true); const [isDetailLoading, setIsDetailLoading] = useState(false); const [isSubmitting, setIsSubmitting] = useState(false); const [error, setError] = useState(''); const [feedback, setFeedback] = useState(''); const [comment, setComment] = useState(''); const selectedIdRef = useRef(selectedId)
-  const loadHistory = useCallback(async (nextPage = 1, preserveSelection = true) => { setIsLoading(true); setError(''); try { const response = await getTravelIntelligenceExecutions({ page: nextPage, pageSize: 20, executionStatus: ['Completed', 'Fallback'].includes(executionStatus) ? executionStatus : undefined, usedFallback: usedFallback === '' ? undefined : usedFallback === 'true' }); setHistory(response); setPage(response.page); const current = selectedIdRef.current; const next = preserveSelection && response.items.some((item) => item.executionId === current) ? current : response.items[0]?.executionId || ''; setSelectedId(next); if (!next) setSelected(null) } catch (requestError) { setHistory({ items: [], page: nextPage, pageSize: 20, totalCount: 0, totalPages: 0 }); setSelectedId(''); setSelected(null); setError(requestError.response?.data?.message || 'Unable to load AI operations right now.') } finally { setIsLoading(false) } }, [executionStatus, usedFallback])
-  useEffect(() => { selectedIdRef.current = selectedId }, [selectedId]); useEffect(() => { loadHistory(1, false) }, [loadHistory])
-  useEffect(() => { if (!selectedId) return undefined; let current = true; setIsDetailLoading(true); getTravelIntelligenceExecution(selectedId).then(async (execution) => { if (!current) return; const approval = execution.approval?.id ? await getApprovalRequest(execution.approval.id) : execution.approval; const enriched = approval ? { ...execution, approval } : execution; setSelected(enriched); setWorkflow(approval?.agentWorkflowId ? await getAgentWorkflow(approval.agentWorkflowId) : null) }).catch((requestError) => current && setError(requestError.response?.data?.message || 'Unable to load this journey review.')).finally(() => current && setIsDetailLoading(false)); return () => { current = false } }, [selectedId])
-  async function decide(decision) { const approval = selected?.approval; if (!canDecide || !approval || approval.status !== 'Pending') return; setIsSubmitting(true); setError(''); setFeedback(''); try { if (decision === 'Approved') await approveApprovalRequest(approval.id, comment); else await rejectApprovalRequest(approval.id, comment); setComment(''); setFeedback(decision === 'Approved' ? 'Action approved successfully.' : 'Action rejected successfully.'); await loadHistory(page) } catch (requestError) { setError(requestError.response?.data?.message || 'Unable to save this staff decision.') } finally { setIsSubmitting(false) } }
-  const visibleItems = useMemo(() => { const query = search.trim().toLowerCase(); return history.items.filter((item) => { const matchesSearch = !query || [item.summary, item.destinationName, item.destination, item.tripName, item.journeyName, item.recommendedAction].some((value) => value?.toLowerCase().includes(query)); const matchesFriendlyStatus = !['Pending', 'Running', 'Failed'].includes(executionStatus) || (executionStatus === 'Pending' ? item.approval?.status === 'Pending' : executionStatus === 'Running' ? item.executionStatus === 'Running' : item.executionStatus === 'Failed'); return matchesSearch && matchesFriendlyStatus }) }, [history.items, search, executionStatus]); const pendingCount = history.items.filter((item) => item.approval?.status === 'Pending').length
-  return <section className="ai-human-page" aria-labelledby="ai-operations-title"><div className="ai-human-header"><div><p className="eyebrow">{user?.role === 'Administrator' ? 'Platform oversight' : 'Journey coordination'}</p><h1 id="ai-operations-title">AI Operations</h1><p className="lead">{user?.role === 'Administrator' ? 'Monitor AI-assisted travel operations, review outcomes, and oversee actions requiring staff attention.' : 'Review journeys, check AI recommendations, and approve actions that require human oversight.'}</p></div><div className="ai-human-count"><strong>{pendingCount}</strong><span>needs staff review</span></div></div>{feedback && <p className="inline-notice" role="status">{feedback}</p>}{error && <div className="form-feedback ai-operations-feedback" role="alert">{error}<button className="button button-secondary" type="button" onClick={() => loadHistory(page)}>Retry</button></div>}<div className="ai-human-toolbar"><label className="ai-search-field">Search journeys or destinations<input type="search" placeholder="Search journeys or destinations" value={search} onChange={(event) => setSearch(event.target.value)} /></label><label className="filter-field">Status<select value={executionStatus} onChange={(event) => setExecutionStatus(event.target.value)}><option value="">All</option><option value="Pending">Needs review</option><option value="Running">In progress</option><option value="Completed">Completed</option><option value="Failed">Needs attention</option></select></label><label className="filter-field">Assessment<select value={usedFallback} onChange={(event) => setUsedFallback(event.target.value)}><option value="">All assessments</option><option value="false">Provider analysis</option><option value="true">Safe fallback used</option></select></label></div><div className="ai-human-grid"><div className="ai-journey-list">{isLoading && <div className="state-message">Loading journeys…</div>}{!isLoading && visibleItems.length === 0 && <div className="state-message"><strong>No journeys found.</strong><span>Try another status or search term.</span></div>}{visibleItems.map((item) => <JourneyCard key={item.executionId} item={item} selected={item.executionId === selectedId} onSelect={() => setSelectedId(item.executionId)} />)}{history.totalPages > 1 && <div className="ai-pagination"><button type="button" disabled={page <= 1} onClick={() => loadHistory(page - 1, false)}>Previous</button><span>Page {page} of {history.totalPages}</span><button type="button" disabled={page >= history.totalPages} onClick={() => loadHistory(page + 1, false)}>Next</button></div>}</div><div className="ai-human-detail">{isDetailLoading && <div className="state-message">Preparing journey review…</div>}{!isDetailLoading && !selected && <div className="state-message">Select a journey to review its preparation and staff action.</div>}{!isDetailLoading && selected && <JourneyDetail execution={selected} workflow={workflow} canDecide={canDecide} comment={comment} setComment={setComment} isSubmitting={isSubmitting} decide={decide} />}</div></div></section>
+  const { user } = useContext(AuthContext)
+  const canDecide = ['TravelCoordinator', 'Administrator'].includes(user?.role)
+  const [history, setHistory] = useState({ items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 0 })
+  const [selectedId, setSelectedId] = useState('')
+  const [selected, setSelected] = useState(null)
+  const [workflow, setWorkflow] = useState(null)
+  const [page, setPage] = useState(1)
+  const [executionStatus, setExecutionStatus] = useState('')
+  const [usedFallback, setUsedFallback] = useState('')
+  const [search, setSearch] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [feedback, setFeedback] = useState('')
+  const [comment, setComment] = useState('')
+  const selectedIdRef = useRef(selectedId)
+
+  const loadHistory = useCallback(
+    async (nextPage = 1, preserveSelection = true) => {
+      setIsLoading(true)
+      setError('')
+      try {
+        const response = await getTravelIntelligenceExecutions({
+          page: nextPage,
+          pageSize: 20,
+          executionStatus: ['Completed', 'Fallback'].includes(executionStatus) ? executionStatus : undefined,
+          usedFallback: usedFallback === '' ? undefined : usedFallback === 'true',
+        })
+        setHistory(response)
+        setPage(response.page)
+        const current = selectedIdRef.current
+        const next = preserveSelection && response.items.some((item) => item.executionId === current)
+          ? current
+          : response.items[0]?.executionId || ''
+        setSelectedId(next)
+        if (!next) setSelected(null)
+      } catch (requestError) {
+        setHistory({ items: [], page: nextPage, pageSize: 20, totalCount: 0, totalPages: 0 })
+        setSelectedId('')
+        setSelected(null)
+        setError(requestError.response?.data?.message || 'Unable to load AI operations right now.')
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [executionStatus, usedFallback],
+  )
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId
+  }, [selectedId])
+
+  useEffect(() => {
+    loadHistory(1, false)
+  }, [loadHistory])
+
+  useEffect(() => {
+    if (!selectedId) return undefined
+    let current = true
+    setIsDetailLoading(true)
+    getTravelIntelligenceExecution(selectedId)
+      .then(async (execution) => {
+        if (!current) return
+        const approval = execution.approval?.id
+          ? await getApprovalRequest(execution.approval.id)
+          : execution.approval
+        const enriched = approval ? { ...execution, approval } : execution
+        setSelected(enriched)
+        setWorkflow(approval?.agentWorkflowId ? await getAgentWorkflow(approval.agentWorkflowId) : null)
+      })
+      .catch((requestError) => current && setError(requestError.response?.data?.message || 'Unable to load this journey review.'))
+      .finally(() => current && setIsDetailLoading(false))
+
+    return () => {
+      current = false
+    }
+  }, [selectedId])
+
+  async function decide(decision) {
+    const approval = selected?.approval
+    if (!canDecide || !approval || approval.status !== 'Pending') return
+    setIsSubmitting(true)
+    setError('')
+    setFeedback('')
+    try {
+      if (decision === 'Approved') await approveApprovalRequest(approval.id, comment)
+      else await rejectApprovalRequest(approval.id, comment)
+      setComment('')
+      setFeedback(decision === 'Approved' ? 'Action approved successfully.' : 'Action rejected successfully.')
+      await loadHistory(page)
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to save this staff decision.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const visibleItems = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return history.items.filter((item) => {
+      const matchesSearch =
+        !query ||
+        [item.summary, item.destinationName, item.destination, item.tripName, item.journeyName, item.recommendedAction].some(
+          (value) => value?.toLowerCase().includes(query),
+        )
+      const matchesFriendlyStatus =
+        !['Pending', 'Running', 'Failed'].includes(executionStatus) ||
+        (executionStatus === 'Pending'
+          ? item.approval?.status === 'Pending'
+          : executionStatus === 'Running'
+            ? item.executionStatus === 'Running'
+            : item.executionStatus === 'Failed')
+      return matchesSearch && matchesFriendlyStatus
+    })
+  }, [history.items, search, executionStatus])
+
+  const pendingCount = history.items.filter((item) => item.approval?.status === 'Pending').length
+
+  return (
+    <section className="ai-human-page" aria-labelledby="ai-operations-title">
+      <div className="ai-human-header">
+        <div>
+          <p className="eyebrow">{user?.role === 'Administrator' ? 'Platform oversight' : 'Journey coordination'}</p>
+          <h1 id="ai-operations-title">AI Operations</h1>
+          <p className="lead">
+            {user?.role === 'Administrator'
+              ? 'Monitor AI-assisted travel operations, review outcomes, and oversee actions requiring staff attention.'
+              : 'Review journeys, check AI recommendations, and approve actions that require human oversight.'}
+          </p>
+        </div>
+        <div className="ai-human-count">
+          <strong>{pendingCount}</strong>
+          <span>needs staff review</span>
+        </div>
+      </div>
+      {feedback && (
+        <p className="inline-notice" role="status">
+          {feedback}
+        </p>
+      )}
+      {error && (
+        <div className="form-feedback ai-operations-feedback" role="alert">
+          {error}
+          <button className="button button-secondary" type="button" onClick={() => loadHistory(page)}>
+            Retry
+          </button>
+        </div>
+      )}
+      <div className="ai-human-toolbar">
+        <label className="ai-search-field">
+          Search journeys or destinations
+          <input
+            type="search"
+            placeholder="Search journeys or destinations"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <label className="filter-field">
+          Status
+          <select value={executionStatus} onChange={(event) => setExecutionStatus(event.target.value)}>
+            <option value="">All</option>
+            <option value="Pending">Needs review</option>
+            <option value="Running">In progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Failed">Needs attention</option>
+          </select>
+        </label>
+        <label className="filter-field">
+          Assessment
+          <select value={usedFallback} onChange={(event) => setUsedFallback(event.target.value)}>
+            <option value="">All assessments</option>
+            <option value="false">Provider analysis</option>
+            <option value="true">Safe fallback used</option>
+          </select>
+        </label>
+      </div>
+      <div className="ai-human-grid">
+        <div className="ai-journey-list">
+          {isLoading && <div className="state-message">Loading journeys…</div>}
+          {!isLoading && visibleItems.length === 0 && (
+            <div className="state-message">
+              <strong>No journeys found.</strong>
+              <span>Try another status or search term.</span>
+            </div>
+          )}
+          {visibleItems.map((item) => (
+            <JourneyCard
+              key={item.executionId}
+              item={item}
+              selected={item.executionId === selectedId}
+              onSelect={() => setSelectedId(item.executionId)}
+            />
+          ))}
+          {history.totalPages > 1 && (
+            <div className="ai-pagination">
+              <button type="button" disabled={page <= 1} onClick={() => loadHistory(page - 1, false)}>
+                Previous
+              </button>
+              <span>
+                Page {page} of {history.totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= history.totalPages}
+                onClick={() => loadHistory(page + 1, false)}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="ai-human-detail">
+          {isDetailLoading && <div className="state-message">Preparing journey review…</div>}
+          {!isDetailLoading && !selected && (
+            <div className="state-message">Select a journey to review its preparation and staff action.</div>
+          )}
+          {!isDetailLoading && selected && (
+            <JourneyDetail
+              execution={selected}
+              workflow={workflow}
+              canDecide={canDecide}
+              comment={comment}
+              setComment={setComment}
+              isSubmitting={isSubmitting}
+              decide={decide}
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  )
 }
 
-function JourneyCard({ item, selected, onSelect }) { const name = item.tripName || item.journeyName || item.destinationName || item.destination || 'Travel journey'; const needsReview = item.approval?.status === 'Pending' || item.requiresHumanApproval; return <button className={`ai-journey-card ${selected ? 'selected' : ''}`} type="button" onClick={onSelect}><img src={primaryAttractionImageFor(name) || '/images/tea-country-hero.jpg'} alt="" /><div className="ai-journey-card-body"><div className="ai-card-topline"><span>{item.destinationName || item.destination || 'Sri Lanka'}</span><span className={statusClass(approvalStatus(item))}>{friendlyStatus(item.executionStatus, item.approval)}</span></div><h2>{name}</h2><p>{formatDate(item.startedAt)}</p><span className="ai-card-summary">{item.summary || 'AI travel assessment is ready to review.'}</span><div className="ai-card-footer"><span className={needsReview ? 'ai-action-needed' : ''}>{needsReview ? 'Needs your approval' : friendlyStatus(item.executionStatus)}</span><b>Review journey →</b></div></div></button> }
+function JourneyCard({ item, selected, onSelect }) {
+  const name = item.tripName || item.journeyName || item.destinationName || item.destination || 'Travel journey'
+  const needsReview = item.approval?.status === 'Pending' || item.requiresHumanApproval
 
-function JourneyDetail({ execution, workflow, canDecide, comment, setComment, isSubmitting, decide }) { const approval = execution.approval; const needsApproval = approval?.status === 'Pending' && canDecide; const stages = workflow?.stages || []; const destination = destinationFor(execution, workflow); const name = journeyName(execution, workflow); return <article className="ai-human-review"><div className="ai-journey-summary"><img src={journeyImage(execution, workflow)} alt="" /><div><p className="eyebrow">Journey summary</p><h2>{name}</h2><p>{destination}</p><div className="ai-human-facts"><Fact label="Travel date">{formatDate(execution.startedAt)}</Fact><Fact label="Current status"><span className={statusClass(approvalStatus(execution))}>{friendlyStatus(approvalStatus(execution), approval)}</span></Fact><Fact label="Recommended action">{formatAction(execution.recommendedAction)}</Fact></div></div></div>{needsApproval && <div className="ai-next-action"><p className="eyebrow">Staff review required</p><h3>The AI planning process has finished.</h3><p>Please review the proposed action before CeylonTrail carries it out.</p></div>}{execution.executionSucceeded === true && <div className="ai-complete-notice"><p className="eyebrow">Action completed</p><h3>The approved action was successfully carried out.</h3></div>}{execution.executionSucceeded === false && <div className="ai-attention-notice"><p className="eyebrow">Needs attention</p><h3>The workflow could not complete safely.</h3><p>No booking action was carried out.</p></div>}<section className="ai-human-section"><div className="ai-human-section-heading"><p className="eyebrow">Journey preparation</p><h3>How this journey was prepared</h3><p>The four AI stages are shown in plain language. Open each step to inspect the available result.</p></div><div className="ai-human-stages">{stageOrder.map((key, index) => <StageCard key={key} stage={stages.find((item) => stageKey(item.agentRole) === key) || { sequence: index + 1, agentRole: key, status: ['Completed', 'Fallback'].includes(execution?.executionStatus) ? 'Completed' : (index < stages.length ? stages[index]?.status : 'Pending') }} execution={execution} />)}</div></section><section className="ai-human-section"><div className="ai-human-section-heading"><p className="eyebrow">Human review</p><h3>{execution.executionSucceeded === true ? 'Action completed' : 'Proposed action'}</h3><p>AI can prepare this action, but an authorized staff member must review it before CeylonTrail carries it out.</p></div>{execution.bookingProposals?.length > 0 ? <ProposalList proposals={execution.bookingProposals} /> : <div className="ai-readable-result">{execution.resultSummary || execution.summary || 'No proposed booking action was returned for this journey.'}</div>}{needsApproval && <div className="ai-human-approval"><label className="form-field form-field-wide">Reviewer note <span className="field-optional">(optional)</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength="1000" rows="3" placeholder="Add context for the review history…" /></label><div className="modal-actions"><button className="button button-danger" type="button" disabled={isSubmitting} onClick={() => decide('Rejected')}>{isSubmitting ? 'Saving…' : 'Reject action'}</button><button className="button button-primary" type="button" disabled={isSubmitting} onClick={() => decide('Approved')}>{isSubmitting ? 'Saving…' : 'Approve action'}</button></div></div>}{approval && approval.status !== 'Pending' && <p className="non-actionable-notice">This recommendation has already been reviewed. No further action is required.</p>}</section><section className="ai-human-section"><div className="ai-human-section-heading"><p className="eyebrow">Travel intelligence</p><h3>Assessment outcome</h3></div><div className="ai-readable-result"><strong>{fallbackMessage(execution)}</strong><p>{execution.resultSummary || execution.summary || 'No additional travel intelligence result was returned.'}</p>{execution.steps?.length > 0 && <p>Checks recorded: {execution.steps.map((step) => step.name || step.stepId).filter(Boolean).join(', ')}</p>}</div></section><TechnicalDetails execution={execution} workflow={workflow} /></article> }
+  return (
+    <button className={`ai-journey-card ${selected ? 'selected' : ''}`} type="button" onClick={onSelect}>
+      <img src={primaryAttractionImageFor(name) || '/images/tea-country-hero.jpg'} alt="" />
+      <div className="ai-journey-card-body">
+        <div className="ai-card-topline">
+          <span>{item.destinationName || item.destination || 'Sri Lanka'}</span>
+          <span className={statusClass(approvalStatus(item))}>
+            {friendlyStatus(item.executionStatus, item.approval)}
+          </span>
+        </div>
+        <h2>{name}</h2>
+        <p>{formatDate(item.startedAt)}</p>
+        <span className="ai-card-summary">{item.summary || 'AI travel assessment is ready to review.'}</span>
+        <div className="ai-card-footer">
+          <span className={needsReview ? 'ai-action-needed' : ''}>
+            {needsReview ? 'Needs your approval' : friendlyStatus(item.executionStatus)}
+          </span>
+          <b>Review journey →</b>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function JourneyDetail({ execution, workflow, canDecide, comment, setComment, isSubmitting, decide }) {
+  const approval = execution.approval
+  const needsApproval = approval?.status === 'Pending' && canDecide
+  const stages = workflow?.stages || []
+  const destination = destinationFor(execution, workflow)
+  const name = journeyName(execution, workflow)
+
+  return (
+    <article className="ai-human-review">
+      <div className="ai-journey-summary">
+        <img src={journeyImage(execution, workflow)} alt="" />
+        <div>
+          <p className="eyebrow">Journey summary</p>
+          <h2>{name}</h2>
+          <p>{destination}</p>
+          <div className="ai-human-facts">
+            <Fact label="Travel date">{formatDate(execution.startedAt)}</Fact>
+            <Fact label="Current status">
+              <span className={statusClass(approvalStatus(execution))}>
+                {friendlyStatus(approvalStatus(execution), approval)}
+              </span>
+            </Fact>
+            <Fact label="Recommended action">{formatAction(execution.recommendedAction)}</Fact>
+          </div>
+        </div>
+      </div>
+
+      {needsApproval && (
+        <div className="ai-next-action">
+          <p className="eyebrow">Staff review required</p>
+          <h3>The AI planning process has finished.</h3>
+          <p>Please review the proposed action before CeylonTrail carries it out.</p>
+        </div>
+      )}
+
+      {execution.executionSucceeded === true && (
+        <div className="ai-complete-notice">
+          <p className="eyebrow">Action completed</p>
+          <h3>The approved action was successfully carried out.</h3>
+        </div>
+      )}
+
+      {execution.executionSucceeded === false && (
+        <div className="ai-attention-notice">
+          <p className="eyebrow">Needs attention</p>
+          <h3>The workflow could not complete safely.</h3>
+          <p>No booking action was carried out.</p>
+        </div>
+      )}
+
+      <section className="ai-human-section">
+        <div className="ai-human-section-heading">
+          <p className="eyebrow">Journey preparation</p>
+          <h3>How this journey was prepared</h3>
+          <p>The four AI stages are shown in plain language. Open each step to inspect the available result.</p>
+        </div>
+        <div className="ai-human-stages">
+          {stageOrder.map((key, index) => (
+            <StageCard
+              key={key}
+              stage={
+                stages.find((item) => stageKey(item.agentRole) === key) || {
+                  sequence: index + 1,
+                  agentRole: key,
+                  status: ['Completed', 'Fallback'].includes(execution?.executionStatus)
+                    ? 'Completed'
+                    : index < stages.length
+                      ? stages[index]?.status
+                      : 'Pending',
+                }
+              }
+              execution={execution}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="ai-human-section">
+        <div className="ai-human-section-heading">
+          <p className="eyebrow">Human review</p>
+          <h3>{execution.executionSucceeded === true ? 'Action completed' : 'Proposed action'}</h3>
+          <p>AI can prepare this action, but an authorized staff member must review it before CeylonTrail carries it out.</p>
+        </div>
+
+        {execution.bookingProposals?.length > 0 ? (
+          <ProposalList proposals={execution.bookingProposals} />
+        ) : (
+          <div className="ai-readable-result">
+            {execution.resultSummary || execution.summary || 'No proposed booking action was returned for this journey.'}
+          </div>
+        )}
+
+        {needsApproval && (
+          <div className="ai-human-approval">
+            <label className="form-field form-field-wide">
+              Reviewer note <span className="field-optional">(optional)</span>
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                maxLength="1000"
+                rows="3"
+                placeholder="Add context for the review history…"
+              />
+            </label>
+            <div className="modal-actions">
+              <button
+                className="button button-danger"
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => decide('Rejected')}
+              >
+                {isSubmitting ? 'Saving…' : 'Reject action'}
+              </button>
+              <button
+                className="button button-primary"
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => decide('Approved')}
+              >
+                {isSubmitting ? 'Saving…' : 'Approve action'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {approval && approval.status !== 'Pending' && (
+          <p className="non-actionable-notice">This recommendation has already been reviewed. No further action is required.</p>
+        )}
+      </section>
+
+      <section className="ai-human-section">
+        <div className="ai-human-section-heading">
+          <p className="eyebrow">Travel intelligence</p>
+          <h3>Assessment outcome</h3>
+        </div>
+        <div className="ai-readable-result">
+          <strong>{fallbackMessage(execution)}</strong>
+          <p>{execution.resultSummary || execution.summary || 'No additional travel intelligence result was returned.'}</p>
+          {execution.steps?.length > 0 && (
+            <p>
+              Checks recorded: {execution.steps.map((step) => step.name || step.stepId).filter(Boolean).join(', ')}
+            </p>
+          )}
+        </div>
+      </section>
+
+      <TechnicalDetails execution={execution} workflow={workflow} />
+    </article>
+  )
+}
