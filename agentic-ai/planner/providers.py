@@ -152,51 +152,9 @@ class PlannerModelProvider(Protocol):
 
 class MissingPlannerProvider:
     def generate(self, request: PlannerInput, system_prompt: str) -> Any:
-        from datetime import timedelta
-        days = []
-        current_date = request.start_date
-        remaining_budget = request.budget
-        total_cost = Decimal("0")
-        
-        candidates = list(request.candidate_attractions)
-        candidates_idx = 0
-        
-        slot_times = [
-            ("09:00:00", "12:00:00"),
-            ("14:00:00", "17:00:00"),
-        ]
-        
-        for day_num in range(1, request.duration + 1):
-            day_items = []
-            for start_str, end_str in slot_times:
-                if candidates_idx < len(candidates):
-                    attr = candidates[candidates_idx]
-                    if attr.price <= remaining_budget:
-                        day_items.append({
-                            "attractionId": attr.id,
-                            "startTime": start_str,
-                            "endTime": end_str,
-                            "estimatedCost": float(attr.price),
-                            "notes": f"Scheduled visit to {attr.name}."
-                        })
-                        remaining_budget -= attr.price
-                        total_cost += attr.price
-                        candidates_idx += 1
-            
-            days.append({
-                "dayNumber": day_num,
-                "date": current_date.isoformat(),
-                "items": day_items,
-            })
-            current_date += timedelta(days=1)
-            
-        has_items = any(len(d["items"]) > 0 for d in days)
-        return {
-            "days": days if has_items else [],
-            "estimatedCost": float(total_cost),
-            "status": "Generated" if has_items else "NoPlan",
-            "message": "Itinerary planned successfully."
-        }
+        raise PlannerConfigurationError(
+            "GEMINI_API_KEY is not configured for the Planner Agent."
+        )
 
 
 class GeminiPlannerModelProvider:
