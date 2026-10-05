@@ -22,13 +22,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration["DefaultConnection"]
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("DATABASE_URL");
 
-if (string.IsNullOrWhiteSpace(connectionString))
+if (string.IsNullOrWhiteSpace(rawConnectionString))
 {
     throw new InvalidOperationException(
         "The 'DefaultConnection' connection string is required to start CeylonTrail.Api.");
 }
+
+// Convert postgres:// or postgresql:// URI to Npgsql key-value connection string format
+var connectionString = NormalizePostgresConnectionString(rawConnectionString);
 
 // Add services to the container.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -238,6 +244,23 @@ app.MapGet("/weatherforecast", () =>
 .WithOpenApi();
 
 app.Run();
+
+static string NormalizePostgresConnectionString(string connectionString)
+{
+    var trimmed = connectionString.Trim();
+    if (trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+        trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        var uri = new Uri(trimmed);
+        var userInfo = uri.UserInfo.Split(':', 2);
+        var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+        var port = uri.Port > 0 ? uri.Port : 5432;
+        var database = uri.AbsolutePath.TrimStart('/');
+        return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};Pooling=true;SSL Mode=Prefer;Trust Server Certificate=true;";
+    }
+    return trimmed;
+}
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
