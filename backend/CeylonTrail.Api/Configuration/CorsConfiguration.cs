@@ -22,6 +22,10 @@ public static class CorsConfiguration
                 {
                     policy.WithOrigins(allowedOrigins);
                 }
+                else
+                {
+                    policy.AllowAnyOrigin();
+                }
 
                 policy.AllowAnyHeader().AllowAnyMethod();
             });
