@@ -201,7 +201,6 @@ class _AttractionDetailPageState extends State<AttractionDetailPage> {
   }
 
   Widget _errorState() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Unable to load this attraction.'), const SizedBox(height: 12), FilledButton(onPressed: () { setState(() { _loading = true; _error = null; }); _load(); }, child: const Text('Retry'))]));
-  Widget _fallbackImage() => Container(height: 230, decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(CeylonRadii.card)), child: const Center(child: Icon(Icons.landscape_outlined, size: 64, color: CeylonColors.tea)));
   static String _time(String? value) => value == null ? '' : value.substring(0, value.length >= 5 ? 5 : value.length);
 
   static bool _isSlotInFuture(ExperienceSlotModel slot) {
@@ -257,20 +256,33 @@ class _AttractionGalleryState extends State<_AttractionGallery> {
               controller: _pageController,
               itemCount: gallery.length,
               onPageChanged: (page) => setState(() => _page = page),
-              itemBuilder: (context, index) => ColoredBox(
-                color: const Color(0xFF18231F),
-                child: Center(
-                  child: Image.asset(
-                    gallery[index],
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
-                    errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
-                      label: 'Photo needed for this destination',
-                    ),
+              itemBuilder: (context, index) {
+                final item = gallery[index];
+                return ColoredBox(
+                  color: const Color(0xFF18231F),
+                  child: Center(
+                    child: item.startsWith('http')
+                        ? Image.network(
+                            item,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
+                              label: 'Photo needed for this destination',
+                            ),
+                          )
+                        : Image.asset(
+                            item,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
+                              label: 'Photo needed for this destination',
+                            ),
+                          ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
             Positioned(
               left: 0,

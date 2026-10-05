@@ -43,34 +43,54 @@ const Map<String, List<String>> attractionGalleryAssets = {
   ],
 };
 
-List<String> attractionGallery(AttractionModel attraction) =>
-    attractionGalleryAssets[attraction.name] ?? const [];
+List<String> attractionGallery(AttractionModel attraction) {
+  if (attraction.images.isNotEmpty) {
+    return attraction.images.map((img) => img.imageUrl).toList();
+  }
+  if (attractionGalleryAssets.containsKey(attraction.name)) {
+    return attractionGalleryAssets[attraction.name]!;
+  }
+  final hero = destinationHeroAsset(attraction.name) ?? destinationHeroAsset(attraction.district);
+  if (hero != null) {
+    return [hero];
+  }
+  return const [];
+}
 
 String? destinationHeroAsset(String destination) {
   final normalized = destination.trim().toLowerCase();
-  if (normalized.contains('sigiriya')) {
+  if (normalized.contains('sigiriya') || normalized.contains('pidurangala') || normalized.contains('dambulla') || normalized.contains('anuradhapura') || normalized.contains('polonnaruwa') || normalized.contains('matale')) {
     return attractionGalleryAssets['Sigiriya Heritage Sunrise Trail']!.first;
   }
-  if (normalized.contains('arugam bay')) {
+  if (normalized.contains('arugam bay') || normalized.contains('ampara') || normalized.contains('pottuvil') || normalized.contains('surf')) {
     return attractionGalleryAssets['Arugam Bay Coastal Surf Lesson']!.first;
   }
-  if (normalized.contains('bentota')) {
+  if (normalized.contains('bentota') || normalized.contains('trincomalee') || normalized.contains('pigeon') || normalized.contains('madu')) {
     return attractionGalleryAssets['Bentota River Kayak']!.first;
   }
-  if (normalized.contains('ella') || normalized.contains('tea country')) {
+  if (normalized.contains('ella') || normalized.contains('badulla') || normalized.contains('tea country')) {
     return attractionGalleryAssets['Ella Tea Country Hike']!.first;
   }
-  if (normalized.contains('galle')) {
+  if (normalized.contains('galle') || normalized.contains('fort')) {
     return attractionGalleryAssets['Galle Fort Heritage Walk']!.first;
   }
-  if (normalized.contains('kandy')) {
+  if (normalized.contains('kandy') || normalized.contains('jaffna') || normalized.contains('nallur') || normalized.contains('temple') || normalized.contains('relic')) {
     return attractionGalleryAssets['Kandy Lake and Temple Walk']!.first;
   }
-  if (normalized.contains('sinharaja')) {
+  if (normalized.contains('sinharaja') || normalized.contains('kitulgala') || normalized.contains('kegalle') || normalized.contains('rainforest')) {
     return attractionGalleryAssets['Sinharaja Rainforest Nature Walk']!.first;
   }
-  if (normalized.contains('udawalawe')) {
+  if (normalized.contains('udawalawe') || normalized.contains('minneriya') || normalized.contains('elephant')) {
     return attractionGalleryAssets['Udawalawe Wildlife Safari']!.first;
   }
-  return null;
+  if (normalized.contains('yala') || normalized.contains('hambantota') || normalized.contains('safari') || normalized.contains('leopard')) {
+    return 'assets/images/yala-wildlife.jpg';
+  }
+  if (normalized.contains('nuwara eliya') || normalized.contains('horton') || normalized.contains('pedro')) {
+    return 'assets/images/tea-country-hero.jpg';
+  }
+  if (normalized.contains('mirissa') || normalized.contains('matara') || normalized.contains('whale')) {
+    return 'assets/images/mirissa-coast.jpg';
+  }
+  return 'assets/images/sigiriya-hero.png';
 }

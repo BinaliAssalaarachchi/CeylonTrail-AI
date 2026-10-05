@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../config/api_config.dart';
 import '../models/attraction_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/attraction_images.dart';
 
 class AttractionCard extends StatelessWidget {
   const AttractionCard({
@@ -76,7 +77,10 @@ class _ImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = attraction.images.isEmpty ? null : attraction.images.first.imageUrl;
+    final gallery = attractionGallery(attraction);
+    final image = gallery.isNotEmpty
+        ? gallery.first
+        : (attraction.images.isNotEmpty ? attraction.images.first.imageUrl : null);
     final resolvedImage = ApiConfig.resolveImageUrl(image);
     return SizedBox(
       height: 150,
@@ -86,15 +90,25 @@ class _ImagePreview extends StatelessWidget {
               color: CeylonColors.mint,
               child: Center(child: Icon(Icons.landscape_outlined, size: 46, color: CeylonColors.tea)),
             )
-          : Image.network(
-              resolvedImage,
-              fit: BoxFit.cover,
-              semanticLabel: attraction.images.first.altText ?? attraction.name,
-              errorBuilder: (_, __, ___) => const ColoredBox(
-                color: CeylonColors.mint,
-                child: Center(child: Icon(Icons.landscape_outlined, size: 46, color: CeylonColors.tea)),
-              ),
-            ),
+          : resolvedImage.startsWith('http')
+              ? Image.network(
+                  resolvedImage,
+                  fit: BoxFit.cover,
+                  semanticLabel: attraction.name,
+                  errorBuilder: (_, __, ___) => const ColoredBox(
+                    color: CeylonColors.mint,
+                    child: Center(child: Icon(Icons.landscape_outlined, size: 46, color: CeylonColors.tea)),
+                  ),
+                )
+              : Image.asset(
+                  resolvedImage,
+                  fit: BoxFit.cover,
+                  semanticLabel: attraction.name,
+                  errorBuilder: (_, __, ___) => const ColoredBox(
+                    color: CeylonColors.mint,
+                    child: Center(child: Icon(Icons.landscape_outlined, size: 46, color: CeylonColors.tea)),
+                  ),
+                ),
     );
   }
 }

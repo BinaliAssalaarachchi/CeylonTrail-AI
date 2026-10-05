@@ -21,8 +21,7 @@ class ApiConfig {
     if (url.startsWith('data:') || url.startsWith('blob:')) return url;
     if (url.contains('/api/images/proxy')) return url;
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      final encoded = Uri.encodeComponent(url);
-      return '$baseUrl/api/images/proxy?url=$encoded';
+      return url;
     }
     if (url.startsWith('/')) {
       return '$baseUrl$url';
