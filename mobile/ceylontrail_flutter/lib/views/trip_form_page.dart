@@ -49,16 +49,25 @@ class _TripFormPageState extends State<TripFormPage> {
   }
 
   Future<void> _pickDate(bool start) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final minDate = widget.isEditing ? DateTime(2020) : today;
+    final initial = (start ? _start : _end) ?? today;
+    final effectiveInitial = initial.isBefore(minDate) ? minDate : initial;
+
     final picked = await showDatePicker(
       context: context,
-      firstDate: DateTime(2020),
+      firstDate: minDate,
       lastDate: DateTime(2100),
-      initialDate: (start ? _start : _end) ?? DateTime.now(),
+      initialDate: effectiveInitial,
     );
     if (picked != null) {
       setState(() {
         if (start) {
           _start = picked;
+          if (_end != null && _end!.isBefore(picked)) {
+            _end = picked;
+          }
         } else {
           _end = picked;
         }
@@ -84,6 +93,12 @@ class _TripFormPageState extends State<TripFormPage> {
     setState(() => _error = null);
     if (name.isEmpty || _start == null || _end == null || budget == null || budget < 0) {
       setState(() => _error = 'Enter a name, valid dates, and a non-negative budget.');
+      return;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (!widget.isEditing && _start!.isBefore(today)) {
+      setState(() => _error = 'Start date cannot be a past date.');
       return;
     }
     if (!widget.isEditing && objective.isEmpty) {

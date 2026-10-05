@@ -36,8 +36,8 @@ export default function ItineraryReview({ itinerary }) {
                   <div className="itinerary-item" key={item.id}>
                     <div className="itinerary-item-time">{formatTime(item.startTime)}–{formatTime(item.endTime)}</div>
                     <div className="itinerary-item-copy">
-                      <strong>Attraction reference</strong>
-                      <span>{item.attractionId}</span>
+                      <strong>{item.attractionName || item.name || 'Planned Attraction'}</strong>
+                      <span>{item.address || item.district || item.category || (item.attractionId ? `ID: ${item.attractionId.slice(0, 8)}…` : '')}</span>
                       {item.notes && <p>{item.notes}</p>}
                     </div>
                     <span className="itinerary-item-cost">LKR {Number(item.estimatedCost).toLocaleString('en-LK')}</span>
