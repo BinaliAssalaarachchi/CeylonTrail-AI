@@ -144,6 +144,8 @@ builder.Services.AddHealthChecks()
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 CorsConfiguration.AddConfiguredPolicy(builder.Services, builder.Configuration);
+var runDemoSeed = builder.Configuration.GetValue<bool>("RunDemoSeed") ||
+                  builder.Configuration.GetValue<bool>("RUN_DEMO_SEED");
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -178,16 +180,19 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment() || runDemoSeed)
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await dbContext.Database.MigrateAsync();
-
-    if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("SeedInitialData", true))
+    using (var scope = app.Services.CreateScope())
     {
-        await DevelopmentDataSeeder.SeedAsync(
-            dbContext,
-            scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+
+        if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("SeedInitialData", true))
+        {
+            await DevelopmentDataSeeder.SeedAsync(
+                dbContext,
+                scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
+        }
     }
 }
 
