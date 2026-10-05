@@ -31,10 +31,10 @@ jobs:
         run: dotnet restore tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj
 
       - name: Build backend and tests
-        run: dotnet build tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj --configuration Release --no-restore
+        run: dotnet build tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj --configuration Release
 
       - name: Run backend tests
-        run: dotnet test tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj --configuration Release --no-build --no-restore
+        run: dotnet test tests/CeylonTrail.Api.Tests/CeylonTrail.Api.Tests.csproj --configuration Release --no-build
 
   agentic-ai:
     name: Agent contract and deterministic tests
@@ -50,7 +50,11 @@ jobs:
           python-version: '3.12'
 
       - name: Install agent dependencies
-        run: python -m pip install --disable-pip-version-check -r agentic-ai/requirements.txt
+        run: |
+          python -m pip install --upgrade pip --disable-pip-version-check
+          python -m pip install --disable-pip-version-check -r agentic-ai/requirements.txt
 
       - name: Run agent tests without external provider credentials
         run: python -m unittest discover -s agentic-ai -p "test_*.py"
+        env:
+          PYTHONPATH: agentic-ai
