@@ -28,6 +28,8 @@ public class TouristAgentWorkflowResponse
 {
     public Guid WorkflowId { get; set; }
     public Guid TripId { get; set; }
+    public string? TripName { get; set; }
+    public string? DestinationName { get; set; }
     public AgentWorkflowStatus Status { get; set; }
     public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }

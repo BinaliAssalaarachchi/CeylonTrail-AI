@@ -91,11 +91,27 @@ function fallbackMessage(execution) {
 }
 
 function destinationFor(execution, workflow) {
-  return execution.destinationName || execution.destination || execution.location || workflow?.destinationName || execution.affectedItems?.[0]?.district || 'Sri Lanka journey'
+  return (
+    execution?.destinationName ||
+    execution?.destination ||
+    execution?.location ||
+    workflow?.destinationName ||
+    workflow?.destination ||
+    execution?.affectedItems?.[0]?.district ||
+    'Sri Lanka'
+  )
 }
 
 function journeyName(execution, workflow) {
-  return execution.tripName || execution.journeyName || workflow?.tripName || execution.objectiveName || destinationFor(execution, workflow)
+  return (
+    execution?.tripName ||
+    workflow?.tripName ||
+    workflow?.trip?.name ||
+    execution?.journeyName ||
+    execution?.objectiveName ||
+    (destinationFor(execution, workflow) !== 'Sri Lanka' ? `${destinationFor(execution, workflow)} Trip` : null) ||
+    'Planned Trip'
+  )
 }
 
 function journeyImage(execution, workflow) {
@@ -441,7 +457,15 @@ export default function AIOperationsPage() {
 }
 
 function JourneyCard({ item, selected, onSelect }) {
-  const name = item.tripName || item.journeyName || item.destinationName || item.destination || 'Travel journey'
+  const name =
+    item.tripName ||
+    item.journeyName ||
+    item.objectiveName ||
+    (item.destinationName && item.destinationName !== 'Sri Lanka' ? `${item.destinationName} Trip` : null) ||
+    item.destinationName ||
+    item.destination ||
+    item.affectedItems?.[0]?.title ||
+    'Planned Trip'
   const needsReview = item.approval?.status === 'Pending' || item.requiresHumanApproval
 
   return (

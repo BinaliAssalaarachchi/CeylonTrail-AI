@@ -77,6 +77,7 @@ public sealed class AgentWorkflowVisibilityService(ApplicationDbContext dbContex
 
     private IQueryable<AgentWorkflow> QueryWorkflows() => dbContext.AgentWorkflows
         .AsNoTracking()
+        .Include(workflow => workflow.Trip).ThenInclude(trip => trip.Preferences)
         .Include(workflow => workflow.RequestedByUser)
         .Include(workflow => workflow.Stages.OrderBy(stage => stage.Sequence).ThenBy(stage => stage.AttemptNumber));
 
@@ -98,6 +99,8 @@ public sealed class AgentWorkflowVisibilityService(ApplicationDbContext dbContex
         {
             WorkflowId = workflow.WorkflowId,
             TripId = workflow.TripId,
+            TripName = workflow.Trip?.Name,
+            DestinationName = workflow.Trip?.Preferences?.FirstOrDefault(p => p.PreferenceType == "Region" || p.PreferenceType == "Destination" || p.PreferenceType == "District")?.Value,
             Status = workflow.Status,
             StartedAt = workflow.StartedAt,
             CompletedAt = workflow.CompletedAt,
@@ -118,6 +121,8 @@ public sealed class AgentWorkflowVisibilityService(ApplicationDbContext dbContex
         {
             WorkflowId = response.WorkflowId,
             TripId = response.TripId,
+            TripName = response.TripName,
+            DestinationName = response.DestinationName,
             Status = response.Status,
             StartedAt = response.StartedAt,
             CompletedAt = response.CompletedAt,

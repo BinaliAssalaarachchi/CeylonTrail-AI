@@ -30,6 +30,9 @@ public class TravelIntelligenceExecutionListItemResponse
     public Guid ExecutionId { get; set; }
     public string WorkflowId { get; set; } = string.Empty;
     public Guid ValidationResultId { get; set; }
+    public Guid? TripId { get; set; }
+    public string? TripName { get; set; }
+    public string? DestinationName { get; set; }
     public string AgentName { get; set; } = string.Empty;
     public string AgentVersion { get; set; } = string.Empty;
     public string ExecutionStatus { get; set; } = string.Empty;

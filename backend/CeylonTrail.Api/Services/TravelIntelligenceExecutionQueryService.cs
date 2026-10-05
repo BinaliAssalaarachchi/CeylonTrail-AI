@@ -29,7 +29,10 @@ public sealed class TravelIntelligenceExecutionQueryService(ApplicationDbContext
     public async Task<TravelIntelligenceExecutionDetailResponse?> GetForOwnerAsync(Guid validationResultId, Guid executionId, Guid ownerUserId, CancellationToken cancellationToken = default)
     {
         var execution = await DetailQuery().SingleOrDefaultAsync(item => item.Id == executionId && item.ValidationResultId == validationResultId && item.RequestedByUserId == ownerUserId, cancellationToken);
-        return execution is null ? null : ToDetail(execution);
+        if (execution is null) return null;
+        var detail = ToDetail(execution);
+        await EnrichTripInfoAsync([detail], cancellationToken);
+        return detail;
     }
 
     public async Task<TravelIntelligenceExecutionPageResponse> ListForStaffAsync(TravelIntelligenceExecutionQuery query, CancellationToken cancellationToken = default) =>
@@ -38,7 +41,10 @@ public sealed class TravelIntelligenceExecutionQueryService(ApplicationDbContext
     public async Task<TravelIntelligenceExecutionDetailResponse?> GetForStaffAsync(Guid executionId, CancellationToken cancellationToken = default)
     {
         var execution = await DetailQuery().SingleOrDefaultAsync(item => item.Id == executionId, cancellationToken);
-        return execution is null ? null : ToDetail(execution);
+        if (execution is null) return null;
+        var detail = ToDetail(execution);
+        await EnrichTripInfoAsync([detail], cancellationToken);
+        return detail;
     }
 
     private IQueryable<TravelIntelligenceExecution> DetailQuery() => dbContext.TravelIntelligenceExecutions.AsNoTracking()
@@ -55,11 +61,105 @@ public sealed class TravelIntelligenceExecutionQueryService(ApplicationDbContext
             .Include(execution => execution.ApprovalRequest).ThenInclude(approval => approval!.ValidationResult)
             .OrderByDescending(execution => execution.StartedAt).ThenByDescending(execution => execution.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+
+        var listItems = items.Select(ToListItem).ToList();
+        await EnrichTripInfoAsync(listItems, cancellationToken);
+
         return new TravelIntelligenceExecutionPageResponse
         {
-            Items = items.Select(ToListItem).ToList(), Page = page, PageSize = pageSize, TotalCount = totalCount,
+            Items = listItems, Page = page, PageSize = pageSize, TotalCount = totalCount,
             TotalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize)
         };
+    }
+
+    private async Task EnrichTripInfoAsync(
+        IEnumerable<TravelIntelligenceExecutionListItemResponse> listItems,
+        CancellationToken cancellationToken)
+    {
+        var itemList = listItems.ToList();
+        if (itemList.Count == 0) return;
+
+        var workflowGuids = itemList
+            .Where(i => Guid.TryParse(i.WorkflowId, out _))
+            .Select(i => Guid.Parse(i.WorkflowId))
+            .Distinct()
+            .ToList();
+
+        var workflows = workflowGuids.Count > 0
+            ? await dbContext.AgentWorkflows
+                .AsNoTracking()
+                .Include(w => w.Trip).ThenInclude(t => t.Preferences)
+                .Where(w => workflowGuids.Contains(w.WorkflowId) || workflowGuids.Contains(w.Id))
+                .ToListAsync(cancellationToken)
+            : new List<AgentWorkflow>();
+
+        var workflowByGuid = workflows.GroupBy(w => w.WorkflowId).ToDictionary(g => g.Key, g => g.First());
+        var workflowById = workflows.GroupBy(w => w.Id).ToDictionary(g => g.Key, g => g.First());
+
+        var tripIdsFromValidation = itemList
+            .Where(i => i.Approval?.TripReference != null && Guid.TryParse(i.Approval.TripReference, out _))
+            .Select(i => Guid.Parse(i.Approval!.TripReference!))
+            .ToList();
+
+        var neededTripIds = tripIdsFromValidation
+            .Concat(workflows.Select(w => w.TripId))
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        var trips = neededTripIds.Count > 0
+            ? await dbContext.Trips
+                .AsNoTracking()
+                .Include(t => t.Preferences)
+                .Where(t => neededTripIds.Contains(t.Id))
+                .ToDictionaryAsync(t => t.Id, cancellationToken)
+            : new Dictionary<Guid, Trip>();
+
+        foreach (var item in itemList)
+        {
+            AgentWorkflow? wf = null;
+            if (Guid.TryParse(item.WorkflowId, out var parsedWfId))
+            {
+                wf = workflowByGuid.GetValueOrDefault(parsedWfId) ?? workflowById.GetValueOrDefault(parsedWfId);
+            }
+
+            Trip? trip = null;
+            if (wf?.Trip != null)
+            {
+                trip = wf.Trip;
+            }
+            else if (wf != null && trips.TryGetValue(wf.TripId, out var t1))
+            {
+                trip = t1;
+            }
+            else if (item.Approval?.TripReference != null &&
+                     Guid.TryParse(item.Approval.TripReference, out var tripRefId) &&
+                     trips.TryGetValue(tripRefId, out var t2))
+            {
+                trip = t2;
+            }
+
+            var tripName = trip?.Name;
+            var destination = trip?.Preferences?.FirstOrDefault(p => p.PreferenceType == "Region" || p.PreferenceType == "Destination" || p.PreferenceType == "District")?.Value
+                              ?? wf?.Trip?.Preferences?.FirstOrDefault(p => p.PreferenceType == "Region" || p.PreferenceType == "Destination" || p.PreferenceType == "District")?.Value;
+
+            if (!string.IsNullOrWhiteSpace(tripName))
+            {
+                item.TripName = tripName;
+            }
+            if (!string.IsNullOrWhiteSpace(destination))
+            {
+                item.DestinationName = destination;
+            }
+            if (trip?.Id != null)
+            {
+                item.TripId = trip.Id;
+            }
+            else if (wf?.TripId != null)
+            {
+                item.TripId = wf.TripId;
+            }
+        }
     }
 
     private static IQueryable<TravelIntelligenceExecution> ApplyFilters(IQueryable<TravelIntelligenceExecution> query, TravelIntelligenceExecutionQuery request)
