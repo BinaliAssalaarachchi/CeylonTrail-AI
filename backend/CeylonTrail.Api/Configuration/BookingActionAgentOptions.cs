@@ -6,5 +6,5 @@ public sealed class BookingActionAgentOptions
 
     public string BaseUrl { get; set; } = "http://localhost:8004";
 
-    public int TimeoutSeconds { get; set; } = 15;
+    public int TimeoutSeconds { get; set; } = 60;
 }

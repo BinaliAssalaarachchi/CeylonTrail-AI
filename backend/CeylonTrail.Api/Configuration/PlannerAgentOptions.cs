@@ -6,5 +6,5 @@ public sealed class PlannerAgentOptions
 
     public string BaseUrl { get; set; } = "http://localhost:8002";
 
-    public int TimeoutSeconds { get; set; } = 15;
+    public int TimeoutSeconds { get; set; } = 60;
 }
