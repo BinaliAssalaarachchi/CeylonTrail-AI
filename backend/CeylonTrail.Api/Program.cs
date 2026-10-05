@@ -172,16 +172,21 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
-    await DevelopmentDataSeeder.SeedAsync(
-        scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
-        scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await dbContext.Database.MigrateAsync();
+
+    if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("SeedInitialData", true))
+    {
+        await DevelopmentDataSeeder.SeedAsync(
+            dbContext,
+            scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
+    }
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("EnableSwagger", true))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
