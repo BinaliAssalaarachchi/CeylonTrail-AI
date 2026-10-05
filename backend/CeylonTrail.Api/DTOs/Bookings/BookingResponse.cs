@@ -7,7 +7,12 @@ public record BookingItemResponse(
     Guid AvailabilitySlotId,
     int NumberOfGuests,
     decimal UnitPrice,
-    decimal SubTotal
+    decimal SubTotal,
+    string? AttractionName = null,
+    string? District = null,
+    DateTime? SlotStartTime = null,
+    DateTime? SlotEndTime = null,
+    string? AttractionImageUrl = null
 );
 
 public record BookingHistoryResponse(

@@ -103,6 +103,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             {
                 BookingId = booking.Id,
                 AvailabilitySlotId = item.AvailabilitySlotId,
+                AvailabilitySlot = slot,
                 NumberOfGuests = item.NumberOfGuests,
                 UnitPrice = unitPrice,
                 SubTotal = subtotal
@@ -143,6 +144,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         var bookings = await dbContext.Bookings
             .AsNoTracking()
             .Include(b => b.Items)
+                .ThenInclude(i => i.AvailabilitySlot)
+                    .ThenInclude(s => s.Attraction)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .Where(b => b.UserId == touristId)
@@ -164,6 +167,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 requestingRole)
             .AsNoTracking()
             .Include(b => b.Items)
+                .ThenInclude(i => i.AvailabilitySlot)
+                    .ThenInclude(s => s.Attraction)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .OrderByDescending(b => b.CreatedAt)
@@ -235,14 +240,17 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         var totalCount = await query.CountAsync(cancellationToken);
         var bookings = await query
             .Include(booking => booking.Items)
+                .ThenInclude(i => i.AvailabilitySlot)
+                    .ThenInclude(s => s.Attraction)
             .Include(booking => booking.StatusHistory)
             .Include(booking => booking.CancellationRequests)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
 
+        var advisoryMap = await GetActiveAdvisoriesForBookingsAsync(bookings, cancellationToken);
         return new PagedResponse<BookingResponse>(
-            bookings.Select(b => MapToResponse(b, null)).ToList(),
+            bookings.Select(b => MapToResponse(b, advisoryMap.GetValueOrDefault(b.Id))).ToList(),
             totalCount,
             request.Page,
             request.PageSize,
@@ -296,6 +304,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         var booking = await dbContext.Bookings
             .AsNoTracking()
             .Include(b => b.Items)
+                .ThenInclude(i => i.AvailabilitySlot)
+                    .ThenInclude(s => s.Attraction)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
@@ -322,6 +332,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     {
         var booking = await dbContext.Bookings
             .Include(b => b.Items)
+                .ThenInclude(i => i.AvailabilitySlot)
+                    .ThenInclude(s => s.Attraction)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
@@ -405,6 +417,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     {
         var booking = await dbContext.Bookings
             .Include(b => b.Items)
+                .ThenInclude(i => i.AvailabilitySlot)
+                    .ThenInclude(s => s.Attraction)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
@@ -477,6 +491,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     {
         var booking = await dbContext.Bookings
             .Include(b => b.Items)
+                .ThenInclude(i => i.AvailabilitySlot)
+                    .ThenInclude(s => s.Attraction)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
@@ -837,7 +853,13 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 i.AvailabilitySlotId,
                 i.NumberOfGuests,
                 i.UnitPrice,
-                i.SubTotal)).ToList(),
+                i.SubTotal,
+                i.AvailabilitySlot?.Attraction?.Name,
+                i.AvailabilitySlot?.Attraction?.District,
+                i.AvailabilitySlot?.StartTime,
+                i.AvailabilitySlot?.EndTime,
+                i.AvailabilitySlot?.Attraction?.Images?.FirstOrDefault(img => img.IsPrimary)?.ImageUrl 
+                ?? i.AvailabilitySlot?.Attraction?.Images?.FirstOrDefault()?.ImageUrl)).ToList(),
             booking.StatusHistory.Select(h => new BookingHistoryResponse(
                 h.Id,
                 h.PreviousStatus.ToString(),
