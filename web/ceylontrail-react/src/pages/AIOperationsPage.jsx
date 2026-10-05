@@ -108,9 +108,7 @@ function stageKey(value) {
   return stageOrder.find((item) => item.toLowerCase() === normalized) || value
 }
 
-function stageStatus(stage, execution) {
-  if (stage?.status && stage.status !== 'Pending') return stage.status
-  if (['Completed', 'Fallback'].includes(execution?.executionStatus)) return 'Completed'
+function stageStatus(stage) {
   return stage?.status || 'Pending'
 }
 
@@ -144,7 +142,7 @@ function StageCard({ stage, execution }) {
     agent: 'CeylonTrail workflow',
     description: 'Prepared this part of the journey for staff review.',
   }
-  const state = stageStatus(stage, execution)
+  const state = stageStatus(stage)
   const result = stage?.resultSummary || stage?.summary || stage?.output || execution?.[key?.toLowerCase() + 'Summary']
 
   return (
@@ -532,11 +530,7 @@ function JourneyDetail({ execution, workflow, canDecide, comment, setComment, is
                 stages.find((item) => stageKey(item.agentRole) === key) || {
                   sequence: index + 1,
                   agentRole: key,
-                  status: ['Completed', 'Fallback'].includes(execution?.executionStatus)
-                    ? 'Completed'
-                    : index < stages.length
-                      ? stages[index]?.status
-                      : 'Pending',
+                  status: index < stages.length ? stages[index]?.status : 'Pending',
                 }
               }
               execution={execution}
