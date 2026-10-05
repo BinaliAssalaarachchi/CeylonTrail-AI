@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { approveApprovalRequest, getApprovalRequest, rejectApprovalRequest } from '../api/approvals'
+import { acceptBooking, rejectBooking } from '../api/bookings'
 import { getAgentWorkflow, getTravelIntelligenceExecution, getTravelIntelligenceExecutions } from '../api/travelIntelligenceExecutions'
 import { AuthContext } from '../context/AuthContext'
 import { primaryAttractionImageFor } from '../utils/attractionImages'
@@ -301,19 +302,50 @@ export default function AIOperationsPage() {
   }, [selectedId])
 
   async function decide(decision) {
-    const approval = selected?.approval
-    if (!canDecide || !approval || approval.status !== 'Pending') return
+    if (!canDecide) return
     setIsSubmitting(true)
     setError('')
     setFeedback('')
     try {
-      if (decision === 'Approved') await approveApprovalRequest(approval.id, comment)
-      else await rejectApprovalRequest(approval.id, comment)
+      const approval = selected?.approval
+      if (approval?.id && approval.status === 'Pending') {
+        if (decision === 'Approved') {
+          await approveApprovalRequest(approval.id, comment)
+        } else {
+          await rejectApprovalRequest(approval.id, comment)
+        }
+      } else if (selected?.bookingId || workflow?.bookingId) {
+        const bookingId = selected?.bookingId || workflow?.bookingId
+        if (decision === 'Approved') {
+          await acceptBooking(bookingId)
+        } else {
+          await rejectBooking(bookingId, comment || 'Declined during human review')
+        }
+      }
+
       setComment('')
-      setFeedback(decision === 'Approved' ? 'Action approved successfully.' : 'Action rejected successfully.')
-      await loadHistory(page)
+      setFeedback(
+        decision === 'Approved'
+          ? 'Action accepted and approved successfully by human coordinator.'
+          : 'Action rejected successfully by human coordinator.'
+      )
+
+      setSelected((prev) =>
+        prev
+          ? {
+              ...prev,
+              executionStatus: decision === 'Approved' ? 'Completed' : 'Rejected',
+              executionSucceeded: decision === 'Approved',
+              approval: prev.approval
+                ? { ...prev.approval, status: decision === 'Approved' ? 'Approved' : 'Rejected' }
+                : { status: decision === 'Approved' ? 'Approved' : 'Rejected' },
+            }
+          : prev
+      )
+
+      await loadHistory(page, false)
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Unable to save this staff decision.')
+      setError(requestError.response?.data?.message || requestError.message || 'Unable to save this staff decision.')
     } finally {
       setIsSubmitting(false)
     }
@@ -580,7 +612,7 @@ function JourneyDetail({ execution, workflow, canDecide, comment, setComment, is
           </div>
         )}
 
-        {needsApproval && (
+        {canDecide && (
           <div className="ai-human-approval">
             <label className="form-field form-field-wide">
               Reviewer note <span className="field-optional">(optional)</span>
@@ -589,17 +621,17 @@ function JourneyDetail({ execution, workflow, canDecide, comment, setComment, is
                 onChange={(event) => setComment(event.target.value)}
                 maxLength="1000"
                 rows="3"
-                placeholder="Add context for the review history…"
+                placeholder="Add context or rationale for this coordinator review…"
               />
             </label>
-            <div className="modal-actions">
+            <div className="modal-actions" style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
               <button
                 className="button button-danger"
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => decide('Rejected')}
               >
-                {isSubmitting ? 'Saving…' : 'Reject action'}
+                {isSubmitting ? 'Processing…' : 'Reject proposed action'}
               </button>
               <button
                 className="button button-primary"
@@ -607,14 +639,16 @@ function JourneyDetail({ execution, workflow, canDecide, comment, setComment, is
                 disabled={isSubmitting}
                 onClick={() => decide('Approved')}
               >
-                {isSubmitting ? 'Saving…' : 'Approve action'}
+                {isSubmitting ? 'Processing…' : 'Accept / Approve action'}
               </button>
             </div>
           </div>
         )}
 
         {approval && approval.status !== 'Pending' && (
-          <p className="non-actionable-notice">This recommendation has already been reviewed. No further action is required.</p>
+          <p className="non-actionable-notice" style={{ marginTop: '10px' }}>
+            Current review record: <strong>{friendlyStatus(approval.status)}</strong>. You can re-confirm or update the decision above if necessary.
+          </p>
         )}
       </section>
 
