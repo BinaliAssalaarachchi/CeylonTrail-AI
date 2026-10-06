@@ -42,5 +42,6 @@ public record BookingResponse(
     List<BookingItemResponse> Items,
     List<BookingHistoryResponse>? StatusHistory,
     List<CancellationRequestResponse>? CancellationRequests,
-    List<TravelAlertResponse>? ActiveAdvisories = null
+    List<TravelAlertResponse>? ActiveAdvisories = null,
+    string? TripName = null
 );

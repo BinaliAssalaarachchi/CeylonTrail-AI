@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../config/api_config.dart';
 import '../models/booking_model.dart';
 import '../models/travel_alert_model.dart';
 import '../services/booking_api_service.dart';
@@ -226,21 +227,35 @@ class _DetailVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
+    final resolvedUrl = ApiConfig.resolveImageUrl(imageUrl);
+    if (resolvedUrl.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.network(
-          imageUrl!,
-          width: 54,
-          height: 54,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(16)),
-            child: const Icon(Icons.confirmation_number_outlined, color: CeylonColors.forest, size: 27),
-          ),
-        ),
+        child: resolvedUrl.startsWith('http')
+            ? Image.network(
+                resolvedUrl,
+                width: 54,
+                height: 54,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(16)),
+                  child: const Icon(Icons.confirmation_number_outlined, color: CeylonColors.forest, size: 27),
+                ),
+              )
+            : Image.asset(
+                resolvedUrl,
+                width: 54,
+                height: 54,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(16)),
+                  child: const Icon(Icons.confirmation_number_outlined, color: CeylonColors.forest, size: 27),
+                ),
+              ),
       );
     }
     return Container(

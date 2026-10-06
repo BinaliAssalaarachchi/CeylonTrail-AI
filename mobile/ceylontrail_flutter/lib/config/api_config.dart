@@ -17,14 +17,26 @@ class ApiConfig {
 
   static String resolveImageUrl(String? rawUrl) {
     if (rawUrl == null || rawUrl.trim().isEmpty) return '';
-    final url = rawUrl.trim();
+    var url = rawUrl.trim();
     if (url.startsWith('data:') || url.startsWith('blob:')) return url;
     if (url.contains('/api/images/proxy')) return url;
+
+    if (!kIsWeb && (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1') || url.startsWith('https://localhost') || url.startsWith('https://127.0.0.1'))) {
+      final uri = Uri.tryParse(url);
+      final baseUri = Uri.tryParse(baseUrl);
+      if (uri != null && baseUri != null) {
+        url = uri.replace(host: baseUri.host, port: baseUri.port, scheme: baseUri.scheme).toString();
+      }
+    }
+
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
     if (url.startsWith('/')) {
       return '$baseUrl$url';
+    }
+    if (url.startsWith('uploads/')) {
+      return '$baseUrl/$url';
     }
     return url;
   }

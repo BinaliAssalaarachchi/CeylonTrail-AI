@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../config/api_config.dart';
 import '../models/attraction_model.dart';
 import '../models/travel_alert_model.dart';
 import '../services/attraction_api_service.dart';
@@ -257,29 +258,34 @@ class _AttractionGalleryState extends State<_AttractionGallery> {
               itemCount: gallery.length,
               onPageChanged: (page) => setState(() => _page = page),
               itemBuilder: (context, index) {
-                final item = gallery[index];
+                final rawItem = gallery[index];
+                final item = ApiConfig.resolveImageUrl(rawItem);
                 return ColoredBox(
                   color: const Color(0xFF18231F),
                   child: Center(
-                    child: item.startsWith('http')
-                        ? Image.network(
-                            item,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
-                              label: 'Photo needed for this destination',
-                            ),
+                    child: item.isEmpty
+                        ? const _GalleryPlaceholder(
+                            label: 'Photo needed for this destination',
                           )
-                        : Image.asset(
-                            item,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
-                              label: 'Photo needed for this destination',
-                            ),
-                          ),
+                        : item.startsWith('http')
+                            ? Image.network(
+                                item,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
+                                  label: 'Photo needed for this destination',
+                                ),
+                              )
+                            : Image.asset(
+                                item,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (_, __, ___) => const _GalleryPlaceholder(
+                                  label: 'Photo needed for this destination',
+                                ),
+                              ),
                   ),
                 );
               },

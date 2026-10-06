@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../config/api_config.dart';
 import '../models/attraction_model.dart';
 import '../models/trip_model.dart';
 import '../services/api_client.dart';
@@ -374,7 +375,8 @@ class _AttractionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gallery = attractionGallery(attraction);
-    final image = gallery.isEmpty ? null : gallery.first;
+    final rawImage = gallery.isEmpty ? null : gallery.first;
+    final image = ApiConfig.resolveImageUrl(rawImage);
     return Material(
       color: CeylonColors.forestDeep,
       borderRadius: BorderRadius.circular(22),
@@ -386,7 +388,7 @@ class _AttractionCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              image == null
+              image.isEmpty
                   ? _MissingDestinationImage(attraction: attraction)
                   : image.startsWith('http')
                       ? Image.network(

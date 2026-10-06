@@ -144,6 +144,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     {
         var bookings = await dbContext.Bookings
             .AsNoTracking()
+            .Include(b => b.Trip)
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
@@ -168,6 +169,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 requestingUserId,
                 requestingRole)
             .AsNoTracking()
+            .Include(b => b.Trip)
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
@@ -242,6 +244,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
         query = ApplyBookingOrdering(query, request.SortBy, request.SortDirection);
         var totalCount = await query.CountAsync(cancellationToken);
         var bookings = await query
+            .Include(booking => booking.Trip)
             .Include(booking => booking.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
@@ -307,6 +310,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
     {
         var booking = await dbContext.Bookings
             .AsNoTracking()
+            .Include(b => b.Trip)
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
@@ -881,7 +885,8 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
                 cr.Status.ToString(),
                 cr.RefundAmount,
                 cr.RequestedAt)).ToList(),
-            advisories ?? new List<TravelAlertResponse>()
+            advisories ?? new List<TravelAlertResponse>(),
+            booking.Trip?.Name
         );
     }
 

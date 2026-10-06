@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../config/api_config.dart';
 import '../models/attraction_model.dart';
 import '../services/api_client.dart';
 import '../services/attraction_api_service.dart';
@@ -270,7 +271,8 @@ class _DiscoverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gallery = attractionGallery(attraction);
-    final image = gallery.isEmpty ? null : gallery.first;
+    final rawImage = gallery.isEmpty ? null : gallery.first;
+    final image = ApiConfig.resolveImageUrl(rawImage);
     return Material(
       color: CeylonColors.forestDeep,
       borderRadius: BorderRadius.circular(24),
@@ -280,7 +282,7 @@ class _DiscoverCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            image == null
+            image.isEmpty
                 ? _PhotoUnavailable(attraction: attraction)
                 : image.startsWith('http')
                     ? Image.network(image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _PhotoUnavailable(attraction: attraction))

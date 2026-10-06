@@ -71,6 +71,7 @@ class BookingModel {
   const BookingModel({
     required this.id,
     this.tripId,
+    this.tripName,
     required this.currentStatus,
     required this.totalAmount,
     required this.createdAt,
@@ -82,6 +83,7 @@ class BookingModel {
   });
   final String id;
   final String? tripId;
+  final String? tripName;
   final String currentStatus;
   final double totalAmount;
   final DateTime createdAt;
@@ -104,6 +106,9 @@ class BookingModel {
     if (names.isNotEmpty) {
       return names.join(', ');
     }
+    if (tripName != null && tripName!.trim().isNotEmpty) {
+      return tripName!.trim();
+    }
     if (items.length > 1) {
       return '${items.length} experiences reserved';
     }
@@ -111,7 +116,9 @@ class BookingModel {
   }
 
   factory BookingModel.fromJson(Map<String, dynamic> json) => BookingModel(
-    id: json['id']?.toString() ?? '', tripId: json['tripId']?.toString(),
+    id: json['id']?.toString() ?? '',
+    tripId: (json['tripId'] ?? json['TripId'])?.toString(),
+    tripName: (json['tripName'] ?? json['TripName'])?.toString(),
     currentStatus: (json['currentStatus'] ?? json['status'])?.toString() ?? '', totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
     createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime(1970), updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime(1970),
     items: (json['items'] as List<dynamic>? ?? const []).whereType<Map>().map((item) {
