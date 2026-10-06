@@ -10,12 +10,20 @@ public static class DevelopmentDataSeeder
 {
     private const string SeedPassword = "Test@123";
     private const string ApprovedStatus = "Approved";
-    private const string ProviderEmail = "PROVIDER@TEST.COM";
+    private const string ProviderEmail = "PROVIDER@EVALUATOR.COM";
     // Keep freshly seeded demo inventory bookable when the repository is used
     // after the original demo date. Existing records are preserved below.
     private static readonly DateOnly DemoDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(7);
     private static readonly SeedUser[] SeedUsers =
     [
+        // Evaluator accounts. Keep these stable because they are used in the
+        // submission/demo instructions.
+        new("tourist@evaluator.com", "Evaluator", "Tourist", UserRole.Tourist),
+        new("provider@evaluator.com", "Evaluator", "Provider", UserRole.TourismProvider),
+        new("coordinator@evaluator.com", "Evaluator", "Coordinator", UserRole.TravelCoordinator),
+        new("admin@evaluator.com", "Evaluator", "Administrator", UserRole.Administrator),
+
+        // Existing local development accounts are retained for backwards compatibility.
         new("tourist@test.com", "Test", "Tourist", UserRole.Tourist),
         new("provider@test.com", "Test", "Provider", UserRole.TourismProvider),
         new("coordinator@test.com", "Test", "Coordinator", UserRole.TravelCoordinator),
