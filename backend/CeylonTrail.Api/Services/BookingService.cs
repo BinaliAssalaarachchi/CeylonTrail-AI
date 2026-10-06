@@ -68,6 +68,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
 
             var slot = await dbContext.AvailabilitySlots
                 .Include(availabilitySlot => availabilitySlot.Attraction)
+                    .ThenInclude(attraction => attraction!.Images)
                 .FirstOrDefaultAsync(s => s.Id == item.AvailabilitySlotId, cancellationToken);
 
             if (slot == null)
@@ -146,6 +147,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
+                        .ThenInclude(a => a!.Images)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .Where(b => b.UserId == touristId)
@@ -169,6 +171,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
+                        .ThenInclude(a => a!.Images)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .OrderByDescending(b => b.CreatedAt)
@@ -242,6 +245,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Include(booking => booking.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
+                        .ThenInclude(a => a!.Images)
             .Include(booking => booking.StatusHistory)
             .Include(booking => booking.CancellationRequests)
             .Skip((request.Page - 1) * request.PageSize)
@@ -306,6 +310,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
+                        .ThenInclude(a => a!.Images)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
@@ -334,6 +339,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
+                        .ThenInclude(a => a!.Images)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
@@ -419,6 +425,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
+                        .ThenInclude(a => a!.Images)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
@@ -493,6 +500,7 @@ public sealed class BookingService(ApplicationDbContext dbContext) : IBookingSer
             .Include(b => b.Items)
                 .ThenInclude(i => i.AvailabilitySlot)
                     .ThenInclude(s => s.Attraction)
+                        .ThenInclude(a => a!.Images)
             .Include(b => b.StatusHistory)
             .Include(b => b.CancellationRequests)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);

@@ -262,8 +262,12 @@ class _BookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = bookingStatusPresentation(booking.status);
-    final itemCount = booking.items.length;
-    final guestCount = booking.items.fold<int>(0, (sum, item) => sum + item.numberOfGuests);
+    final firstItem = booking.items.isNotEmpty ? booking.items.first : null;
+    final primaryImageUrl = booking.items
+        .where((i) => i.attractionImageUrl != null && i.attractionImageUrl!.isNotEmpty)
+        .firstOrNull
+        ?.attractionImageUrl;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       clipBehavior: Clip.antiAlias,
@@ -277,13 +281,13 @@ class _BookingCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _ReservationVisual(),
+                  _ReservationVisual(imageUrl: primaryImageUrl),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(itemCount > 1 ? '$itemCount experiences reserved' : 'Your reservation',
+                        Text(booking.displayTitle,
                             style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 8),
                         _StatusChip(status: status),
@@ -303,6 +307,11 @@ class _BookingCard extends StatelessWidget {
                 spacing: 18,
                 runSpacing: 8,
                 children: [
+                  if (firstItem?.district != null && firstItem!.district!.isNotEmpty)
+                    _InfoItem(
+                      icon: Icons.location_on_outlined,
+                      text: firstItem.district!,
+                    ),
                   if (guestCount > 0)
                     _InfoItem(
                       icon: Icons.people_outline,
@@ -329,10 +338,29 @@ class _BookingCard extends StatelessWidget {
 }
 
 class _ReservationVisual extends StatelessWidget {
-  const _ReservationVisual();
+  const _ReservationVisual({this.imageUrl});
+
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
+    if (imageUrl != null && imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          imageUrl!,
+          width: 58,
+          height: 58,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(16)),
+            child: const Icon(Icons.confirmation_number_outlined, color: CeylonColors.forest, size: 28),
+          ),
+        ),
+      );
+    }
     return Container(
       width: 58,
       height: 58,

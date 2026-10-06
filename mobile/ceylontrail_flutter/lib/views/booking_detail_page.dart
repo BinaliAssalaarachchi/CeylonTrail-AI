@@ -142,14 +142,19 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const _DetailVisual(),
+                            _DetailVisual(
+                              imageUrl: _currentBooking.items
+                                  .where((i) => i.attractionImageUrl != null && i.attractionImageUrl!.isNotEmpty)
+                                  .firstOrNull
+                                  ?.attractionImageUrl,
+                            ),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _currentBooking.items.length > 1 ? '${_currentBooking.items.length} experiences reserved' : 'Your reservation',
+                                    _currentBooking.displayTitle,
                                     style: Theme.of(context).textTheme.headlineMedium,
                                   ),
                                   const SizedBox(height: 10),
@@ -215,10 +220,29 @@ String _guestLabel(BookingModel booking) {
 }
 
 class _DetailVisual extends StatelessWidget {
-  const _DetailVisual();
+  const _DetailVisual({this.imageUrl});
+
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
+    if (imageUrl != null && imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          imageUrl!,
+          width: 54,
+          height: 54,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(color: CeylonColors.mint, borderRadius: BorderRadius.circular(16)),
+            child: const Icon(Icons.confirmation_number_outlined, color: CeylonColors.forest, size: 27),
+          ),
+        ),
+      );
+    }
     return Container(
       width: 54,
       height: 54,
@@ -313,6 +337,10 @@ class _BookingItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = (item.attractionName != null && item.attractionName!.isNotEmpty)
+        ? item.attractionName!
+        : 'Experience ${index + 1}';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -320,8 +348,28 @@ class _BookingItemCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Experience ${index + 1}', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            if (item.district != null && item.district!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, size: 16, color: CeylonColors.inkMuted),
+                  const SizedBox(width: 4),
+                  Text(item.district!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: CeylonColors.inkMuted)),
+                ],
+              ),
+            ],
+            if (item.slotStartTime != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.schedule_outlined, size: 16, color: CeylonColors.inkMuted),
+                  const SizedBox(width: 4),
+                  Text(_formatDate(item.slotStartTime!), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: CeylonColors.inkMuted)),
+                ],
+              ),
+            ],
+            const SizedBox(height: 10),
             Text('${item.numberOfGuests} ${item.numberOfGuests == 1 ? 'guest' : 'guests'} × ${formatLkr(item.unitPrice)}'),
             const SizedBox(height: 10),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [

@@ -24,12 +24,28 @@ class AvailabilitySlotModel {
 }
  
 class BookingItemModel {
-  const BookingItemModel({required this.id, required this.availabilitySlotId, required this.numberOfGuests, required this.unitPrice, required this.subtotal});
+  const BookingItemModel({
+    required this.id,
+    required this.availabilitySlotId,
+    required this.numberOfGuests,
+    required this.unitPrice,
+    required this.subtotal,
+    this.attractionName,
+    this.district,
+    this.slotStartTime,
+    this.slotEndTime,
+    this.attractionImageUrl,
+  });
   final String id;
   final String availabilitySlotId;
   final int numberOfGuests;
   final double unitPrice;
   final double subtotal;
+  final String? attractionName;
+  final String? district;
+  final DateTime? slotStartTime;
+  final DateTime? slotEndTime;
+  final String? attractionImageUrl;
 }
 
 class BookingHistoryModel {
@@ -78,6 +94,22 @@ class BookingModel {
   String get status => currentStatus;
   CancellationModel? get cancellation => cancellationRequests.isEmpty ? null : cancellationRequests.last;
 
+  String get displayTitle {
+    final names = items
+        .map((i) => i.attractionName?.trim())
+        .where((name) => name != null && name.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+    if (names.isNotEmpty) {
+      return names.join(', ');
+    }
+    if (items.length > 1) {
+      return '${items.length} experiences reserved';
+    }
+    return 'Your reservation';
+  }
+
   factory BookingModel.fromJson(Map<String, dynamic> json) => BookingModel(
     id: json['id']?.toString() ?? '', tripId: json['tripId']?.toString(),
     currentStatus: (json['currentStatus'] ?? json['status'])?.toString() ?? '', totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
@@ -85,8 +117,16 @@ class BookingModel {
     items: (json['items'] as List<dynamic>? ?? const []).whereType<Map>().map((item) {
       final map = Map<String, dynamic>.from(item);
       return BookingItemModel(
-        id: map['id']?.toString() ?? '', availabilitySlotId: (map['availabilitySlotId'] ?? map['attractionId'])?.toString() ?? '', numberOfGuests: ((map['numberOfGuests'] ?? map['quantity']) as num?)?.toInt() ?? 0,
-        unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0, subtotal: ((map['subTotal'] ?? map['subtotal']) as num?)?.toDouble() ?? 0,
+        id: map['id']?.toString() ?? '',
+        availabilitySlotId: (map['availabilitySlotId'] ?? map['attractionId'])?.toString() ?? '',
+        numberOfGuests: ((map['numberOfGuests'] ?? map['quantity']) as num?)?.toInt() ?? 0,
+        unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0,
+        subtotal: ((map['subTotal'] ?? map['subtotal']) as num?)?.toDouble() ?? 0,
+        attractionName: (map['attractionName'] ?? map['AttractionName'])?.toString(),
+        district: (map['district'] ?? map['District'])?.toString(),
+        slotStartTime: DateTime.tryParse((map['slotStartTime'] ?? map['SlotStartTime'])?.toString() ?? ''),
+        slotEndTime: DateTime.tryParse((map['slotEndTime'] ?? map['SlotEndTime'])?.toString() ?? ''),
+        attractionImageUrl: (map['attractionImageUrl'] ?? map['AttractionImageUrl'])?.toString(),
       );
     }).toList(),
     statusHistory: (json['statusHistory'] as List<dynamic>? ?? const []).whereType<Map>().map((entry) {
