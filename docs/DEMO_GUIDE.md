@@ -83,8 +83,8 @@ All seeded accounts use password `Test@123`:
 | Travel Coordinator | `coordinator@evaluator.com` |
 | Administrator | `admin@evaluator.com` |
 
-The password for all four evaluator accounts is `Test@123`. The older `@test.com`
-accounts are also retained for local backwards compatibility.
+The password for all evaluator and original demo accounts is `Test@123`. Both
+email formats remain available.
 
 Use the Tourist account for the main journey demo, the Provider account for booking management, and the Coordinator or Administrator account for AI review and approvals.
 

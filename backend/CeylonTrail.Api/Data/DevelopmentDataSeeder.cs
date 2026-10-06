@@ -23,11 +23,12 @@ public static class DevelopmentDataSeeder
         new("coordinator@evaluator.com", "Evaluator", "Coordinator", UserRole.TravelCoordinator),
         new("admin@evaluator.com", "Evaluator", "Administrator", UserRole.Administrator),
 
-        // Existing local development accounts are retained for backwards compatibility.
+        // Keep the original demo credentials working as well.
         new("tourist@test.com", "Test", "Tourist", UserRole.Tourist),
         new("provider@test.com", "Test", "Provider", UserRole.TourismProvider),
         new("coordinator@test.com", "Test", "Coordinator", UserRole.TravelCoordinator),
         new("admin@test.com", "Test", "Administrator", UserRole.Administrator)
+
     ];
 
     public static async Task SeedAsync(

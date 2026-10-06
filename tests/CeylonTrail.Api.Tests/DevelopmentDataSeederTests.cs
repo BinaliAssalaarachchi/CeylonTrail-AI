@@ -19,14 +19,19 @@ public sealed class DevelopmentDataSeederTests
 
         var users = await dbContext.Users.OrderBy(user => user.Email).ToListAsync();
 
-        Assert.Equal(4, users.Count);
+        Assert.Equal(8, users.Count);
         Assert.Equal(
-            ["ADMIN@TEST.COM", "COORDINATOR@TEST.COM", "PROVIDER@TEST.COM", "TOURIST@TEST.COM"],
+            [
+                "ADMIN@EVALUATOR.COM", "ADMIN@TEST.COM",
+                "COORDINATOR@EVALUATOR.COM", "COORDINATOR@TEST.COM",
+                "PROVIDER@EVALUATOR.COM", "PROVIDER@TEST.COM",
+                "TOURIST@EVALUATOR.COM", "TOURIST@TEST.COM"
+            ],
             users.Select(user => user.Email).ToArray());
-        Assert.Equal(UserRole.Administrator, users[0].Role);
-        Assert.Equal(UserRole.TravelCoordinator, users[1].Role);
-        Assert.Equal(UserRole.TourismProvider, users[2].Role);
-        Assert.Equal(UserRole.Tourist, users[3].Role);
+        Assert.All(users.Where(user => user.Email.StartsWith("ADMIN@")), user => Assert.Equal(UserRole.Administrator, user.Role));
+        Assert.All(users.Where(user => user.Email.StartsWith("COORDINATOR@")), user => Assert.Equal(UserRole.TravelCoordinator, user.Role));
+        Assert.All(users.Where(user => user.Email.StartsWith("PROVIDER@")), user => Assert.Equal(UserRole.TourismProvider, user.Role));
+        Assert.All(users.Where(user => user.Email.StartsWith("TOURIST@")), user => Assert.Equal(UserRole.Tourist, user.Role));
         Assert.All(users, user =>
         {
             Assert.DoesNotContain("Test@123", user.PasswordHash);
@@ -46,7 +51,7 @@ public sealed class DevelopmentDataSeederTests
             Id = Guid.NewGuid(),
             FirstName = "Existing",
             LastName = "Coordinator",
-            Email = "COORDINATOR@TEST.COM",
+            Email = "COORDINATOR@EVALUATOR.COM",
             PasswordHash = "existing-hash",
             Role = UserRole.TravelCoordinator,
             IsActive = true,
@@ -59,7 +64,11 @@ public sealed class DevelopmentDataSeederTests
         await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
         await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
 
-        Assert.Equal(4, await dbContext.Users.CountAsync());
+        Assert.Equal(8, await dbContext.Users.CountAsync());
+        Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Email == "COORDINATOR@EVALUATOR.COM"));
+        Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Email == "ADMIN@EVALUATOR.COM"));
+        Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Email == "PROVIDER@EVALUATOR.COM"));
+        Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Email == "TOURIST@EVALUATOR.COM"));
         Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Email == "COORDINATOR@TEST.COM"));
         Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Email == "ADMIN@TEST.COM"));
         Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Email == "PROVIDER@TEST.COM"));
@@ -98,8 +107,8 @@ public sealed class DevelopmentDataSeederTests
         var passwordHasher = new PasswordHasher<User>();
         await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
 
-        var provider = await dbContext.Users.SingleAsync(user => user.Email == "PROVIDER@TEST.COM");
-        var tourist = await dbContext.Users.SingleAsync(user => user.Email == "TOURIST@TEST.COM");
+        var provider = await dbContext.Users.SingleAsync(user => user.Email == "PROVIDER@EVALUATOR.COM");
+        var tourist = await dbContext.Users.SingleAsync(user => user.Email == "TOURIST@EVALUATOR.COM");
         var attractionId = Guid.Parse("55555555-5555-5555-5555-555555555555");
         var slotId = Guid.Parse("77777777-7777-7777-7777-777777777777");
         await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher);
