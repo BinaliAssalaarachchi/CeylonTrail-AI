@@ -264,6 +264,7 @@ class _BookingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = bookingStatusPresentation(booking.status);
     final firstItem = booking.items.isNotEmpty ? booking.items.first : null;
+    final guestCount = booking.items.fold<int>(0, (sum, item) => sum + item.numberOfGuests);
     final primaryImageUrl = booking.items
         .where((i) => i.attractionImageUrl != null && i.attractionImageUrl!.isNotEmpty)
         .firstOrNull
